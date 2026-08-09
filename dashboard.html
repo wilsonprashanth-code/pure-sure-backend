@@ -413,8 +413,10 @@ function brandPanel() {
     <input id="brandName" value="${DB.settings.restaurantName}" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
     <label class="text-xs font-semibold text-brand-500">Tagline</label>
     <input id="brandTagline" value="${DB.settings.tagline}" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
-    <label class="text-xs font-semibold text-brand-500">Logo Image URL</label>
-    <input id="brandLogo" value="${DB.settings.logoUrl.startsWith('data:') ? '' : DB.settings.logoUrl}" placeholder="https://…" class="w-full mt-1 mb-2 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
+    
+    <label class="text-xs font-semibold text-brand-500">Logo Photo (Upload File)</label>
+    <input id="brandLogoFile" type="file" accept="image/*" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2 text-sm bg-white">
+    
     <div class="flex items-center gap-3 mb-4">
       <img id="logoPreview" src="${DB.settings.logoUrl}" class="w-14 h-14 rounded-full bg-brand p-1.5 object-contain">
       <button id="resetLogoBtn" class="text-xs font-semibold text-brand-500 underline">Reset logo</button>
@@ -553,8 +555,12 @@ function wireKitchen() {
   if (saveBrand) saveBrand.onclick = async () => {
     DB.settings.restaurantName = document.getElementById('brandName').value.trim() || DB.settings.restaurantName;
     DB.settings.tagline = document.getElementById('brandTagline').value.trim();
-    const logoVal = document.getElementById('brandLogo').value.trim();
-    if (logoVal) DB.settings.logoUrl = logoVal;
+    
+    const fileInput = document.getElementById('brandLogoFile');
+    if (fileInput && fileInput.files[0]) {
+      DB.settings.logoUrl = await getBase64(fileInput.files[0]);
+    }
+
     await saveAndSync('settings'); render(); toast('Brand settings saved.', 'image');
   };
 
@@ -598,7 +604,7 @@ async function pollSync() {
   await loadAll();
   PREV_ORDER_IDS = new Set(DB.orders.map(o => o.id));
   render();
-  setInterval(pollSync, 3000);
+  setInterval(pollSync, 2000);
 })();
 </script>
 </body>
