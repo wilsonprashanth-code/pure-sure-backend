@@ -9,93 +9,226 @@
     :root {
       --primary: #0a5c43;
       --primary-dark: #063d2c;
+      --accent: #27ae60;
       --bg: #f4f7f6;
       --card-bg: #ffffff;
-      --text: #2c3e50;
+      --text: #1f2937;
+      --text-muted: #6b7280;
     }
 
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); margin: 0; padding: 0; color: var(--text); }
+    body { background: var(--bg); margin: 0; padding: 0; color: var(--text); padding-bottom: 90px; }
 
-    /* Header Styling */
-    header { background: var(--primary); color: white; padding: 20px 15px; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
-    .brand-title { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 20px; }
-    .table-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; margin-top: 10px; }
+    /* Premium Banner Header */
+    header { background: var(--primary); color: white; padding: 20px 20px 30px; border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; position: relative; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .brand-logo { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 18px; text-transform: lowercase; }
+    .brand-logo span { font-size: 22px; }
+    .sub-tagline { font-size: 11px; opacity: 0.85; letter-spacing: 0.5px; margin-top: 2px; }
 
-    .container { padding: 15px; max-width: 600px; margin: 0 auto; }
+    .header-badges { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; }
+    .table-badge { background: rgba(255,255,255,0.18); padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+    .cert-badge { color: #6ee7b7; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
 
-    /* Dish Card Layout */
-    .dish-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); display: flex; justify-content: space-between; align-items: center; }
-    .dish-info h3 { margin: 0 0 5px 0; font-size: 16px; color: var(--text); }
-    .dish-price { font-weight: bold; color: var(--primary); font-size: 15px; }
+    /* Search & Category Filter Section */
+    .search-wrapper { margin: -20px 20px 15px; position: relative; z-index: 10; }
+    .search-input { width: 100%; padding: 14px 16px 14px 42px; border-radius: 30px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.08); font-size: 14px; outline: none; }
+    .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 16px; }
 
-    .add-btn { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    .add-btn:active { background: var(--primary-dark); }
+    .categories-bar { display: flex; gap: 10px; overflow-x: auto; padding: 0 20px 15px; scrollbar-width: none; }
+    .categories-bar::-webkit-scrollbar { display: none; }
+    .cat-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid #e5e7eb; background: white; font-size: 13px; font-weight: 600; color: var(--text-muted); white-space: nowrap; cursor: pointer; }
+    .cat-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Dish Cards Styling */
+    .menu-container { padding: 0 20px; }
+    .dish-card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); display: flex; gap: 14px; position: relative; }
+    .dish-img { width: 95px; height: 95px; border-radius: 12px; object-fit: cover; background: #e5e7eb; flex-shrink: 0; }
+    .dish-details { flex-grow: 1; }
+    .dish-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text); }
+    .dish-desc { font-size: 12px; color: var(--text-muted); margin: 0 0 8px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .tags-container { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .tag { font-size: 10px; padding: 3px 8px; border-radius: 12px; font-weight: 600; background: #ecfdf5; color: #047857; }
+    .tag.high-protein { background: #eff6ff; color: #1d4ed8; }
+
+    .macros { display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); margin-bottom: 8px; font-weight: 500; }
+    .price-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+    .dish-price { font-size: 16px; font-weight: 800; color: var(--primary); }
+
+    .add-btn { background: var(--primary); color: white; border: none; padding: 8px 22px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; }
+    .add-btn:active { transform: scale(0.96); }
+
+    /* Floating Cart Bar */
+    .cart-float-bar { position: fixed; bottom: 20px; left: 20px; right: 20px; background: var(--primary); color: white; border-radius: 16px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(10,92,67,0.35); z-index: 100; transform: translateY(120%); transition: 0.3s ease; }
+    .cart-float-bar.visible { transform: translateY(0); }
+    .cart-btn { background: #22c55e; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
 
   <header>
-    <div class="brand-title">
-      <span>🥗</span> phalada pure & sure
+    <div class="top-bar">
+      <div class="brand-logo">
+        <span>🌱</span> phalada pure & sure
+      </div>
     </div>
-    <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">EVERYDAY FOOD, MADE GOOD.</p>
-    <div class="table-badge" id="tableDisplay">📍 Table 01</div>
+    <div class="sub-tagline">EVERYDAY FOOD, MADE GOOD. SINCE 1999</div>
+    <div class="header-badges">
+      <div class="table-badge" id="tableDisplay">📍 Table 01</div>
+      <div class="cert-badge">🍃 100% Certified Organic</div>
+    </div>
   </header>
 
-  <div class="container">
-    <h2 style="font-size: 18px; margin-top: 10px;">Organic Cafe Menu</h2>
-    <div id="menuContainer">Loading dynamic menu...</div>
+  <div class="search-wrapper">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Search dishes, ingredients..." oninput="filterDishes()">
+  </div>
+
+  <div class="categories-bar">
+    <button class="cat-btn active" onclick="setCategory('All', this)">All</button>
+    <button class="cat-btn" onclick="setCategory('Organic Bowls', this)">Organic Bowls</button>
+    <button class="cat-btn" onclick="setCategory('Cafe Classics', this)">Cafe Classics</button>
+    <button class="cat-btn" onclick="setCategory('Beverages', this)">Beverages</button>
+  </div>
+
+  <div class="menu-container" id="menuContainer">Loading organic menu...</div>
+
+  <div class="cart-float-bar" id="cartBar">
+    <div>
+      <div style="font-size: 12px; opacity: 0.85;" id="cartCount">0 ITEMS</div>
+      <div style="font-size: 16px; font-weight: bold;" id="cartTotal">Total: ₹0</div>
+    </div>
+    <button class="cart-btn" onclick="submitOrder()">Confirm & Send</button>
   </div>
 
   <script>
     const API_URL = 'https://pure-sure-api.onrender.com';
     const socket = io(API_URL);
 
-    // Get Table Number from URL Params (?table=2)
+    let allDishes = [];
+    let cart = [];
+    let activeCategory = 'All';
+
+    // Get Table Number
     const urlParams = new URLSearchParams(window.location.search);
     const tableNum = urlParams.get('table') || '1';
     document.getElementById('tableDisplay').innerText = `📍 Table ${tableNum.padStart(2, '0')}`;
 
-    // Fetch dynamic menu directly from Render Cloud API
-    async function fetchLiveMenu() {
+    // Sample Default Seeding Data
+    const defaultDishes = [
+      {
+        name: 'Ancient Grain Organic Buddha Bowl',
+        category: 'Organic Bowls',
+        price: 320,
+        desc: 'Organic red rice, roasted chickpeas, steamed kale, roasted pumpkin & tahini turmeric dressing.',
+        tags: ['100% Organic', 'Vegan', 'Gluten-Free'],
+        macros: '🔥 420 kcal  •  💪 P: 14g  •  🌾 C: 58g',
+        img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300&q=80'
+      },
+      {
+        name: 'Pure & Sure Organic Paneer Sandwich',
+        category: 'Cafe Classics',
+        price: 240,
+        desc: 'Artisanal sourdough, fresh organic cottage cheese, mint pesto, grilled pepper & microgreens.',
+        tags: ['High Protein', 'Organic Dairy'],
+        macros: '🔥 380 kcal  •  💪 P: 18g  •  🌾 C: 34g',
+        img: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=300&q=80'
+      }
+    ];
+
+    async function fetchMenu() {
       try {
         const res = await fetch(`${API_URL}/api/menu`);
-        const items = await res.json();
+        let items = await res.json();
         
-        // Filter out items marked as out-of-stock
-        const inStockItems = items.filter(item => item.inStock !== false);
-        renderMenu(inStockItems);
+        // If DB has no items yet, seed default menu
+        if (!items || items.length === 0) {
+          for (let dish of defaultDishes) {
+            await fetch(`${API_URL}/api/menu`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...dish, inStock: true })
+            });
+          }
+          const seededRes = await fetch(`${API_URL}/api/menu`);
+          items = await seededRes.json();
+        }
+
+        allDishes = items.filter(d => d.inStock !== false);
+        renderDishes();
       } catch (err) {
-        console.error('Error fetching menu:', err);
-        document.getElementById('menuContainer').innerHTML = '<p>Unable to load menu right now.</p>';
+        console.error(err);
       }
     }
 
-    function renderMenu(items) {
+    function renderDishes() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
       const container = document.getElementById('menuContainer');
-      if (!items.length) {
-        container.innerHTML = '<p>No items currently available.</p>';
+
+      const filtered = allDishes.filter(d => {
+        const matchesCat = activeCategory === 'All' || d.category === activeCategory;
+        const matchesSearch = d.name.toLowerCase().includes(query) || (d.desc && d.desc.toLowerCase().includes(query));
+        return matchesCat && matchesSearch;
+      });
+
+      if (!filtered.length) {
+        container.innerHTML = '<p style="text-align:center; color:#999; margin-top:30px;">No dishes match your search.</p>';
         return;
       }
 
-      container.innerHTML = items.map(item => `
+      container.innerHTML = filtered.map(d => `
         <div class="dish-card">
-          <div class="dish-info">
-            <h3>${item.name}</h3>
-            <div class="dish-price">₹${item.price}</div>
+          <img src="${d.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&q=80'}" class="dish-img" alt="${d.name}">
+          <div class="dish-details">
+            <h3 class="dish-title">${d.name}</h3>
+            <p class="dish-desc">${d.desc || 'Freshly prepared with farm-direct organic ingredients.'}</p>
+            <div class="tags-container">
+              ${(d.tags || ['100% Organic']).map(t => `<span class="tag ${t === 'High Protein' ? 'high-protein' : ''}">${t}</span>`).join('')}
+            </div>
+            ${d.macros ? `<div class="macros">${d.macros}</div>` : ''}
+            <div class="price-row">
+              <span class="dish-price">₹${d.price}</span>
+              <button class="add-btn" onclick="addToCart('${d.name}', ${d.price})">+ Add</button>
+            </div>
           </div>
-          <button class="add-btn" onclick="addToCart('${item.name}', ${item.price})">+ Add</button>
         </div>
       `).join('');
     }
 
-    async function addToCart(name, price) {
-      // Direct API Order Post
+    function setCategory(cat, btn) {
+      activeCategory = cat;
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderDishes();
+    }
+
+    function filterDishes() {
+      renderDishes();
+    }
+
+    function addToCart(name, price) {
+      cart.push({ name, price, qty: 1 });
+      updateCartBar();
+    }
+
+    function updateCartBar() {
+      const cartBar = document.getElementById('cartBar');
+      if (cart.length > 0) {
+        cartBar.classList.add('visible');
+        const total = cart.reduce((sum, item) => sum + item.price, 0);
+        document.getElementById('cartCount').innerText = `${cart.length} ITEM${cart.length > 1 ? 'S' : ''}`;
+        document.getElementById('cartTotal').innerText = `Total: ₹${total}`;
+      } else {
+        cartBar.classList.remove('visible');
+      }
+    }
+
+    async function submitOrder() {
       const orderPayload = {
         id: 'ORD-' + Date.now().toString().slice(-6),
         table: tableNum,
-        items: [{ name, price, qty: 1 }],
+        items: cart,
         type: 'Dine-In',
         status: 'received'
       };
@@ -106,14 +239,13 @@
         body: JSON.stringify(orderPayload)
       });
 
-      alert(`Added "${name}" to your order!`);
+      alert('Order placed successfully! Kitchen has been notified.');
+      cart = [];
+      updateCartBar();
     }
 
-    // Load menu immediately on startup
-    fetchLiveMenu();
-
-    // Re-fetch menu automatically whenever admin modifies items/stock
-    socket.on('menu_updated', () => fetchLiveMenu());
+    fetchMenu();
+    socket.on('menu_updated', () => fetchMenu());
   </script>
 </body>
 </html>
