@@ -76,7 +76,7 @@ let DB = {
   menu: [], retail: [], orders: []
 };
 
-let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false, custName:'', custPhone:'', dismissedBills: new Set(), viewHistoryOrder: null };
+let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false, custName:'', custPhone:'', activeOrderId: null, dismissedBills: new Set(), viewHistoryOrder: null };
 
 function money(n) { return '₹' + Number(n).toFixed(2); }
 function uid() { return Math.floor(1000 + Math.random() * 9000).toString(); }
@@ -117,8 +117,15 @@ function render() {
 
 function customerShell() {
   const table = session.table;
-  const activeOrder = [...DB.orders].reverse().find(o => o.table === table && o.status !== 'served');
-  const servedOrder = [...DB.orders].reverse().find(o => o.table === table && o.status === 'served' && !session.dismissedBills.has(o.id));
+  const userPhone = (session.custPhone || '').trim();
+
+  const activeOrder = (userPhone && userPhone.length === 10)
+    ? [...DB.orders].reverse().find(o => o.table === table && o.customerPhone === userPhone && o.status !== 'served')
+    : (session.activeOrderId ? DB.orders.find(o => o.id === session.activeOrderId && o.status !== 'served') : null);
+
+  const servedOrder = session.activeOrderId 
+    ? DB.orders.find(o => o.id === session.activeOrderId && o.status === 'served' && !session.dismissedBills.has(o.id))
+    : null;
 
   return `
   <div class="min-h-screen bg-cream pb-28">
@@ -461,8 +468,13 @@ function crossSellModal() {
 }
 
 function statusPanel(order) {
-  const past = [...DB.orders].reverse().filter(o => o.table === session.table);
-  
+  const userPhone = (session.custPhone || '').trim();
+
+  // Strictly block showing ANY history unless a valid 10-digit phone number is entered
+  const past = (userPhone && userPhone.length === 10)
+    ? [...DB.orders].reverse().filter(o => o.table === session.table && o.customerPhone === userPhone)
+    : [];
+
   return `
   <div class="space-y-4">
     ${order ? `
@@ -488,11 +500,11 @@ function statusPanel(order) {
       <div class="border-t border-brand-50 pt-3 space-y-1">
         ${order.items.map(it => `<div class="flex justify-between text-sm"><span>${it.qty}× ${it.name}</span><span class="text-brand-500">${money(it.qty*it.price)}</span></div>`).join('')}
       </div>
-    </div>` : emptyState('No active order for this table.')}
+    </div>` : emptyState('No active order placed in this session.')}
 
     ${past.length ? `
     <div class="mt-6 bg-white rounded-2xl card-shadow p-4">
-      <div class="text-xs font-bold uppercase tracking-wide text-brand-700 mb-3">Order History (Table ${session.table})</div>
+      <div class="text-xs font-bold uppercase tracking-wide text-brand-700 mb-3">Your Session History</div>
       <div class="space-y-2">
         ${past.map(o => orderHistoryRow(o)).join('')}
       </div>
@@ -581,6 +593,7 @@ function wireCustomer() {
       ts: Date.now()
     };
 
+    session.activeOrderId = newOrder.id;
     await db.ref('orders/' + newOrder.id).set(newOrder);
 
     session.cafeCart = []; session.retailCart = []; session.cartNotes = ''; session.cartOpen = false; session.showCrossSell = true;
@@ -593,6 +606,7 @@ function wireCustomer() {
   const closeBill = document.getElementById('closeBillBtn');
   if (closeBill) closeBill.onclick = () => {
     session.dismissedBills.add(closeBill.dataset.id);
+    session.activeOrderId = null;
     render();
   };
 
