@@ -125,7 +125,7 @@ function playLoudAlarm() {
   });
 }
 
-function money(n) { return '₹' + Number(n).toFixed(0); }
+function money(n) { return '₹' + Number(n).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
   const host = document.getElementById('toastHost'); if (!host) return;
@@ -154,6 +154,12 @@ function formatDuration(ms) {
 function formatTime(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function calculateOrderTotal(order) {
+  const cafeSub = (order.items || []).filter(i => i.kind === 'cafe' || (!i.kind && order.type === 'cafe')).reduce((a, b) => a + (b.price * b.qty), 0);
+  const retailSub = (order.items || []).filter(i => i.kind === 'retail' || (!i.kind && order.type === 'retail')).reduce((a, b) => a + (b.price * b.qty), 0);
+  return cafeSub + (cafeSub * 0.05) + retailSub;
 }
 
 function downloadCafeTemplate() {
@@ -296,7 +302,7 @@ function orderCard(o) {
   return `
   <div class="bg-white rounded-xl card-shadow p-3.5 border-l-4 ${o.status==='ready'?'border-green-500':o.status==='preparing'?'border-brand-500':'border-gold'}">
     <div class="flex items-center justify-between mb-1">
-      <span class="font-display text-base">Table ${o.table}</span>
+      <span class="font-display text-base font-bold">Order #${o.id} · Table ${o.table}</span>
       <span class="text-[10px] text-brand-400">${timeAgo(o.ts)}</span>
     </div>
     ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-1.5"><i data-lucide="user" class="w-3 h-3 inline mr-1 text-gold-600"></i>${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
@@ -326,25 +332,31 @@ function historyPanel() {
             <th class="p-3">Table</th>
             <th class="p-3">Customer</th>
             <th class="p-3">Type</th>
-            <th class="p-3">Items</th>
+            <th class="p-3">Item Breakdown (Sl No.)</th>
+            <th class="p-3 font-bold text-right">Billed Amount</th>
             <th class="p-3">Ordered Time</th>
             <th class="p-3">Completed Time</th>
-            <th class="p-3">Time Taken to Prepare</th>
+            <th class="p-3">Prep Duration</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-brand-50">
           ${completedOrders.map(o => `
             <tr class="hover:bg-brand-50/50 transition">
-              <td class="p-3 font-mono font-bold">#${o.id.slice(-6)}</td>
+              <td class="p-3 font-mono font-bold text-brand-900">#${o.id}</td>
               <td class="p-3 font-bold text-brand-800">Table ${o.table}</td>
               <td class="p-3 font-semibold text-brand-900">${o.customerName || 'Guest'}<br><span class="text-[10px] text-brand-400">${o.customerPhone || ''}</span></td>
               <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.type==='retail'?'bg-gold-100 text-gold-800':'bg-brand-100 text-brand-800'}">${o.type.toUpperCase()}</span></td>
-              <td class="p-3">${o.items.map(i => `${i.qty}× ${i.name}`).join(', ')}</td>
+              <td class="p-3">
+                <ol class="list-decimal list-inside space-y-0.5 text-brand-800">
+                  ${(o.items || []).map(i => `<li>${i.qty}× ${i.name} (${money(i.price * i.qty)})</li>`).join('')}
+                </ol>
+              </td>
+              <td class="p-3 text-right font-bold text-brand-900 text-sm">${money(calculateOrderTotal(o))}</td>
               <td class="p-3 text-brand-600">${formatTime(o.ts)}</td>
               <td class="p-3 text-brand-600">${formatTime(o.completedTs)}</td>
               <td class="p-3 font-bold text-green-700">${formatDuration(o.completedTs - o.ts)}</td>
             </tr>
-          `).join('') || `<tr><td colspan="8" class="text-center py-8 text-brand-400">No completed orders recorded yet.</td></tr>`}
+          `).join('') || `<tr><td colspan="9" class="text-center py-8 text-brand-400">No completed orders recorded yet.</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -395,7 +407,7 @@ function retailBoard(orders) {
     ${active.map(o => `
     <div class="bg-white rounded-xl card-shadow p-4 border-l-4 border-gold relative overflow-hidden">
       <span class="absolute top-0 right-0 bg-gold text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">RETAIL ORDER</span>
-      <div class="font-display text-base mb-0.5">Table ${o.table}</div>
+      <div class="font-display text-base mb-0.5">Order #${o.id} · Table ${o.table}</div>
       ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-1">${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
       <div class="text-[10px] text-brand-400 mb-2">${timeAgo(o.ts)}</div>
       ${o.items.map(it => `<div class="text-xs text-brand-700">${it.qty}× ${it.name}</div>`).join('')}

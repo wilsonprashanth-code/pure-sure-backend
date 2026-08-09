@@ -78,7 +78,7 @@ let DB = {
 let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false, custName:'', custPhone:'', dismissedBills: new Set() };
 
 function money(n) { return '₹' + Number(n).toFixed(2); }
-function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
+function uid() { return Math.floor(1000 + Math.random() * 9000).toString(); }
 function toast(msg, icon) {
   const host = document.getElementById('toastHost'); if (!host) return;
   const el = document.createElement('div');
@@ -339,7 +339,7 @@ function billModal(order) {
         <i data-lucide="receipt" class="w-6 h-6"></i>
       </div>
       <h3 class="font-display text-xl text-brand-900 mb-0.5">Order Served!</h3>
-      <p class="text-xs text-brand-500 mb-3">Table ${order.table} · #${order.id.slice(-4)}</p>
+      <p class="text-xs text-brand-500 mb-3">Table ${order.table} · Order #${order.id}</p>
 
       <div class="bg-cream rounded-2xl p-4 text-left space-y-2 mb-4">
         <div class="text-xs font-bold text-brand-800 border-b border-brand-100 pb-1.5 flex justify-between">
@@ -382,7 +382,12 @@ function billModal(order) {
         </div>
       </div>
 
-      <button id="closeBillBtn" data-id="${order.id}" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm hover:bg-brand-600 transition">Close Receipt</button>
+      <div class="space-y-2">
+        <button id="sendWhatsappBtn" data-id="${order.id}" class="w-full bg-[#25D366] text-white font-bold py-3 rounded-full text-sm flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition">
+          <i data-lucide="message-circle" class="w-4 h-4"></i> Send Bill to WhatsApp
+        </button>
+        <button id="closeBillBtn" data-id="${order.id}" class="w-full bg-brand-50 text-brand-800 font-bold py-2.5 rounded-full text-sm hover:bg-brand-100 transition">Close Receipt</button>
+      </div>
     </div>
   </div>`;
 }
@@ -415,7 +420,7 @@ function statusPanel(order) {
   return `
   <div class="bg-white rounded-2xl card-shadow p-5 mt-2">
     <div class="flex items-center justify-between mb-4">
-      <span class="text-xs font-bold uppercase tracking-wide ${order.type === 'retail' ? 'text-gold-600' : 'text-brand-500'}">${order.type === 'retail' ? 'Retail Request' : 'Cafe Order'} · #${order.id.slice(-4)}</span>
+      <span class="text-xs font-bold uppercase tracking-wide ${order.type === 'retail' ? 'text-gold-600' : 'text-brand-500'}">${order.type === 'retail' ? 'Retail Request' : 'Cafe Order'} · Order #${order.id}</span>
       <span class="text-[11px] text-brand-400">${timeAgo(order.ts)}</span>
     </div>
     <div class="flex items-center mb-3">
@@ -438,7 +443,7 @@ function statusPanel(order) {
 
 function orderHistoryRow(o) {
   return `<div class="flex justify-between items-center py-2 border-b border-brand-50 text-sm">
-    <span>${o.type === 'retail' ? 'Retail' : 'Cafe'} · #${o.id.slice(-4)}</span>
+    <span>${o.type === 'retail' ? 'Retail' : 'Cafe'} · Order #${o.id}</span>
     <span class="text-brand-400 text-xs">${o.status}</span>
   </div>`;
 }
@@ -499,7 +504,7 @@ function wireCustomer() {
     }
 
     const newOrder = {
-      id: uid('ord'),
+      id: uid(),
       table: session.table,
       customerName: name,
       customerPhone: phone,
@@ -523,6 +528,36 @@ function wireCustomer() {
   if (closeBill) closeBill.onclick = () => {
     session.dismissedBills.add(closeBill.dataset.id);
     render();
+  };
+
+  const sendWhatsapp = document.getElementById('sendWhatsappBtn');
+  if (sendWhatsapp) sendWhatsapp.onclick = () => {
+    const order = DB.orders.find(o => o.id === sendWhatsapp.dataset.id);
+    if (!order) return;
+
+    const cafeItems = order.items.filter(it => it.kind === 'cafe' || (!it.kind && order.type === 'cafe'));
+    const retailItems = order.items.filter(it => it.kind === 'retail' || (!it.kind && order.type === 'retail'));
+    const cafeSubtotal = cafeItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const cafeGst = cafeSubtotal * 0.05;
+    const retailTotal = retailItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const grandTotal = cafeSubtotal + cafeGst + retailTotal;
+
+    let text = `*${DB.settings.restaurantName} - Order Receipt*\n`;
+    text += `Order ID: #${order.id} | Table: ${order.table}\n`;
+    text += `Customer: ${order.customerName || 'Guest'}\n---------------------------\n`;
+
+    order.items.forEach((it, idx) => {
+      text += `${idx + 1}. ${it.qty}x ${it.name} - ₹${(it.price * it.qty).toFixed(2)}\n`;
+    });
+
+    text += `---------------------------\n`;
+    if (cafeSubtotal > 0) text += `Cafe Subtotal: ₹${cafeSubtotal.toFixed(2)}\nGST (5% Cafe): ₹${cafeGst.toFixed(2)}\n`;
+    if (retailTotal > 0) text += `Retail Total (MRP): ₹${retailTotal.toFixed(2)}\n`;
+    text += `*Grand Total: ₹${grandTotal.toFixed(2)}*\n\nThank you for dining with us!`;
+
+    const phone = order.customerPhone ? ('91' + order.customerPhone) : '';
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank');
   };
 }
 
