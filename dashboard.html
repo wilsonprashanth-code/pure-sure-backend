@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pure & Sure - Kitchen & Staff Dashboard</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
+    .header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    h1 { color: #2c3e50; margin: 0; font-size: 24px; }
+    .pin-box { background: #fff; padding: 40px; text-align: center; max-width: 350px; margin: 80px auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    input[type="password"] { width: 80%; padding: 12px; font-size: 18px; margin: 15px 0; text-align: center; border: 1px solid #ccc; border-radius: 6px; }
+    button { background: #27ae60; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; }
+    .order-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .status-btn { padding: 8px 12px; margin-right: 5px; border-radius: 4px; border: none; cursor: pointer; color: white; }
+    .btn-preparing { background: #f39c12; }
+    .btn-ready { background: #2980b9; }
+    .btn-completed { background: #27ae60; }
+  </style>
+</head>
+<body>
+
+  <!-- PIN Protection Screen -->
+  <div id="auth-screen" class="pin-box">
+    <h2>🔒 Staff Access Only</h2>
+    <p>Enter Staff Passcode to view live orders</p>
+    <input type="password" id="pin-input" placeholder="Enter PIN" maxlength="4">
+    <br>
+    <button onclick="verifyPin()">Access Dashboard</button>
+    <p id="error-msg" style="color: red; display: none; margin-top: 10px;">Incorrect PIN!</p>
+  </div>
+
+  <!-- Protected Dashboard -->
+  <div id="dashboard-screen" style="display: none;">
+    <div class="header">
+      <h1>👨‍🍳 Kitchen & Staff Live Display</h1>
+      <button onclick="toggleAudio()" id="audio-btn">🔊 Audio Alerts: Active</button>
+    </div>
+    <div id="orders-container">Loading live orders...</div>
+  </div>
+
+  <script>
+    const API_URL = 'https://pure-sure-api.onrender.com';
+    const socket = io(API_URL);
+
+    function verifyPin() {
+      const pin = document.getElementById('pin-input').value;
+      if (pin === '1999') {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('dashboard-screen').style.display = 'block';
+        fetchOrders();
+      } else {
+        document.getElementById('error-msg').style.display = 'block';
+      }
+    }
+
+    async function fetchOrders() {
+      try {
+        const res = await fetch(`${API_URL}/api/orders`);
+        const orders = await res.json();
+        renderOrders(orders);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderOrders(orders) {
+      const container = document.getElementById('orders-container');
+      if (!orders.length) {
+        container.innerHTML = '<p>No active orders right now.</p>';
+        return;
+      }
+
+      container.innerHTML = orders.map(o => `
+        <div class="order-card">
+          <h3>Order #${o.id} - Table ${o.table || 'N/A'} (${o.type})</h3>
+          <p><strong>Status:</strong> ${o.status.toUpperCase()}</p>
+          <ul>
+            ${o.items.map(item => `<li>${item.name} x ${item.qty || 1}</li>`).join('')}
+          </ul>
+          <p><em>${o.notes ? 'Notes: ' + o.notes : ''}</em></p>
+          <div>
+            <button class="status-btn btn-preparing" onclick="updateStatus('${o.id}', 'preparing')">Start Preparing</button>
+            <button class="status-btn btn-ready" onclick="updateStatus('${o.id}', 'ready')">Mark Ready</button>
+            <button class="status-btn btn-completed" onclick="updateStatus('${o.id}', 'completed')">Complete Order</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function updateStatus(id, status) {
+      await fetch(`${API_URL}/api/orders/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      fetchOrders();
+    }
+
+    // Real-time update listeners via WebSockets
+    socket.on('new_order', () => fetchOrders());
+    socket.on('order_updated', () => fetchOrders());
+  </script>
+</body>
+</html>
