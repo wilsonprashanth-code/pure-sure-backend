@@ -1,130 +1,975 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phalada Pure & Sure Organic Cafe</title>
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <style>
-    :root { --primary: #0a5c43; --bg: #f4f7f6; --text: #1f2937; }
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); margin: 0; padding: 0; color: var(--text); padding-bottom: 120px; }
-
-    header { background: var(--primary); color: white; padding: 20px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
-    .brand { font-weight: bold; font-size: 18px; }
-    .table-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 12px; display: inline-block; margin-top: 8px; }
-
-    .section-title { font-size: 16px; font-weight: bold; margin: 20px 20px 10px; color: var(--primary); }
-    .menu-container { padding: 0 20px; }
-
-    .dish-card { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-    .dish-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-    .dish-price { font-weight: bold; color: var(--primary); }
-    .add-btn { background: var(--primary); color: white; border: none; padding: 6px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-
-    /* Cross-Sell Retail Products Carousel */
-    .cross-sell-wrapper { padding: 0 20px; overflow-x: auto; display: flex; gap: 12px; scrollbar-width: none; }
-    .retail-card { background: #eef7f4; border: 1px solid #c2e5d9; border-radius: 10px; padding: 12px; min-width: 160px; text-align: center; flex-shrink: 0; }
-    .retail-title { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
-    .retail-price { font-size: 13px; color: var(--primary); font-weight: bold; margin-bottom: 8px; }
-
-    /* Floating Cart Bar */
-    .cart-float-bar { position: fixed; bottom: 15px; left: 15px; right: 15px; background: var(--primary); color: white; border-radius: 14px; padding: 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 20px rgba(0,0,0,0.2); display: none; }
-  </style>
-</head>
-<body>
-
-  <header>
-    <div class="brand">🌱 phalada pure & sure</div>
-    <div class="table-badge" id="tableDisplay">📍 Table 01</div>
-  </header>
-
-  <div class="section-title">Organic Cafe Dishes</div>
-  <div class="menu-container" id="cafeMenu">Loading cafe items...</div>
-
-  <div class="section-title">🛒 Take Home Organic Retail Products (Cross-Sell)</div>
-  <div class="cross-sell-wrapper" id="retailMenu">Loading retail recommendations...</div>
-
-  <div class="cart-float-bar" id="cartBar">
-    <div>
-      <div id="cartCount" style="font-size:12px;">0 Items</div>
-      <div id="cartTotal" style="font-weight:bold;">Total: ₹0</div>
-    </div>
-    <button class="add-btn" style="background:#22c55e;" onclick="submitOrder()">Confirm Order</button>
-  </div>
-
-  <script>
-    const API_URL = 'https://pure-sure-api.onrender.com';
-    const socket = io(API_URL);
-    let cart = [];
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const tableNum = urlParams.get('table') || '1';
-    document.getElementById('tableDisplay').innerText = `📍 Table ${tableNum.padStart(2, '0')}`;
-
-    async function loadMenu() {
-      const res = await fetch(`${API_URL}/api/menu`);
-      const items = await res.json();
-      
-      const cafeContainer = document.getElementById('cafeMenu');
-      const retailContainer = document.getElementById('retailMenu');
-
-      const activeItems = items.filter(i => i.inStock !== false);
-
-      // Render Cafe Hot Dishes
-      const cafeItems = activeItems.filter(i => i.category !== 'retail');
-      cafeContainer.innerHTML = cafeItems.map(i => `
-        <div class="dish-card">
-          <div>
-            <div class="dish-title">${i.name}</div>
-            <div class="dish-price">₹${i.price}</div>
-          </div>
-          <button class="add-btn" onclick="addToCart('${i.name}', ${i.price})">+ Add</button>
-        </div>
-      `).join('');
-
-      // Render Cross-Selling Retail Items
-      const retailItems = activeItems.filter(i => i.category === 'retail');
-      if (retailItems.length === 0) {
-        retailContainer.innerHTML = '<p style="font-size:12px; color:#666;">No retail cross-sell items available.</p>';
-      } else {
-        retailContainer.innerHTML = retailItems.map(i => `
-          <div class="retail-card">
-            <div class="retail-title">${i.name}</div>
-            <div class="retail-price">₹${i.price}</div>
-            <button class="add-btn" style="padding:4px 10px; font-size:11px;" onclick="addToCart('${i.name} (Retail)', ${i.price})">+ Add Pack</button>
-          </div>
-        `).join('');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Phalada Pure &amp; Sure — Table Ordering &amp; Kitchen Ops</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT:'#105955', 50:'#f0f6f5', 100:'#dbeae8', 200:'#b3d3cf', 300:'#82b6af', 400:'#4f948c', 500:'#2c7a72', 600:'#1a6a63', 700:'#105955', 800:'#0d4744', 900:'#0a3836', 950:'#052120' },
+          gold: { DEFAULT:'#D4A359', 50:'#fbf6ee', 100:'#f5e8d2', 200:'#ebd0a4', 300:'#deb26f', 400:'#D4A359', 500:'#c68f3f', 600:'#a97432', 700:'#8a5b2a' },
+          cream:'#F9F8F3'
+        },
+        fontFamily: {
+          display:['Fraunces','ui-serif','Georgia','serif'],
+          body:['"Public Sans"','ui-sans-serif','system-ui','sans-serif']
+        }
       }
     }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { -webkit-tap-highlight-color: transparent; }
+  body { font-family:'Public Sans', sans-serif; background:#F9F8F3; }
+  .font-display { font-family:'Fraunces', serif; }
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:#10595555; border-radius:99px; }
+  .scrollbar-none::-webkit-scrollbar{ display:none; }
+  .scrollbar-none{ -ms-overflow-style:none; scrollbar-width:none; }
+  .leaf-badge { background: radial-gradient(circle at 30% 20%, #1a6a63, #0a3836); }
+  .drawer { transition: transform .38s cubic-bezier(.22,.9,.32,1); }
+  .drawer-hidden { transform: translateY(100%); }
+  .modal-fade { animation: fadeIn .22s ease; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
+  .pulse-dot { animation: pulseDot 1.6s infinite; }
+  @keyframes pulseDot { 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+  .status-line { background: repeating-linear-gradient(90deg, #10595522 0 8px, transparent 8px 16px); }
+  .kanban-scroll { scroll-snap-type: x mandatory; }
+  .kanban-col { scroll-snap-align:start; }
+  input[type=password]::-ms-reveal{ display:none; }
+  @media print {
+    body * { visibility:hidden; }
+    #printArea, #printArea * { visibility:visible; }
+    #printArea { position:absolute; left:0; top:0; width:100%; }
+    .no-print{ display:none !important; }
+  }
+  .card-shadow{ box-shadow: 0 1px 2px rgba(16,89,85,.06), 0 8px 24px -8px rgba(16,89,85,.18); }
+  .brand-underline{ background-image: linear-gradient(#D4A359,#D4A359); background-repeat:no-repeat; background-size:100% 3px; background-position:0 100%; }
+</style>
+</head>
+<body class="text-brand-900">
 
-    function addToCart(name, price) {
-      cart.push({ name, price, qty: 1 });
-      document.getElementById('cartBar').style.display = 'flex';
-      const total = cart.reduce((sum, item) => sum + item.price, 0);
-      document.getElementById('cartCount').innerText = `${cart.length} ITEMS`;
-      document.getElementById('cartTotal').innerText = `Total: ₹${total}`;
+<!-- ROOT CONTAINER -->
+<div id="app"></div>
+
+<!-- TOAST CONTAINER -->
+<div id="toastHost" class="fixed top-4 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 items-center pointer-events-none"></div>
+
+<script>
+const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
+
+const STORAGE_KEYS = { settings:'ps:settings', staff:'ps:staff', menu:'ps:menu', retail:'ps:retail', orders:'ps:orders' };
+
+let DB = {
+  settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure", tagline:"Everyday food, made good. Since 1999" },
+  staff: [
+    { id:'u1', username:'admin', password:'admin123', role:'Admin' },
+    { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
+  ],
+  menu: [
+    { id:'m1', name:'Millet Power Bowl', category:'Millet Bowls', price:249, img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500', badges:['100% Organic','Vegan','Gluten-Free'], nutrition:{cal:380,protein:14,carbs:52,fat:11}, stock:true, desc:'Foxtail millet, roasted chickpeas, seasonal veg, tahini drizzle.' },
+    { id:'m2', name:'A2 Ghee Masala Dosa', category:'Breakfast', price:189, img:'https://images.unsplash.com/photo-1630383249896-424e482df921?w=500', badges:['100% Organic','Gluten-Free'], nutrition:{cal:410,protein:9,carbs:58,fat:16}, stock:true, desc:'Stone-ground batter, potato masala, cold-pressed coconut chutney.' },
+    { id:'m3', name:'Cold-Pressed Beet Salad', category:'Salads & Wraps', price:219, img:'https://images.unsplash.com/photo-1512852939750-1305098529bf?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:220,protein:6,carbs:24,fat:11}, stock:true, desc:'Roasted beets, walnuts, microgreens, cold-pressed olive oil.' },
+    { id:'m4', name:'Turmeric Ginger Latte', category:'Beverages', price:149, img:'https://images.unsplash.com/photo-1578374173705-969cbe6f2d6b?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:120,protein:3,carbs:16,fat:5}, stock:true, desc:'A2 milk or oat milk, organic turmeric, black pepper, raw honey.' },
+    { id:'m5', name:'Ragi Choco Brownie', category:'Desserts', price:159, img:'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=500', badges:['100% Organic'], nutrition:{cal:290,protein:5,carbs:34,fat:15}, stock:true, desc:'Finger millet flour, jaggery, dark cocoa, walnuts.' },
+    { id:'m6', name:'Sprouted Moong Wrap', category:'Salads & Wraps', price:199, img:'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:310,protein:15,carbs:40,fat:9}, stock:false, desc:'Multigrain roti, sprouted moong, mint chutney, pickled onion.' }
+  ],
+  retail: [
+    { id:'r1', name:'Cold-Pressed Coconut Oil', category:'Oils & Ghee', price:420, img:'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Wood cold-pressed, unrefined, single origin.' },
+    { id:'r2', name:'A2 Bilona Ghee', category:'Oils & Ghee', price:895, img:'https://images.unsplash.com/photo-1631206753348-db44968fd7c1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Traditional bilona-churned, grass-fed A2 cow milk.' },
+    { id:'r3', name:'Native Turmeric Powder', category:'Spices & Masalas', price:145, img:'https://images.unsplash.com/photo-1615485500704-8e990f9900f3?w=500', badges:['100% Organic'], size:'200g', stock:true, desc:'High-curcumin native turmeric, stone-ground.' }
+  ],
+  orders: []
+};
+
+let PREV_ORDER_IDS = new Set();
+let session = { staff:null, view:'customer', table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', soundOn:false, kitchenTab:'orders', showCrossSell:false, editingDish:null, editingRetail:null, showAddStaff:false };
+
+async function storeGet(key, fallback) {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch(e) {
+    return fallback;
+  }
+}
+
+async function storeSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch(e) {}
+}
+
+async function loadAll() {
+  DB.settings = await storeGet(STORAGE_KEYS.settings, DB.settings);
+  DB.staff = await storeGet(STORAGE_KEYS.staff, DB.staff);
+  DB.menu = await storeGet(STORAGE_KEYS.menu, DB.menu);
+  DB.retail = await storeGet(STORAGE_KEYS.retail, DB.retail);
+  DB.orders = await storeGet(STORAGE_KEYS.orders, DB.orders);
+}
+
+async function saveAndSync(part) {
+  await storeSet(STORAGE_KEYS[part], DB[part]);
+}
+
+let actx = null;
+function beep(freq, start, dur, gainPeak) {
+  if (!actx) return;
+  try {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    o.connect(g);
+    g.connect(actx.destination);
+    g.gain.setValueAtTime(0, actx.currentTime + start);
+    g.gain.linearRampToValueAtTime(gainPeak, actx.currentTime + start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + start + dur);
+    o.start(actx.currentTime + start);
+    o.stop(actx.currentTime + start + dur + 0.05);
+  } catch(e) {}
+}
+
+function playChime(type) {
+  if (!session.soundOn) return;
+  unlockAudio();
+  if (type === 'retail') {
+    beep(880, 0, .16, .22); beep(1175, .14, .22, .22); beep(1568, .28, .3, .2);
+  } else {
+    beep(784, 0, .18, .22); beep(1046, .16, .28, .22);
+  }
+}
+
+function unlockAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch(e) {}
+}
+
+function money(n) { return '₹' + Number(n).toFixed(0); }
+function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
+
+function toast(msg, icon) {
+  const host = document.getElementById('toastHost');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'modal-fade pointer-events-auto bg-brand-900 text-cream px-4 py-2.5 rounded-full shadow-lg text-sm font-medium flex items-center gap-2';
+  el.innerHTML = `<i data-lucide="${icon || 'check-circle'}" class="w-4 h-4 text-gold-400"></i><span>${msg}</span>`;
+  host.appendChild(el);
+  lucide.createIcons();
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, 2600);
+}
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60); return h + 'h ago';
+}
+
+function etaMinutes(order) {
+  const base = order.type === 'retail' ? 4 : 12;
+  const elapsedMin = Math.floor((Date.now() - order.ts) / 60000);
+  return Math.max(0, base - elapsedMin);
+}
+
+function render() {
+  const app = document.getElementById('app');
+  if (session.view === 'login') {
+    app.innerHTML = loginModalHTML() + customerShell();
+    wireLogin(); wireCustomer(); lucide.createIcons(); return;
+  }
+  if (session.view === 'kitchen' && session.staff) {
+    app.innerHTML = kitchenShell();
+    wireKitchen(); lucide.createIcons(); return;
+  }
+  app.innerHTML = customerShell();
+  wireCustomer();
+  lucide.createIcons();
+}
+
+function customerShell() {
+  const table = session.table;
+  const activeOrder = [...DB.orders].reverse().find(o => o.table === table && o.status !== 'served');
+  return `
+  <div class="min-h-screen bg-cream pb-28">
+    <header class="sticky top-0 z-30 bg-brand text-cream shadow-lg">
+      <div class="max-w-xl mx-auto px-4 pt-3 pb-3 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <img src="${DB.settings.logoUrl}" class="w-10 h-10 object-contain rounded-full bg-white/10 p-1" alt="logo">
+          <div>
+            <div class="font-display text-lg leading-tight tracking-tight">${DB.settings.restaurantName}</div>
+            <div class="text-[11px] text-cream/70 -mt-0.5">${DB.settings.tagline}</div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-[10px] uppercase tracking-widest text-cream/60">Table</div>
+          <div class="font-display text-xl leading-none text-gold-400">${table ? String(table).padStart(2,'0') : '—'}</div>
+        </div>
+      </div>
+      <div class="max-w-xl mx-auto px-4 pb-3 flex gap-2">
+        ${tabBtn('menu','Cafe Menu','utensils')}
+        ${tabBtn('retail','Retail Store','shopping-basket')}
+        ${tabBtn('status','My Order','receipt-text')}
+      </div>
+    </header>
+
+    <main class="max-w-xl mx-auto px-4 pt-4">
+      ${!table ? noTableBanner() : ''}
+      ${session.custTab === 'retail' ? retailPanel() : session.custTab === 'status' ? statusPanel(activeOrder) : menuPanel()}
+    </main>
+
+    ${cartBar()}
+    ${cartDrawer()}
+    ${session.showCrossSell ? crossSellModal() : ''}
+
+    <footer class="max-w-xl mx-auto px-4 pt-10 pb-6 text-center">
+      <button id="staffLoginLink" class="text-[11px] text-brand-400/70 underline hover:text-brand-600">Staff Login</button>
+    </footer>
+  </div>`;
+}
+
+function tabBtn(key, label, icon) {
+  const active = (session.custTab || 'menu') === key;
+  return `<button data-tab="${key}" class="cust-tab flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-full transition ${active ? 'bg-cream text-brand-800' : 'bg-white/10 text-cream/80 hover:bg-white/20'}">
+    <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${label}
+  </button>`;
+}
+
+function noTableBanner() {
+  return `<div class="mb-4 rounded-2xl border border-gold-300 bg-gold-50 px-4 py-3 flex items-start gap-2.5 text-sm">
+    <i data-lucide="qr-code" class="w-4 h-4 mt-0.5 text-gold-700 shrink-0"></i>
+    <span class="text-brand-800">No table detected. Scan your table QR code or append <code class="bg-white px-1 rounded">?table=1</code> to the URL.</span>
+  </div>`;
+}
+
+function menuPanel() {
+  const cats = ['All', ...new Set(DB.menu.map(i => i.category))];
+  const items = DB.menu.filter(i => (session.activeCafeCat === 'All' || i.category === session.activeCafeCat) && i.name.toLowerCase().includes((session.search || '').toLowerCase()));
+  return `
+  <div class="relative mb-3">
+    <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400"></i>
+    <input id="searchInput" value="${session.search || ''}" placeholder="Search dishes…" class="w-full bg-white border border-brand-100 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300">
+  </div>
+  <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
+    ${cats.map(c => `<button data-cat="${c}" class="cafe-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeCafeCat === c || (!session.activeCafeCat && c === 'All') ? 'bg-brand text-cream border-brand' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
+  </div>
+  <div class="grid grid-cols-1 gap-3.5 mt-1">
+    ${items.map(dishCard).join('') || emptyState('No dishes match your search.')}
+  </div>`;
+}
+
+function badgeChip(b) {
+  const map = { '100% Organic':'bg-brand-100 text-brand-800', 'Vegan':'bg-green-100 text-green-800', 'Gluten-Free':'bg-gold-100 text-gold-700' };
+  return `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${map[b] || 'bg-brand-100 text-brand-700'}">${b}</span>`;
+}
+
+function dishCard(item) {
+  const inCart = session.cafeCart.find(c => c.id === item.id);
+  return `
+  <div class="bg-white rounded-2xl card-shadow overflow-hidden flex ${!item.stock ? 'opacity-60' : ''}">
+    <img src="${item.img}" class="w-28 h-auto object-cover shrink-0" onerror="this.style.display='none'">
+    <div class="flex-1 p-3.5 min-w-0">
+      <div class="flex items-start justify-between gap-2">
+        <div class="font-display text-base leading-snug text-brand-900">${item.name}</div>
+        ${!item.stock ? '<span class="text-[10px] font-bold text-red-500 shrink-0 whitespace-nowrap">SOLD OUT</span>' : ''}
+      </div>
+      <div class="flex flex-wrap gap-1 mt-1">${item.badges.map(badgeChip).join('')}</div>
+      <p class="text-xs text-brand-500 mt-1.5 line-clamp-2">${item.desc}</p>
+      <button class="nutri-toggle text-[11px] text-brand-600 underline mt-1" data-id="${item.id}">Nutrition facts</button>
+      <div id="nutri-${item.id}" class="hidden mt-1.5 grid grid-cols-4 gap-1 text-center">
+        ${nutriPill('Cal', item.nutrition.cal)}${nutriPill('Prot', item.nutrition.protein+'g')}${nutriPill('Carb', item.nutrition.carbs+'g')}${nutriPill('Fat', item.nutrition.fat+'g')}
+      </div>
+      <div class="flex items-center justify-between mt-2.5">
+        <span class="font-display text-lg text-brand-800">${money(item.price)}</span>
+        ${item.stock ? (inCart ? qtyStepper('cafe', item.id, inCart.qty) : `<button class="add-cafe bg-brand text-cream text-xs font-bold px-4 py-2 rounded-full hover:bg-brand-600 transition" data-id="${item.id}">Add</button>`) : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function nutriPill(label, val) {
+  return `<div class="bg-cream rounded-lg py-1"><div class="text-[9px] text-brand-400 uppercase tracking-wide">${label}</div><div class="text-[11px] font-bold text-brand-800">${val}</div></div>`;
+}
+
+function qtyStepper(kind, id, qty) {
+  return `<div class="flex items-center gap-2.5 bg-brand-50 rounded-full px-1 py-1">
+    <button class="qty-btn w-6 h-6 rounded-full bg-white text-brand-700 font-bold text-sm shadow" data-kind="${kind}" data-id="${id}" data-d="-1">−</button>
+    <span class="text-sm font-bold w-4 text-center">${qty}</span>
+    <button class="qty-btn w-6 h-6 rounded-full bg-brand text-cream font-bold text-sm shadow" data-kind="${kind}" data-id="${id}" data-d="1">+</button>
+  </div>`;
+}
+
+function retailPanel() {
+  const cats = ['All', ...new Set(DB.retail.map(i => i.category))];
+  const items = DB.retail.filter(i => session.activeRetailCat === 'All' || i.category === session.activeRetailCat);
+  return `
+  <div class="mb-3 rounded-2xl bg-brand text-cream px-4 py-3 flex items-center gap-2.5">
+    <i data-lucide="leaf" class="w-4 h-4 text-gold-400 shrink-0"></i>
+    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices, delivered to your table.</span>
+  </div>
+  <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
+    ${cats.map(c => `<button data-rcat="${c}" class="retail-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeRetailCat === c || (!session.activeRetailCat && c === 'All') ? 'bg-gold text-white border-gold' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
+  </div>
+  <div class="grid grid-cols-2 gap-3">
+    ${items.map(retailCard).join('') || emptyState('No products found.')}
+  </div>`;
+}
+
+function retailCard(item) {
+  const inCart = session.retailCart.find(c => c.id === item.id);
+  return `
+  <div class="bg-white rounded-2xl card-shadow overflow-hidden ${!item.stock ? 'opacity-60' : ''}">
+    <img src="${item.img}" class="w-full h-24 object-cover" onerror="this.style.display='none'">
+    <div class="p-3">
+      <div class="font-display text-sm leading-snug text-brand-900">${item.name}</div>
+      <div class="text-[10px] text-brand-400">${item.size || ''}</div>
+      <div class="flex justify-between items-center mt-2">
+        <span class="text-sm font-bold text-brand-800">${money(item.price)}</span>
+        ${item.stock ? (inCart ? qtyStepper('retail', item.id, inCart.qty) : `<button class="add-retail bg-gold text-white text-[11px] font-bold px-3 py-1.5 rounded-full" data-id="${item.id}">Add</button>`) : `<span class="text-[10px] font-bold text-red-500">SOLD OUT</span>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function emptyState(msg) {
+  return `<div class="col-span-2 text-center py-10 text-sm text-brand-400"><i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 text-brand-200"></i>${msg}</div>`;
+}
+
+function cartBar() {
+  const count = session.cafeCart.reduce((a,c) => a + c.qty, 0) + session.retailCart.reduce((a,c) => a + c.qty, 0);
+  if (count === 0 || session.cartOpen) return '';
+  const total = session.cafeCart.reduce((a,c) => a + c.qty * c.price, 0) + session.retailCart.reduce((a,c) => a + c.qty * c.price, 0);
+  return `
+  <button id="openCartBtn" class="fixed bottom-4 left-4 right-4 max-w-xl mx-auto z-40 bg-brand-900 text-cream rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-2xl">
+    <span class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="shopping-cart" class="w-4 h-4 text-gold-400"></i>${count} item${count > 1 ? 's' : ''}</span>
+    <span class="text-sm font-bold flex items-center gap-1.5">${money(total)} <i data-lucide="chevron-up" class="w-4 h-4"></i></span>
+  </button>`;
+}
+
+function cartDrawer() {
+  const cafeTotal = session.cafeCart.reduce((a,c) => a + c.qty * c.price, 0);
+  const retailTotal = session.retailCart.reduce((a,c) => a + c.qty * c.price, 0);
+  return `
+  <div id="cartDrawer" class="drawer ${session.cartOpen ? '' : 'drawer-hidden'} fixed inset-x-0 bottom-0 z-50 max-w-xl mx-auto bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col">
+    <div class="px-5 pt-4 pb-2 flex items-center justify-between border-b border-brand-50">
+      <span class="font-display text-lg">Your Order</span>
+      <button id="closeCartBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div class="overflow-y-auto px-5 py-3 flex-1">
+      ${session.cafeCart.length ? `<div class="text-xs font-bold uppercase tracking-wide text-brand-400 mb-1.5">Cafe Order</div>${session.cafeCart.map(cartLine).join('')}` : ''}
+      ${session.retailCart.length ? `<div class="text-xs font-bold uppercase tracking-wide text-gold-600 mt-3 mb-1.5">Retail Request</div>${session.retailCart.map(cartLine).join('')}` : ''}
+      ${!session.cafeCart.length && !session.retailCart.length ? emptyState('Your cart is empty.') : ''}
+      <div class="mt-3">
+        <label class="text-xs font-semibold text-brand-500">Dietary / special instructions</label>
+        <textarea id="cartNotes" rows="2" placeholder="e.g. less spicy…" class="w-full mt-1 text-sm border border-brand-100 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-300">${session.cartNotes || ''}</textarea>
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t border-brand-50 space-y-2">
+      ${session.cafeCart.length ? `<div class="flex justify-between text-sm"><span>Cafe subtotal</span><span class="font-bold">${money(cafeTotal)}</span></div>` : ''}
+      ${session.retailCart.length ? `<div class="flex justify-between text-sm"><span>Retail subtotal</span><span class="font-bold">${money(retailTotal)}</span></div>` : ''}
+      <button id="placeOrderBtn" class="w-full bg-brand text-cream font-bold py-3.5 rounded-full text-sm disabled:opacity-40" ${(!session.cafeCart.length && !session.retailCart.length) ? 'disabled' : ''}>
+        ${!session.table ? 'Select a table first' : 'Place Order — ' + money(cafeTotal + retailTotal)}
+      </button>
+    </div>
+  </div>`;
+}
+
+function cartLine(c) {
+  return `<div class="flex items-center justify-between py-1.5">
+    <div class="min-w-0"><div class="text-sm font-medium truncate">${c.name}</div><div class="text-xs text-brand-400">${money(c.price)} × ${c.qty}</div></div>
+    ${qtyStepper(c.kind, c.id, c.qty)}
+  </div>`;
+}
+
+function crossSellModal() {
+  return `
+  <div class="fixed inset-0 z-[60] bg-brand-950/60 flex items-end sm:items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 text-center">
+      <div class="w-14 h-14 rounded-full leaf-badge mx-auto flex items-center justify-center mb-3"><i data-lucide="leaf" class="w-6 h-6 text-gold-300"></i></div>
+      <h3 class="font-display text-xl mb-1.5">Order received!</h3>
+      <p class="text-sm text-brand-500 mb-4">While your food is being prepared, browse our organic retail range.</p>
+      <div class="flex flex-col gap-2">
+        <button id="browseRetailBtn" class="bg-gold text-white font-bold py-3 rounded-full text-sm">Browse Retail Store</button>
+        <button id="dismissCrossSell" class="text-brand-500 text-sm py-1">Track my order</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function statusPanel(order) {
+  if (!order) {
+    const past = [...DB.orders].reverse().filter(o => o.table === session.table);
+    return `<div class="pt-6">${emptyState('No active order for this table.')}
+      ${past.length ? `<div class="mt-6"><div class="text-xs font-bold uppercase tracking-wide text-brand-400 mb-2">Past orders today</div>${past.slice(0,4).map(orderHistoryRow).join('')}</div>` : ''}
+    </div>`;
+  }
+  const steps = ['received', 'preparing', 'ready'];
+  const idx = steps.indexOf(order.status);
+  const eta = etaMinutes(order);
+  return `
+  <div class="bg-white rounded-2xl card-shadow p-5 mt-2">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs font-bold uppercase tracking-wide ${order.type === 'retail' ? 'text-gold-600' : 'text-brand-500'}">${order.type === 'retail' ? 'Retail Request' : 'Cafe Order'} · #${order.id.slice(-4)}</span>
+      <span class="text-[11px] text-brand-400">${timeAgo(order.ts)}</span>
+    </div>
+    <div class="flex items-center mb-3">
+      ${steps.map((s, i) => `
+        <div class="flex-1 flex flex-col items-center relative">
+          ${i > 0 ? `<div class="absolute top-3.5 right-1/2 w-full h-0.5 ${idx >= i ? 'bg-brand' : 'bg-brand-100'}"></div>` : ''}
+          <div class="w-7 h-7 rounded-full flex items-center justify-center z-10 ${idx >= i ? 'bg-brand text-cream' : 'bg-brand-100 text-brand-400'} ${idx === i ? 'pulse-dot' : ''}">
+            <i data-lucide="${i === 0 ? 'clipboard-check' : i === 1 ? 'flame' : 'bell'}" class="w-3.5 h-3.5"></i>
+          </div>
+          <span class="text-[10px] mt-1 font-semibold capitalize ${idx >= i ? 'text-brand-800' : 'text-brand-300'}">${s}</span>
+        </div>`).join('')}
+    </div>
+    ${order.status !== 'ready' ? `<div class="text-center text-sm text-brand-500 mb-3">Estimated time remaining: <span class="font-bold text-brand-800">${eta} min</span></div>` : `<div class="text-center text-sm font-bold text-green-600 mb-3">Your order is ready!</div>`}
+    <div class="border-t border-brand-50 pt-3 space-y-1">
+      ${order.items.map(it => `<div class="flex justify-between text-sm"><span>${it.qty}× ${it.name}</span><span class="text-brand-500">${money(it.qty*it.price)}</span></div>`).join('')}
+    </div>
+    ${order.notes ? `<div class="mt-2 text-xs text-brand-500 bg-cream rounded-lg px-3 py-2"><i data-lucide="message-square" class="w-3 h-3 inline mr-1"></i>${order.notes}</div>` : ''}
+  </div>`;
+}
+
+function orderHistoryRow(o) {
+  return `<div class="flex justify-between items-center py-2 border-b border-brand-50 text-sm">
+    <span>${o.type === 'retail' ? 'Retail' : 'Cafe'} · #${o.id.slice(-4)}</span>
+    <span class="text-brand-400 text-xs">${o.status}</span>
+  </div>`;
+}
+
+function loginModalHTML() {
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/70 flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6">
+      <div class="flex items-center gap-2.5 mb-5">
+        <img src="${DB.settings.logoUrl}" class="w-9 h-9 rounded-full bg-brand p-1 object-contain">
+        <div><div class="font-display text-lg leading-tight">Staff Login</div><div class="text-[11px] text-brand-400">Kitchen &amp; Admin Dashboard</div></div>
+      </div>
+      <div id="loginError" class="hidden text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3"></div>
+      <label class="text-xs font-semibold text-brand-500">Username</label>
+      <input id="loginUser" type="text" autocomplete="off" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" placeholder="Enter username">
+      <label class="text-xs font-semibold text-brand-500">Password</label>
+      <input id="loginPass" type="password" autocomplete="off" class="w-full mt-1 mb-4 border border-brand-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" placeholder="••••••••">
+      <button id="loginSubmit" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm">Log In</button>
+      <button id="loginCancel" class="w-full text-brand-500 text-sm py-3">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function wireLogin() {
+  document.getElementById('loginCancel').onclick = () => { session.view = 'customer'; render(); };
+  document.getElementById('loginSubmit').onclick = () => {
+    const u = document.getElementById('loginUser').value.trim();
+    const p = document.getElementById('loginPass').value;
+    const found = DB.staff.find(s => s.username === u && s.password === p);
+    const err = document.getElementById('loginError');
+    if (found) {
+      session.staff = found; session.view = 'kitchen'; session.kitchenTab = 'orders'; render(); toast('Welcome back, ' + found.username, 'log-in');
+    } else {
+      err.textContent = 'Incorrect username or password.'; err.classList.remove('hidden');
     }
+  };
+}
 
-    async function submitOrder() {
-      await fetch(`${API_URL}/api/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: 'ORD-' + Date.now().toString().slice(-6),
-          table: tableNum,
-          items: cart,
-          type: 'Dine-In + Retail Cross-Sell',
-          status: 'received'
-        })
-      });
-      alert('Order submitted successfully!');
-      cart = [];
-      document.getElementById('cartBar').style.display = 'none';
+function kitchenShell() {
+  const orders = [...DB.orders].filter(o => o.type !== 'retail').sort((a,b) => a.ts - b.ts);
+  const retailOrders = [...DB.orders].filter(o => o.type === 'retail').sort((a,b) => a.ts - b.ts);
+  return `
+  <div class="min-h-screen bg-brand-50">
+    <header class="sticky top-0 z-30 bg-brand-900 text-cream shadow-lg">
+      <div class="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-2.5">
+          <img src="${DB.settings.logoUrl}" class="w-9 h-9 object-contain rounded-full bg-white/10 p-1">
+          <div><div class="font-display text-lg leading-tight">${DB.settings.restaurantName}</div><div class="text-[10px] text-cream/60 uppercase tracking-wide">Kitchen &amp; Console</div></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="soundToggle" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full ${session.soundOn ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-cream/70'}">
+            <i data-lucide="${session.soundOn ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>${session.soundOn ? 'Sound On' : 'Enable Sound'}
+          </button>
+          <span class="text-xs text-cream/60 hidden sm:inline">${session.staff.username}</span>
+          <button id="logoutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-full flex items-center gap-1.5"><i data-lucide="log-out" class="w-3.5 h-3.5"></i>Logout</button>
+        </div>
+      </div>
+      <nav class="max-w-7xl mx-auto px-5 flex gap-1 overflow-x-auto scrollbar-none">
+        ${kTab('orders','Orders','clipboard-list', orders.filter(o=>o.status!=='served').length)}
+        ${kTab('retail','Retail Requests','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
+        ${kTab('inventory','Inventory','package','')}
+        ${kTab('qr','QR Table Manager','qr-code','')}
+        ${kTab('brand','Brand Settings','image','')}
+        ${kTab('users','User Management','users','')}
+      </nav>
+    </header>
+    <main class="max-w-7xl mx-auto px-5 py-5">
+      ${session.kitchenTab === 'orders' ? ordersBoard(orders) : ''}
+      ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
+      ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
+      ${session.kitchenTab === 'qr' ? qrPanel() : ''}
+      ${session.kitchenTab === 'brand' ? brandPanel() : ''}
+      ${session.kitchenTab === 'users' ? usersPanel() : ''}
+    </main>
+    ${session.editingDish !== null ? dishEditorModal() : ''}
+    ${session.editingRetail !== null ? retailEditorModal() : ''}
+  </div>`;
+}
+
+function kTab(key, label, icon, count) {
+  const active = session.kitchenTab === key;
+  return `<button data-ktab="${key}" class="k-tab shrink-0 relative flex items-center gap-1.5 text-xs font-semibold px-4 py-3 border-b-2 transition ${active ? 'border-gold-400 text-cream' : 'border-transparent text-cream/50 hover:text-cream/80'}">
+    <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${label}
+    ${count ? `<span class="ml-1 bg-gold text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">${count}</span>` : ''}
+  </button>`;
+}
+
+function ordersBoard(orders) {
+  const cols = [ ['received','Received','amber'], ['preparing','Preparing','blue'], ['ready','Ready','green'] ];
+  return `
+  <div class="flex gap-4 overflow-x-auto kanban-scroll pb-4">
+    ${cols.map(([key, label, color]) => `
+    <div class="kanban-col shrink-0 w-[300px]">
+      <div class="flex items-center gap-2 mb-2.5 px-1">
+        <span class="w-2 h-2 rounded-full bg-${color==='amber'?'gold':color==='blue'?'brand-500':'green-500'}"></span>
+        <span class="text-sm font-bold text-brand-800">${label}</span>
+        <span class="text-xs text-brand-400">(${orders.filter(o=>o.status===key).length})</span>
+      </div>
+      <div class="space-y-3">
+        ${orders.filter(o => o.status === key).map(orderCard).join('') || `<div class="text-xs text-brand-300 text-center py-6 border-2 border-dashed border-brand-100 rounded-xl">No orders</div>`}
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function orderCard(o) {
+  const nextMap = { received:'preparing', preparing:'ready', ready:'served' };
+  const nextLabel = { received:'Start Preparing', preparing:'Mark Ready', ready:'Mark Served' };
+  return `
+  <div class="bg-white rounded-xl card-shadow p-3.5 border-l-4 ${o.status==='ready'?'border-green-500':o.status==='preparing'?'border-brand-500':'border-gold'}">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="font-display text-base">Table ${o.table}</span>
+      <span class="text-[10px] text-brand-400">${timeAgo(o.ts)}</span>
+    </div>
+    <div class="space-y-0.5 mb-2">
+      ${o.items.map(it => `<div class="text-xs text-brand-700">${it.qty}× ${it.name}</div>`).join('')}
+    </div>
+    ${o.notes ? `<div class="text-[11px] bg-cream text-brand-600 rounded-lg px-2 py-1 mb-2"><i data-lucide="message-square" class="w-3 h-3 inline mr-1"></i>${o.notes}</div>` : ''}
+    <div class="flex gap-2">
+      ${nextMap[o.status] ? `<button class="advance-order flex-1 bg-brand text-cream text-[11px] font-bold py-2 rounded-full" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function retailBoard(orders) {
+  const active = orders.filter(o => o.status !== 'served');
+  const nextMap = { received:'preparing', preparing:'ready', ready:'served' };
+  const nextLabel = { received:'Acknowledge', preparing:'Mark Ready', ready:'Mark Delivered' };
+  return `
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+    ${active.map(o => `
+    <div class="bg-white rounded-xl card-shadow p-4 border-l-4 border-gold relative overflow-hidden">
+      <span class="absolute top-0 right-0 bg-gold text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">RETAIL ORDER</span>
+      <div class="font-display text-base mb-1">Table ${o.table}</div>
+      <div class="text-[10px] text-brand-400 mb-2">${timeAgo(o.ts)}</div>
+      ${o.items.map(it => `<div class="text-xs text-brand-700">${it.qty}× ${it.name}</div>`).join('')}
+      ${o.notes ? `<div class="text-[11px] bg-cream text-brand-600 rounded-lg px-2 py-1 mt-2">${o.notes}</div>` : ''}
+      <button class="advance-order w-full mt-3 bg-gold text-white text-[11px] font-bold py-2 rounded-full" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>
+    </div>`).join('') || emptyState('No retail requests yet.')}
+  </div>`;
+}
+
+function inventoryPanel() {
+  return `
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-display text-lg">Cafe Menu</h3>
+        <button id="addDishBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Dish</button>
+      </div>
+      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+        ${DB.menu.map(inventoryRow.bind(null, 'menu')).join('')}
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-display text-lg">Retail Store</h3>
+        <button id="addRetailBtn" class="text-xs font-bold bg-gold text-white px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Product</button>
+      </div>
+      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+        ${DB.retail.map(inventoryRow.bind(null, 'retail')).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function inventoryRow(kind, item) {
+  return `
+  <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-2.5">
+    <img src="${item.img}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-semibold truncate">${item.name}</div>
+      <div class="text-[11px] text-brand-400">${item.category} · ${money(item.price)}</div>
+    </div>
+    <button class="stock-toggle shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full ${item.stock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}" data-kind="${kind}" data-id="${item.id}">${item.stock ? 'In Stock' : 'Out of Stock'}</button>
+    <button class="edit-item shrink-0 w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+    <button class="delete-item shrink-0 w-7 h-7 rounded-full bg-red-50 text-red-500 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+  </div>`;
+}
+
+function dishEditorModal() {
+  const d = session.editingDish === 'new' ? { id:null,name:'',category:'Millet Bowls',price:'',img:'',badges:[],nutrition:{cal:'',protein:'',carbs:'',fat:''},stock:true,desc:'' } : DB.menu.find(m => m.id === session.editingDish);
+  const allBadges = ['100% Organic', 'Vegan', 'Gluten-Free'];
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="modal-fade bg-white rounded-3xl max-w-lg w-full p-6 my-8">
+      <h3 class="font-display text-xl mb-4">${d.id ? 'Edit Dish' : 'Add New Dish'}</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Dish Name</label><input id="dName" value="${d.name}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Category</label><input id="dCategory" value="${d.category}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Price (₹)</label><input id="dPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Photo URL</label><input id="dImg" value="${d.img}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Description</label><textarea id="dDesc" rows="2" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm">${d.desc}</textarea></div>
+        <div class="col-span-2">
+          <label class="text-xs font-semibold text-brand-500">Dietary Badges</label>
+          <div class="flex gap-3 mt-1.5">${allBadges.map(b => `<label class="text-xs flex items-center gap-1.5"><input type="checkbox" class="dBadge" value="${b}" ${d.badges.includes(b) ? 'checked' : ''}>${b}</label>`).join('')}</div>
+        </div>
+        <div><label class="text-xs font-semibold text-brand-500">Calories</label><input id="dCal" type="number" value="${d.nutrition.cal}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Protein (g)</label><input id="dProt" type="number" value="${d.nutrition.protein}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Carbs (g)</label><input id="dCarb" type="number" value="${d.nutrition.carbs}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Fat (g)</label><input id="dFat" type="number" value="${d.nutrition.fat}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button id="saveDishBtn" data-id="${d.id || ''}" class="flex-1 bg-brand text-cream font-bold py-3 rounded-full text-sm">Save Dish</button>
+        <button id="cancelDishBtn" class="flex-1 bg-brand-50 text-brand-700 font-bold py-3 rounded-full text-sm">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function retailEditorModal() {
+  const d = session.editingRetail === 'new' ? { id:null,name:'',category:'Oils & Ghee',price:'',img:'',size:'',stock:true,desc:'' } : DB.retail.find(m => m.id === session.editingRetail);
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="modal-fade bg-white rounded-3xl max-w-lg w-full p-6 my-8">
+      <h3 class="font-display text-xl mb-4">${d.id ? 'Edit Product' : 'Add Retail Product'}</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Product Name</label><input id="rName" value="${d.name}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Category</label><input id="rCategory" value="${d.category}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Price (₹)</label><input id="rPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div><label class="text-xs font-semibold text-brand-500">Size / Pack</label><input id="rSize" value="${d.size}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Photo URL</label><input id="rImg" value="${d.img}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Description</label><textarea id="rDesc" rows="2" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm">${d.desc}</textarea></div>
+      </div>
+      <div class="flex gap-2 mt-5">
+        <button id="saveRetailBtn" data-id="${d.id || ''}" class="flex-1 bg-gold text-white font-bold py-3 rounded-full text-sm">Save Product</button>
+        <button id="cancelRetailBtn" class="flex-1 bg-brand-50 text-brand-700 font-bold py-3 rounded-full text-sm">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function qrPanel() {
+  const base = location.origin + location.pathname;
+  return `
+  <div class="bg-white rounded-2xl card-shadow p-5">
+    <div class="flex items-center justify-between mb-3 no-print">
+      <h3 class="font-display text-lg">QR Table Stand Generator</h3>
+      <button id="printAllBtn" class="text-xs font-bold bg-brand text-cream px-4 py-2.5 rounded-full flex items-center gap-1.5"><i data-lucide="printer" class="w-3.5 h-3.5"></i>Print All Tent Cards</button>
+    </div>
+    <div id="printArea" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      ${Array.from({length:20}, (_,i) => i+1).map(n => tentCard(n, base)).join('')}
+    </div>
+  </div>`;
+}
+
+function tentCard(n, base) {
+  const url = `${base}?table=${n}`;
+  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=105955&data=${encodeURIComponent(url)}`;
+  return `
+  <div class="border-2 border-brand rounded-2xl p-4 text-center bg-cream break-inside-avoid">
+    <img src="${DB.settings.logoUrl}" class="w-10 h-10 object-contain mx-auto mb-1.5">
+    <div class="font-display text-sm text-brand-800">${DB.settings.restaurantName}</div>
+    <img src="${qrImg}" class="w-full aspect-square my-2.5" alt="QR table ${n}" loading="eager" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
+    <div class="qr-fallback hidden w-full aspect-square my-2.5 rounded-xl border-2 border-dashed border-brand-200 bg-white flex flex-col items-center justify-center gap-2 p-3">
+      <i data-lucide="qr-code" class="w-8 h-8 text-brand-200"></i>
+      <code class="text-[9px] text-brand-600 break-all leading-tight">${url}</code>
+    </div>
+    <div class="font-display text-2xl text-brand">Table ${String(n).padStart(2,'0')}</div>
+    <div class="text-[10px] text-brand-400 mt-1">Scan to view menu &amp; order</div>
+  </div>`;
+}
+
+function brandPanel() {
+  return `
+  <div class="max-w-lg bg-white rounded-2xl card-shadow p-5">
+    <h3 class="font-display text-lg mb-1">Brand Settings</h3>
+    <p class="text-xs text-brand-400 mb-4">Changes sync instantly across customer app &amp; dashboards.</p>
+    <label class="text-xs font-semibold text-brand-500">Restaurant Name</label>
+    <input id="brandName" value="${DB.settings.restaurantName}" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
+    <label class="text-xs font-semibold text-brand-500">Tagline</label>
+    <input id="brandTagline" value="${DB.settings.tagline}" class="w-full mt-1 mb-3 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
+    <label class="text-xs font-semibold text-brand-500">Logo Image URL</label>
+    <input id="brandLogo" value="${DB.settings.logoUrl.startsWith('data:') ? '' : DB.settings.logoUrl}" placeholder="https://…" class="w-full mt-1 mb-2 border border-brand-100 rounded-xl px-3 py-2.5 text-sm">
+    <div class="flex items-center gap-3 mb-4">
+      <img id="logoPreview" src="${DB.settings.logoUrl}" class="w-14 h-14 rounded-full bg-brand p-1.5 object-contain">
+      <button id="resetLogoBtn" class="text-xs font-semibold text-brand-500 underline">Reset logo</button>
+    </div>
+    <button id="saveBrandBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm">Save Settings</button>
+  </div>`;
+}
+
+function usersPanel() {
+  return `
+  <div class="max-w-xl bg-white rounded-2xl card-shadow p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-display text-lg">Staff Accounts</h3>
+      <button id="addStaffBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="user-plus" class="w-3.5 h-3.5"></i>Add Staff</button>
+    </div>
+    <div class="space-y-2">
+      ${DB.staff.map(s => `
+      <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-3">
+        <div class="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-sm">${s.username[0].toUpperCase()}</div>
+        <div class="flex-1 min-w-0"><div class="text-sm font-semibold">${s.username}</div><div class="text-[11px] text-brand-400">${s.role}</div></div>
+        <button class="revoke-staff text-[11px] font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full" data-id="${s.id}" ${DB.staff.length === 1 ? 'disabled' : ''}>Revoke</button>
+      </div>`).join('')}
+    </div>
+    ${session.showAddStaff ? addStaffForm() : ''}
+  </div>`;
+}
+
+function addStaffForm() {
+  return `
+  <div class="mt-4 border-t border-brand-50 pt-4">
+    <div class="grid grid-cols-2 gap-3">
+      <div><label class="text-xs font-semibold text-brand-500">Username</label><input id="newStaffUser" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+      <div><label class="text-xs font-semibold text-brand-500">Password</label><input id="newStaffPass" type="password" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+      <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Role</label>
+        <select id="newStaffRole" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm">
+          <option>Admin</option><option>Kitchen Staff</option>
+        </select>
+      </div>
+    </div>
+    <button id="saveStaffBtn" class="w-full mt-3 bg-brand text-cream font-bold py-2.5 rounded-full text-sm">Create Account</button>
+  </div>`;
+}
+
+function wireCustomer() {
+  const staffLink = document.getElementById('staffLoginLink');
+  if (staffLink) staffLink.onclick = () => { session.view = 'login'; render(); };
+
+  document.querySelectorAll('.cust-tab').forEach(b => b.onclick = () => { session.custTab = b.dataset.tab; render(); });
+  const search = document.getElementById('searchInput');
+  if (search) search.oninput = (e) => { session.search = e.target.value; renderKeepFocus('searchInput'); };
+
+  document.querySelectorAll('.cafe-cat').forEach(b => b.onclick = () => { session.activeCafeCat = b.dataset.cat; render(); });
+  document.querySelectorAll('.retail-cat').forEach(b => b.onclick = () => { session.activeRetailCat = b.dataset.rcat; render(); });
+
+  document.querySelectorAll('.nutri-toggle').forEach(b => b.onclick = () => {
+    document.getElementById('nutri-' + b.dataset.id).classList.toggle('hidden');
+  });
+
+  document.querySelectorAll('.add-cafe').forEach(b => b.onclick = () => {
+    const item = DB.menu.find(m => m.id === b.dataset.id);
+    session.cafeCart.push({ kind:'cafe', id:item.id, name:item.name, price:item.price, qty:1 });
+    render();
+  });
+  document.querySelectorAll('.add-retail').forEach(b => b.onclick = () => {
+    const item = DB.retail.find(m => m.id === b.dataset.id);
+    session.retailCart.push({ kind:'retail', id:item.id, name:item.name, price:item.price, qty:1 });
+    render();
+  });
+  document.querySelectorAll('.qty-btn').forEach(b => b.onclick = () => {
+    const arr = b.dataset.kind === 'cafe' ? session.cafeCart : session.retailCart;
+    const idx = arr.findIndex(c => c.id === b.dataset.id);
+    if (idx > -1) { arr[idx].qty += Number(b.dataset.d); if (arr[idx].qty <= 0) arr.splice(idx, 1); }
+    render();
+  });
+
+  const openCart = document.getElementById('openCartBtn'); if (openCart) openCart.onclick = () => { session.cartOpen = true; render(); };
+  const closeCart = document.getElementById('closeCartBtn'); if (closeCart) closeCart.onclick = () => { session.cartOpen = false; render(); };
+  const notes = document.getElementById('cartNotes'); if (notes) notes.oninput = (e) => { session.cartNotes = e.target.value; };
+
+  const placeBtn = document.getElementById('placeOrderBtn');
+  if (placeBtn) placeBtn.onclick = async () => {
+    if (!session.table) { toast('Please scan a table QR code first.', 'alert-triangle'); return; }
+    const jobs = [];
+    if (session.cafeCart.length) {
+      jobs.push({ id:uid('ord'), table:session.table, type:'cafe', items: session.cafeCart.map(c => ({name:c.name,qty:c.qty,price:c.price})), notes: session.cartNotes || '', status:'received', ts:Date.now() });
     }
+    if (session.retailCart.length) {
+      jobs.push({ id:uid('ord'), table:session.table, type:'retail', items: session.retailCart.map(c => ({name:c.name,qty:c.qty,price:c.price})), notes: session.cartNotes || '', status:'received', ts:Date.now() });
+    }
+    DB.orders.push(...jobs);
+    await saveAndSync('orders');
+    session.cafeCart = []; session.retailCart = []; session.cartNotes = ''; session.cartOpen = false; session.showCrossSell = true;
+    render();
+    toast('Order placed successfully!', 'check-circle');
+  };
 
-    loadMenu();
-    socket.on('menu_updated', () => loadMenu());
-  </script>
+  const dismissCross = document.getElementById('dismissCrossSell'); if (dismissCross) dismissCross.onclick = () => { session.showCrossSell = false; session.custTab = 'status'; render(); };
+  const browseRetail = document.getElementById('browseRetailBtn'); if (browseRetail) browseRetail.onclick = () => { session.showCrossSell = false; session.custTab = 'retail'; render(); };
+}
+
+function renderKeepFocus(id) {
+  const el = document.activeElement;
+  const pos = el && el.selectionStart;
+  render();
+  const el2 = document.getElementById(id);
+  if (el2) { el2.focus(); if (pos != null) el2.setSelectionRange(pos, pos); }
+}
+
+function wireKitchen() {
+  document.getElementById('logoutBtn').onclick = () => { session.staff = null; session.view = 'customer'; session.kitchenTab = 'orders'; render(); };
+  document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; if (session.soundOn) playChime('cafe'); render(); };
+  document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
+
+  document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
+    const o = DB.orders.find(x => x.id === b.dataset.id);
+    if (o) { o.status = b.dataset.next; await saveAndSync('orders'); render(); }
+  });
+
+  document.querySelectorAll('.stock-toggle').forEach(b => b.onclick = async () => {
+    const arr = b.dataset.kind === 'menu' ? DB.menu : DB.retail;
+    const it = arr.find(x => x.id === b.dataset.id);
+    it.stock = !it.stock;
+    await saveAndSync(b.dataset.kind === 'menu' ? 'menu' : 'retail');
+    render();
+    toast(it.name + ' marked ' + (it.stock ? 'in stock' : 'out of stock'), it.stock ? 'check-circle' : 'ban');
+  });
+
+  document.querySelectorAll('.edit-item').forEach(b => b.onclick = () => {
+    if (b.dataset.kind === 'menu') session.editingDish = b.dataset.id; else session.editingRetail = b.dataset.id;
+    render();
+  });
+
+  document.querySelectorAll('.delete-item').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this item?')) return;
+    if (b.dataset.kind === 'menu') DB.menu = DB.menu.filter(x => x.id !== b.dataset.id);
+    else DB.retail = DB.retail.filter(x => x.id !== b.dataset.id);
+    await saveAndSync(b.dataset.kind === 'menu' ? 'menu' : 'retail');
+    render();
+  });
+
+  const addDish = document.getElementById('addDishBtn'); if (addDish) addDish.onclick = () => { session.editingDish = 'new'; render(); };
+  const addRetail = document.getElementById('addRetailBtn'); if (addRetail) addRetail.onclick = () => { session.editingRetail = 'new'; render(); };
+
+  const saveDish = document.getElementById('saveDishBtn');
+  if (saveDish) saveDish.onclick = async () => {
+    const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
+    const payload = {
+      name: document.getElementById('dName').value.trim(),
+      category: document.getElementById('dCategory').value.trim(),
+      price: Number(document.getElementById('dPrice').value) || 0,
+      img: document.getElementById('dImg').value.trim(),
+      desc: document.getElementById('dDesc').value.trim(),
+      badges, stock: true,
+      nutrition: { cal: Number(document.getElementById('dCal').value) || 0, protein: Number(document.getElementById('dProt').value) || 0, carbs: Number(document.getElementById('dCarb').value) || 0, fat: Number(document.getElementById('dFat').value) || 0 }
+    };
+    if (!payload.name) { toast('Please enter a dish name.', 'alert-triangle'); return; }
+    const id = saveDish.dataset.id;
+    if (id) { const existing = DB.menu.find(m => m.id === id); Object.assign(existing, payload); }
+    else { DB.menu.push({ id: uid('m'), stock: true, ...payload }); }
+    await saveAndSync('menu');
+    session.editingDish = null; render(); toast('Dish saved.');
+  };
+  const cancelDish = document.getElementById('cancelDishBtn'); if (cancelDish) cancelDish.onclick = () => { session.editingDish = null; render(); };
+
+  const saveRetail = document.getElementById('saveRetailBtn');
+  if (saveRetail) saveRetail.onclick = async () => {
+    const payload = {
+      name: document.getElementById('rName').value.trim(),
+      category: document.getElementById('rCategory').value.trim(),
+      price: Number(document.getElementById('rPrice').value) || 0,
+      size: document.getElementById('rSize').value.trim(),
+      img: document.getElementById('rImg').value.trim(),
+      desc: document.getElementById('rDesc').value.trim(),
+      badges: ['100% Organic']
+    };
+    if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
+    const id = saveRetail.dataset.id;
+    if (id) { const existing = DB.retail.find(m => m.id === id); Object.assign(existing, payload); }
+    else { DB.retail.push({ id: uid('r'), stock: true, ...payload }); }
+    await saveAndSync('retail');
+    session.editingRetail = null; render(); toast('Product saved.');
+  };
+  const cancelRetail = document.getElementById('cancelRetailBtn'); if (cancelRetail) cancelRetail.onclick = () => { session.editingRetail = null; render(); };
+
+  const printBtn = document.getElementById('printAllBtn'); if (printBtn) printBtn.onclick = () => window.print();
+
+  const saveBrand = document.getElementById('saveBrandBtn');
+  if (saveBrand) saveBrand.onclick = async () => {
+    DB.settings.restaurantName = document.getElementById('brandName').value.trim() || DB.settings.restaurantName;
+    DB.settings.tagline = document.getElementById('brandTagline').value.trim();
+    const logoVal = document.getElementById('brandLogo').value.trim();
+    if (logoVal) DB.settings.logoUrl = logoVal;
+    await saveAndSync('settings');
+    render(); toast('Brand settings saved.', 'image');
+  };
+
+  const resetLogo = document.getElementById('resetLogoBtn');
+  if (resetLogo) resetLogo.onclick = async () => { DB.settings.logoUrl = DEFAULT_LOGO; await saveAndSync('settings'); render(); toast('Logo reset.'); };
+
+  const addStaffBtn = document.getElementById('addStaffBtn'); if (addStaffBtn) addStaffBtn.onclick = () => { session.showAddStaff = true; render(); };
+  const saveStaffBtn = document.getElementById('saveStaffBtn');
+  if (saveStaffBtn) saveStaffBtn.onclick = async () => {
+    const u = document.getElementById('newStaffUser').value.trim();
+    const p = document.getElementById('newStaffPass').value;
+    const r = document.getElementById('newStaffRole').value;
+    if (!u || !p) { toast('Username and password required.', 'alert-triangle'); return; }
+    if (DB.staff.some(s => s.username === u)) { toast('Username already exists.', 'alert-triangle'); return; }
+    DB.staff.push({ id: uid('u'), username: u, password: p, role: r });
+    await saveAndSync('staff');
+    session.showAddStaff = false; render(); toast('Staff created.', 'user-plus');
+  };
+  document.querySelectorAll('.revoke-staff').forEach(b => b.onclick = async () => {
+    if (!confirm('Revoke this account?')) return;
+    DB.staff = DB.staff.filter(s => s.id !== b.dataset.id);
+    await saveAndSync('staff');
+    render(); toast('Staff revoked.', 'user-x');
+  });
+}
+
+async function pollSync() {
+  const prevOrdersJSON = JSON.stringify(DB.orders);
+  await loadAll();
+
+  const currentIds = new Set(DB.orders.map(o => o.id));
+  if (PREV_ORDER_IDS.size) {
+    DB.orders.forEach(o => {
+      if (!PREV_ORDER_IDS.has(o.id) && session.view === 'kitchen') {
+        playChime(o.type === 'retail' ? 'retail' : 'cafe');
+      }
+    });
+  }
+  PREV_ORDER_IDS = currentIds;
+
+  if (JSON.stringify(DB.orders) !== prevOrdersJSON && !session.cartOpen && session.editingDish === null && session.editingRetail === null) {
+    render();
+  }
+}
+
+(async function boot() {
+  document.addEventListener('touchstart', unlockAudio, { once: true });
+  document.addEventListener('click', unlockAudio, { once: true });
+  await loadAll();
+  PREV_ORDER_IDS = new Set(DB.orders.map(o => o.id));
+  const qs = new URLSearchParams(location.search);
+  const t = qs.get('table');
+  if (t && Number(t) >= 1 && Number(t) <= 20) session.table = Number(t);
+  session.custTab = 'menu';
+  render();
+  setInterval(pollSync, 3000);
+})();
+</script>
 </body>
 </html>
