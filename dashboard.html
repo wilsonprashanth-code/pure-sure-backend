@@ -13,6 +13,11 @@
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<!-- Fonts for Recipe Cost Book -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <script>
   const firebaseConfig = {
@@ -26,6 +31,8 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
+  const fsDb = firebase.firestore();
+  const DOC_REF = fsDb.collection("recipeAppSession").doc("sharedWorkbookState");
 </script>
 
 <script>
@@ -45,8 +52,7 @@
     }
   }
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
 <style>
   * { -webkit-tap-highlight-color: transparent; }
   body { font-family:'Public Sans', sans-serif; background:#F9F8F3; }
@@ -66,6 +72,76 @@
     .no-print{ display:none !important; }
   }
   .card-shadow{ box-shadow: 0 1px 2px rgba(16,89,85,.06), 0 8px 24px -8px rgba(16,89,85,.18); }
+
+  /* Recipe Cost Book Embedded Styles */
+  :root {
+    --paper:#F7F3EC; --paper-dim:#EFE9DC; --ink:#241F1C; --ink-soft:#5B564F;
+    --rust:#B33F1E; --rust-dim:#E7CBC0; --sage:#5B6E4F; --sage-dim:#DCE3D5;
+    --brass:#A9824C; --line:#DED5C0; --white:#FFFDF9;
+  }
+  .rcb-shell { display:flex; height: calc(100vh - 120px); border: 1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; }
+  .rcb-sidebar { width:260px; flex-shrink:0; background:var(--paper-dim); border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .rcb-sidebar .search { padding:10px 12px 6px; }
+  .rcb-sidebar .search input { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:3px; font-size:12px; font-family:'Inter',sans-serif; background:var(--white); }
+  .rcb-sidebar .pinned { margin:2px 8px 6px; }
+  .sidebar-category-title { padding:6px 12px 2px; font-size:10px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:1px; color:var(--brass); font-weight:600; }
+  .sidebar-item { display:flex; align-items:center; justify-space-between; gap:6px; padding:7px 12px; font-size:12px; cursor:pointer; border-left:3px solid transparent; color:var(--ink-soft); border-radius:4px; transition:background .12s ease; }
+  .sidebar-item:hover { background:var(--paper); }
+  .sidebar-item.active { background:var(--white); border-left-color:var(--rust); color:var(--ink); font-weight:600; box-shadow:inset 3px 0 0 var(--rust); }
+  .sidebar-item .tag { font-family:'IBM Plex Mono',monospace; font-size:8.5px; padding:1px 4px; border-radius:3px; text-transform:uppercase; background:var(--paper); border:1px solid var(--line); }
+  .sidebar-item.tag-main .tag { color:var(--rust); border-color:var(--rust-dim); }
+  .sidebar-item.tag-base .tag { color:var(--brass); border-color:var(--brass); }
+  .sidebar-item .dot { width:6px; height:6px; border-radius:50%; background:var(--rust); flex-shrink:0; display:none; }
+  .sidebar-item.dirty .dot { display:inline-block; }
+  .recipe-list { flex:1; overflow-y:auto; border-top:1px solid var(--line); padding:4px 0; }
+  .rcb-sidebar .new-recipe { padding:10px 12px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:6px; }
+  .rcb-sidebar .new-recipe-row { display:flex; gap:6px; }
+  .rcb-sidebar .new-recipe input, .rcb-sidebar .new-recipe select { flex:1; min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:3px; font-size:12px; }
+  .rcb-main { flex:1; min-width:0; overflow-y:auto; padding:14px 20px 24px; }
+  .rcb-empty { max-width:560px; margin:6vh auto; text-align:center; }
+  .rcb-empty h1 { font-family:'Fraunces',serif; font-size:24px; margin-bottom:6px; }
+  .rcb-empty p { color:var(--ink-soft); line-height:1.55; font-size:13px; }
+  .rcb-dropzone { margin-top:20px; border:2px dashed var(--brass); border-radius:8px; padding:30px 20px; background:var(--white); cursor:pointer; position:relative; overflow:hidden; }
+  .rcb-dropzone input[type=file] { opacity:0; position:absolute; top:0; left:0; width:100%; height:100%; cursor:pointer; }
+  .sheet-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap; }
+  .sheet-head .eyebrow { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--brass); margin-bottom:4px; }
+  #recipeTitleInput { font-family:'Fraunces',serif; font-weight:600; font-size:24px; border:none; background:transparent; border-bottom:2px solid transparent; padding:2px 0; min-width:220px; color:var(--ink); }
+  #recipeTitleInput:focus { outline:none; border-bottom-color:var(--brass); }
+  .master-title { font-family:'Fraunces',serif; font-weight:600; font-size:24px; }
+  .head-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .save-status { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--sage); background:var(--sage-dim); padding:3px 6px; border-radius:3px; opacity:0; transition:opacity 0.3s ease; }
+  .save-status.show { opacity:1; }
+  .rcb-table-wrap { background:var(--white); border:1px solid var(--line); border-radius:6px; overflow:auto; width:100%; max-height: calc(100vh - 320px); box-shadow:0 1px 3px rgba(36,31,28,.06); }
+  .rcb-table-wrap table { border-collapse:separate; border-spacing:0; width:100%; font-size:12px; }
+  .rcb-table-wrap thead th { position:sticky; top:0; z-index:10; text-align:left; font-size:10px; letter-spacing:.4px; text-transform:uppercase; color:var(--ink-soft); background:var(--paper-dim); padding:8px 8px; border-bottom:2px solid var(--line); white-space:nowrap; }
+  .rcb-table-wrap th.col-sticky-1, .rcb-table-wrap td.col-sticky-1 { position:sticky; left:0; z-index:5; background:var(--white); }
+  .rcb-table-wrap th.col-sticky-2, .rcb-table-wrap td.col-sticky-2 { position:sticky; left:40px; z-index:5; background:var(--white); border-right:2px solid var(--line); }
+  .rcb-table-wrap tbody td { padding:4px 6px; border-bottom:1px solid var(--paper-dim); vertical-align:middle; white-space:nowrap; }
+  .rcb-table-wrap input.cell, .rcb-table-wrap select.cell-select { width:100%; min-width:50px; border:1px solid transparent; background:transparent; padding:3px 4px; border-radius:3px; font-size:12px; font-family:'Inter',sans-serif; }
+  .rcb-table-wrap input.cell.num-input { font-family:'IBM Plex Mono',monospace; text-align:right; min-width:55px; }
+  .rcb-table-wrap input.cell:focus, .rcb-table-wrap select.cell-select:focus { outline:none; border-color:var(--brass); background:var(--white); box-shadow:0 0 0 2px var(--rust-dim); }
+  .readonly-cell { color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; font-size:11.5px; }
+  .badge-manual { font-size:8.5px; font-family:'IBM Plex Mono',monospace; color:var(--rust); border:1px solid var(--rust-dim); background:var(--rust-dim); padding:1px 4px; border-radius:6px; margin-left:4px; }
+  .icon-btn { background:transparent; border:none; color:var(--ink-soft); font-size:13px; padding:2px 4px; border-radius:3px; cursor:pointer; }
+  .icon-btn:hover { background:var(--rust-dim); color:var(--rust); }
+  .add-row-bar { padding:8px 12px; border-top:1px solid var(--line); background:var(--paper-dim); display:flex; justify-between:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .totals-row { display:flex; gap:12px; align-items:stretch; margin-top:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .stat-card { background:var(--white); border:1px solid var(--line); border-radius:6px; padding:9px 12px; min-width:130px; flex:1; box-shadow:0 1px 4px rgba(36,31,28,.06); }
+  .stat-card .label { font-size:9.5px; text-transform:uppercase; letter-spacing:.8px; color:var(--ink-soft); margin-bottom:4px; }
+  .stat-card .value { font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:600; }
+  .margin-field { display:flex; align-items:center; gap:4px; font-size:11.5px; color:var(--ink-soft); margin-top:6px; }
+  .margin-field input, .margin-field select { padding:3px 5px; border:1px solid var(--line); border-radius:3px; font-family:'IBM Plex Mono',monospace; }
+  .stamp { position:relative; border:3px double var(--rust); border-radius:8px; padding:10px 18px; transform:rotate(-1deg); color:var(--rust); display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:160px; }
+  .top5-card { background: var(--white); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; margin-top: 14px; }
+  .top5-card h4 { margin: 0 0 10px 0; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; letter-spacing: 1px; color: var(--brass); }
+  .top5-list { display: flex; flex-direction: column; gap: 6px; }
+  .top5-item { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 8px; background: var(--paper-dim); border-radius: 4px; }
+  .billing-card { background: var(--white); border: 1px solid var(--line); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .billing-form { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-soft); }
+  .form-group select, .form-group input { padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--paper); font-family: 'Inter', sans-serif; }
+  .bill-log { margin-top: 12px; padding: 10px; background: var(--paper-dim); border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; max-height: 220px; overflow-y: auto; }
 </style>
 </head>
 <body class="text-brand-900">
@@ -182,6 +258,9 @@ function render() {
   const app = document.getElementById('app');
   if (!session.staff) { app.innerHTML = loginModalHTML(); wireLogin(); lucide.createIcons(); return; }
   app.innerHTML = kitchenShell(); wireKitchen(); lucide.createIcons();
+  if (session.kitchenTab === 'rcb' && session.staff.role === 'Admin') {
+    initRCBModule();
+  }
 }
 
 function loginModalHTML() {
@@ -221,6 +300,8 @@ function wireLogin() {
 function kitchenShell() {
   const orders = [...DB.orders].filter(o => o.type !== 'retail').sort((a,b) => a.ts - b.ts);
   const retailOrders = [...DB.orders].filter(o => o.type === 'retail').sort((a,b) => a.ts - b.ts);
+  const isAdmin = session.staff && session.staff.role === 'Admin';
+
   return `
   <div class="min-h-screen bg-brand-50">
     <header class="sticky top-0 z-30 bg-brand-900 text-cream shadow-lg">
@@ -233,7 +314,7 @@ function kitchenShell() {
           <button id="soundToggle" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-full ${session.soundOn ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-cream/70'}">
             <i data-lucide="${session.soundOn ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>${session.soundOn ? 'Sound Alerts On' : 'Muted'}
           </button>
-          <span class="text-xs text-cream/60 hidden sm:inline">${session.staff.username}</span>
+          <span class="text-xs text-cream/60 hidden sm:inline">${session.staff.username} (${session.staff.role})</span>
           <button id="logoutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-full flex items-center gap-1.5"><i data-lucide="log-out" class="w-3.5 h-3.5"></i>Logout</button>
         </div>
       </div>
@@ -243,6 +324,7 @@ function kitchenShell() {
         ${kTab('retail','Retail Requests','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
         ${kTab('inventory','Inventory','package','')}
         ${kTab('bulk','Bulk Import','file-spreadsheet','')}
+        ${isAdmin ? kTab('rcb','Recipe Cost Book & Cloud Inventory','book-open','') : ''}
         ${kTab('qr','QR Table Manager','qr-code','')}
         ${kTab('brand','Brand Settings','image','')}
         ${kTab('users','User Management','users','')}
@@ -254,6 +336,7 @@ function kitchenShell() {
       ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
       ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
       ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
+      ${(session.kitchenTab === 'rcb' && isAdmin) ? rcbPanel() : ''}
       ${session.kitchenTab === 'qr' ? qrPanel() : ''}
       ${session.kitchenTab === 'brand' ? brandPanel() : ''}
       ${session.kitchenTab === 'users' ? usersPanel() : ''}
@@ -383,6 +466,77 @@ function bulkPanel() {
 
     <button id="processExcelBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm hover:bg-brand-600 transition">Process &amp; Upload Items to Live App</button>
   </div>`;
+}
+
+function rcbPanel() {
+  return `
+  <div class="space-y-4">
+    <!-- Recipe Cost Book Embedded Header Bar -->
+    <div class="bg-brand-900 text-cream p-3 rounded-xl flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-2">
+        <span class="font-display font-bold text-base">Recipe Cost Book</span>
+        <span class="text-[10px] text-gold-400 uppercase tracking-widest bg-black/20 px-2 py-0.5 rounded">Admin Only Cloud Manager</span>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <span id="rcbFilenameLabel" class="text-xs font-mono text-cream/70"></span>
+        <button class="btn btn-ghost text-xs" id="rcbOpenBtn">Open Excel<input type="file" id="rcbFileInput" accept=".xlsx,.xls,.csv" class="hidden"></button>
+        <button class="btn btn-danger text-xs" id="rcbResetBtn">Reset Cloud Data</button>
+        <button class="btn-primary text-xs" id="rcbDownloadBtn">Download Full Excel</button>
+      </div>
+    </div>
+
+    <!-- Main Shell -->
+    <div class="rcb-shell">
+      <aside class="rcb-sidebar">
+        <div class="search">
+          <input type="text" id="rcbSidebarSearch" placeholder="Search recipes…">
+          <div style="display:flex; justify-between; align-items:center; margin-top:6px; font-size:10px;">
+            <span style="color:var(--ink-soft); font-family:'IBM Plex Mono',monospace;">SORT MAIN DISHES:</span>
+            <button id="rcbSortMainBtn" class="btn-outline" style="font-size:9.5px; padding:2px 6px;">Alpha ⇄ High Cost %</button>
+          </div>
+        </div>
+        <div class="pinned">
+          <div class="sidebar-item" id="rcbBillingTerminalItem" data-sheet="__billing__">
+            <span>🛒 Sales & Billing Terminal</span>
+            <span class="dot"></span>
+          </div>
+          <div class="sidebar-item" id="rcbWastageTerminalItem" data-sheet="__wastage__">
+            <span>🗑️ Wastage Entry</span>
+            <span class="dot"></span>
+          </div>
+          <div class="sidebar-item" id="rcbMasterListItem" data-sheet="__master__">
+            <span>📒 Master Stock & Rates</span>
+            <span class="dot"></span>
+          </div>
+        </div>
+        <div class="recipe-list" id="rcbRecipeList"></div>
+        <div class="new-recipe">
+          <input type="text" id="rcbNewRecipeName" placeholder="New recipe name…">
+          <div class="new-recipe-row">
+            <select id="rcbNewRecipeType" class="type-select">
+              <option value="MAIN">Main Recipe (Billable)</option>
+              <option value="BASE">Base Recipe (Pre-Prep)</option>
+            </select>
+            <button class="btn-outline" id="rcbAddRecipeBtn">+ Add</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="rcb-main" id="rcbMain">
+        <div class="rcb-empty" id="rcbEmptyState">
+          <h1>Cloud-Synced Recipe Cost & Inventory Manager</h1>
+          <p>Connecting to Google Cloud Firestore... Upload your initial workbook or click "Reset Cloud Data".</p>
+          <label class="rcb-dropzone" for="rcbDropFileInput">
+            <div class="icon">☁️</div>
+            <strong>Drop your .xlsx here, or click to browse</strong>
+            <span>Initial Upload to Seed Google Cloud Database</span>
+            <input type="file" id="rcbDropFileInput" accept=".xlsx,.xls,.csv">
+          </label>
+        </div>
+      </main>
+    </div>
+  </div>
+  <datalist id="rcbMasterDatalist"></datalist>`;
 }
 
 function retailBoard(orders) {
@@ -831,6 +985,942 @@ setInterval(() => {
     playLoudAlarm();
   }
 }, 5000);
+
+/* --- RECIPE COST BOOK MODULE ENGINE --- */
+let rcbWorkbook = null;
+let rcbOriginalFilename = 'recipes.xlsx';
+let rcbMasterSheetName = null;
+let rcbMasterList = [];
+let rcbMasterDirty = false;
+let rcbRecipeOrder = [];
+let rcbRecipes = {};
+let rcbCurrentSheet = '__billing__';
+let rcbBillingLog = [];
+let rcbWastageLog = [];
+let rcbBillCounter = 1001;
+let rcbIsSyncing = false;
+let rcbMasterSearchQuery = '';
+let rcbSidebarSearchQuery = '';
+let rcbSortMainByCost = false;
+let rcbSidebarItemNodes = {};
+
+function fmt(n){ return (n == null || isNaN(n)) ? '—' : '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtNum(n){ return (n == null || isNaN(n)) ? '0' : Number(n.toFixed(2)).toString(); }
+function fmtPct(f){ return (f == null || isNaN(f)) ? '—' : (f*100).toFixed(1) + '%'; }
+function esc(v){ return v == null ? '' : String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toNum(v){ if (typeof v === 'number') return v; if (v == null) return 0; const n = parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n) ? 0 : n; }
+
+function getGramConversionFactor(unitStr, uomStr) {
+  const u = String(uomStr || unitStr || 'GRM').trim().toUpperCase();
+  if (['PCS','PC','NOS','PORTION','POTION','POSTION','PACKET','SLICE'].includes(u)) return 1.0;
+  if (u === 'KG' || u === 'LTR' || u === 'L' || u === 'KGS') return 1.0;
+  return 0.001;
+}
+
+function getPricingFactor(referenceUom) {
+  const u = String(referenceUom || 'KG').trim().toUpperCase();
+  if (['PC','PCS','NOS','PORTION','POTION','POSTION','PACKET','SLICE'].includes(u)) return 1.0;
+  return 0.001;
+}
+
+function calculateGramsAndUomDefault(qtyVal, unitStr, currentGrams) {
+  const u = String(unitStr || '').trim().toUpperCase();
+  const qty = toNum(qtyVal);
+  if (['PCS','PC','NOS','PORTION','POTION','POSTION','PACKET','SLICE'].includes(u)) return { grams: currentGrams != null && currentGrams > 0 ? currentGrams : (qty || 1), uom: u, factor: 1.0 };
+  if (currentGrams != null && currentGrams > 0) return { grams: currentGrams, uom: (u === 'ML' || u === 'LTR') ? 'ML' : 'GRM', factor: 0.001 };
+  if (u === 'TSP') return { grams: qty * 5, uom: 'GRM', factor: 0.001 };
+  if (u === 'TBSP') return { grams: qty * 15, uom: 'GRM', factor: 0.001 };
+  if (u === 'KG' || u === 'KGS') return { grams: qty * 1000, uom: 'GRM', factor: 0.001 };
+  if (u === 'GRM' || u === 'GM' || u === 'G') return { grams: qty || 0, uom: 'GRM', factor: 0.001 };
+  if (u === 'ML') return { grams: qty || 0, uom: 'ML', factor: 0.001 };
+  if (u === 'LTR' || u === 'L') return { grams: qty * 1000, uom: 'ML', factor: 0.001 };
+  return { grams: qty || 0, uom: 'GRM', factor: 0.001 };
+}
+
+function calculateStockItem(m) {
+  const opening = toNum(m.opening), inward = toNum(m.inward), sales = toNum(m.sales), wastage = toNum(m.wastage);
+  m.closing = opening + inward - sales - wastage;
+  const factor = getGramConversionFactor(m.uom, m.uom);
+  m.stockValue = m.closing * factor * toNum(m.rate);
+}
+
+function stripDOMReferences(obj) {
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    if (key.startsWith('_') || typeof value === 'function' || (value && value instanceof HTMLElement)) return undefined;
+    return value;
+  }));
+}
+
+function sortRecipeOrderAlphabetically() {
+  rcbRecipeOrder.sort((a, b) => {
+    const titleA = (rcbRecipes[a] && rcbRecipes[a].title ? rcbRecipes[a].title : a).trim();
+    const titleB = (rcbRecipes[b] && rcbRecipes[b].title ? rcbRecipes[b].title : b).trim();
+    return titleA.localeCompare(titleB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
+async function saveRCBToCloud(showModal = false) {
+  if (rcbIsSyncing) return;
+  sortRecipeOrderAlphabetically();
+  const rawPayload = {
+    originalFilename: rcbOriginalFilename,
+    masterSheetName: rcbMasterSheetName,
+    masterList: rcbMasterList.filter(m => !(m.vendor && m.vendor.trim().toUpperCase() === 'PRE PREP')),
+    masterDirty: rcbMasterDirty,
+    recipeOrder: rcbRecipeOrder,
+    recipes: rcbRecipes,
+    currentSheet: rcbCurrentSheet,
+    billingLog: rcbBillingLog,
+    wastageLog: rcbWastageLog,
+    billCounter: rcbBillCounter,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const payload = stripDOMReferences(rawPayload);
+  try {
+    await DOC_REF.set(payload);
+    notifySaved();
+  } catch(e) {
+    console.error("Error saving RCB to Firestore:", e);
+  }
+  if (showModal) setTimeout(() => alert("Successfully saved Recipe Cost Book to Cloud!"), 80);
+}
+
+function initRCBModule() {
+  DOC_REF.onSnapshot((doc) => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    if (!data) return;
+
+    rcbIsSyncing = true;
+    rcbOriginalFilename = data.originalFilename || 'recipes.xlsx';
+    rcbMasterSheetName = data.masterSheetName;
+    rcbMasterList = (data.masterList || []).filter(m => !(m.vendor && m.vendor.trim().toUpperCase() === 'PRE PREP'));
+    rcbMasterList.forEach(m => calculateStockItem(m));
+    rcbMasterDirty = data.masterDirty || false;
+    rcbRecipeOrder = data.recipeOrder || [];
+    rcbRecipes = data.recipes || {};
+    if ((data.billingLog || []).length > 0) rcbBillingLog = data.billingLog;
+    rcbWastageLog = data.wastageLog || [];
+    rcbBillCounter = data.billCounter || 1001;
+
+    Object.keys(rcbRecipes).forEach(rName => {
+      if (!rcbRecipes[rName].type) rcbRecipes[rName].type = isBaseRecipeName(rName) ? 'BASE' : 'MAIN';
+      if (!rcbRecipes[rName].batchYieldQty) rcbRecipes[rName].batchYieldQty = 1000;
+      if (!rcbRecipes[rName].yieldUnit) rcbRecipes[rName].yieldUnit = 'GRM';
+      if (!rcbRecipes[rName].portionSize) rcbRecipes[rName].portionSize = 1;
+      if (rcbRecipes[rName].manualSellingPrice == null) rcbRecipes[rName].manualSellingPrice = 0;
+
+      rcbRecipes[rName].rows.forEach(r => {
+        if (findSubRecipe(r.desc)) r.vendor = 'PRE PREP';
+        r.unit = r.unit || 'GRM'; r.uom = r.uom || r.unit || 'GRM';
+        r.opening = toNum(r.opening || 0); r.inward = toNum(r.inward || 0); r.sales = toNum(r.sales || 0); r.wastage = toNum(r.wastage || 0);
+        calculateStockItem(r);
+      });
+      resequenceSlNo(rcbRecipes[rName]);
+    });
+
+    sortRecipeOrderAlphabetically();
+    if (data.currentSheet && data.currentSheet !== '__billing__') rcbCurrentSheet = data.currentSheet;
+    rcbWorkbook = XLSX.utils.book_new();
+
+    recomputeAllRecipes();
+    rebuildDatalist();
+
+    const fnLabel = document.getElementById('rcbFilenameLabel');
+    if (fnLabel) fnLabel.textContent = rcbOriginalFilename;
+
+    renderRCBSidebarList();
+    selectRCBSheet(rcbCurrentSheet);
+    rcbIsSyncing = false;
+  });
+
+  wireRCBEvents();
+}
+
+function wireRCBEvents() {
+  const openInput = document.getElementById('rcbFileInput');
+  const dropInput = document.getElementById('rcbDropFileInput');
+  [openInput, dropInput].forEach(inp => {
+    if (inp) inp.onchange = e => { if (e.target.files && e.target.files[0]) handleRCBFile(e.target.files[0]); };
+  });
+
+  const resetBtn = document.getElementById('rcbResetBtn');
+  if (resetBtn) resetBtn.onclick = async () => {
+    if (confirm("Reset and clear Recipe Cost Book Cloud Database?")) {
+      await DOC_REF.delete();
+      location.reload();
+    }
+  };
+
+  const dlBtn = document.getElementById('rcbDownloadBtn');
+  if (dlBtn) dlBtn.onclick = () => downloadFullRCBExcel();
+
+  const addBtn = document.getElementById('rcbAddRecipeBtn');
+  if (addBtn) addBtn.onclick = () => {
+    const nameInput = document.getElementById('rcbNewRecipeName');
+    const typeSelect = document.getElementById('rcbNewRecipeType');
+    let name = (nameInput.value||'').trim();
+    if (!name) return;
+    let unique = name, n=2;
+    while (rcbRecipes[unique]) { unique = name + ' ' + n; n++; }
+    rcbRecipes[unique] = {
+      title: name, type: typeSelect.value || 'MAIN', batchYieldQty: 1000, yieldUnit: 'GRM', portionSize: 1,
+      manualSellingPrice: 0, effectiveRatePerUnit: 0, rows: [], marginPercent: 30, dirty: true, isNew: true, totalCost: 0, idealPrice: 0
+    };
+    rcbRecipeOrder.push(unique);
+    sortRecipeOrderAlphabetically();
+    nameInput.value = '';
+    recomputeRecipe(rcbRecipes[unique]);
+    triggerSave(rcbRecipes[unique], unique);
+    selectRCBSheet(unique);
+  };
+
+  const mItem = document.getElementById('rcbMasterListItem'); if (mItem) mItem.onclick = () => selectRCBSheet('__master__');
+  const bItem = document.getElementById('rcbBillingTerminalItem'); if (bItem) bItem.onclick = () => selectRCBSheet('__billing__');
+  const wItem = document.getElementById('rcbWastageTerminalItem'); if (wItem) wItem.onclick = () => selectRCBSheet('__wastage__');
+}
+
+function handleRCBFile(file) {
+  if (!file) return;
+  rcbOriginalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const data = new Uint8Array(e.target.result);
+      rcbWorkbook = XLSX.read(data, {type:'array'});
+      rcbMasterSheetName = detectMasterSheet(rcbWorkbook);
+      rcbMasterList = parseMaster(rcbWorkbook.Sheets[rcbMasterSheetName]);
+      rcbMasterDirty = false;
+      rcbRecipes = {}; rcbRecipeOrder = [];
+      rcbWorkbook.SheetNames.forEach(name=>{
+        if (name === rcbMasterSheetName) return;
+        rcbRecipes[name] = parseRecipe(rcbWorkbook.Sheets[name], name);
+        rcbRecipeOrder.push(name);
+      });
+      sortRecipeOrderAlphabetically();
+      recomputeAllRecipes();
+      rebuildDatalist();
+      saveRCBToCloud(true);
+      renderRCBSidebarList();
+      selectRCBSheet('__billing__');
+    } catch(err) { alert('Error reading file: ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function notifySaved() {
+  const el = document.getElementById('saveStatusIndicator');
+  if (el) { el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2000); }
+}
+
+function triggerSave(recipe, name, showModal = false) {
+  if (recipe) recipe.dirty = true;
+  saveRCBToCloud(showModal);
+}
+
+function resequenceSlNo(recipe) {
+  if (!recipe || !recipe.rows) return;
+  recipe.rows.forEach((row, idx) => { row.sl = idx + 1; });
+}
+
+function isBaseRecipeName(name) {
+  const n = name.toLowerCase();
+  return n.includes('base recipe') || n.includes('pre prep') || n.includes('puree') || n.includes('sauce') || n.includes('dressing') || n.includes('batter') || n.includes('hummus') || n.includes('chutney') || n.includes('masala') || n.includes('yield');
+}
+
+function normalizeMatchStr(s){
+  return String(s || '').toLowerCase().replace(/\b(batch\s+)?yield\b/g, ' ').replace(/\d+(\.\d+)?\s*(kgs?|g|gm|grm|grms?|ml|ltrs?|l|pcs?|nos?)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function containsWholePhrase(haystack, needle){
+  if (!needle) return false;
+  return new RegExp('(^|\\s)' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|\\s)').test(haystack);
+}
+
+function lookupMaster(ingredientDesc){
+  if (!ingredientDesc) return null;
+  const needle = String(ingredientDesc).trim().toUpperCase();
+  if (!needle) return null;
+  let hit = rcbMasterList.find(m => m.desc.toUpperCase() === needle);
+  if (hit) return hit;
+  const cleanNeedle = needle.replace(/\b(FRESH|RAW|ORGANIC|WHOLE|EXTRA|VIRGIN)\b/g, '').trim();
+  hit = rcbMasterList.find(m => m.desc.toUpperCase().replace(/\b(FRESH|RAW|ORGANIC|WHOLE|EXTRA|VIRGIN)\b/g, '').trim() === cleanNeedle);
+  if (hit) return hit;
+  const needleNorm = normalizeMatchStr(needle);
+  if (needleNorm.length >= 4) {
+    let best = null, bestScore = 0;
+    rcbMasterList.forEach(m => {
+      const masterNorm = normalizeMatchStr(m.desc);
+      if (!masterNorm) return;
+      const [shorter, longer] = needleNorm.length <= masterNorm.length ? [needleNorm, masterNorm] : [masterNorm, needleNorm];
+      if (!containsWholePhrase(longer, shorter)) return;
+      const score = shorter.length / longer.length;
+      if (score >= 0.6 && score > bestScore) { bestScore = score; best = m; }
+    });
+    if (best) return best;
+  }
+  return null;
+}
+
+function findSubRecipeExact(ingredientDesc) {
+  if (!ingredientDesc) return null;
+  const needleRaw = ingredientDesc.trim().toLowerCase();
+  if (!needleRaw) return null;
+  for (let sheetName of rcbRecipeOrder) {
+    const title = (rcbRecipes[sheetName].title || sheetName).trim().toLowerCase();
+    if (title === needleRaw || sheetName.trim().toLowerCase() === needleRaw) return sheetName;
+  }
+  const needleNorm = normalizeMatchStr(needleRaw);
+  if (needleNorm.length >= 3) {
+    for (let sheetName of rcbRecipeOrder) {
+      if (normalizeMatchStr(rcbRecipes[sheetName].title || sheetName) === needleNorm) return sheetName;
+    }
+  }
+  return null;
+}
+
+function findSubRecipeFuzzy(ingredientDesc) {
+  if (!ingredientDesc) return null;
+  const needleNorm = normalizeMatchStr(ingredientDesc);
+  if (needleNorm.length < 8) return null;
+  let best = null, bestScore = 0;
+  for (let sheetName of rcbRecipeOrder) {
+    const recipe = rcbRecipes[sheetName];
+    if (recipe.type !== 'BASE') continue;
+    const titleNorm = normalizeMatchStr(recipe.title || sheetName);
+    if (!titleNorm || !containsWholePhrase(titleNorm, needleNorm)) continue;
+    const score = needleNorm.length / titleNorm.length;
+    if (score >= 0.6 && score > bestScore) { bestScore = score; best = sheetName; }
+  }
+  return best;
+}
+
+function findSubRecipe(ingredientDesc) {
+  return findSubRecipeExact(ingredientDesc) || findSubRecipeFuzzy(ingredientDesc);
+}
+
+function rebuildDatalist(){
+  const dl = document.getElementById('rcbMasterDatalist');
+  if (dl) dl.innerHTML = rcbMasterList.map(m => `<option value="${esc(m.desc)}">`).join('');
+}
+
+function detectMasterSheet(wb){
+  for (const name of wb.SheetNames){
+    const ws = wb.Sheets[name];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, range:0, defval:null});
+    const h = (aoa[0]||[]).map(x => x==null ? '' : String(x).trim().toLowerCase());
+    if (h.some(x=>x.indexOf('ingredient description')>=0) && h.some(x=>x.indexOf('vendor')>=0) && h.some(x=>x.indexOf('rate')>=0)) return name;
+  }
+  return wb.SheetNames[0];
+}
+
+function parseMaster(ws){
+  const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+  if (!aoa || aoa.length === 0) return [];
+  let descIdx = 0, vendorIdx = 1, rateIdx = 2, uomIdx = 3, openingIdx = 4, inwardIdx = 5, salesIdx = 6, wastageIdx = 7;
+  (aoa[0] || []).map(x => x == null ? '' : String(x).trim().toLowerCase()).forEach((h, idx) => {
+    if (h.includes('description') || h.includes('ingredient')) descIdx = idx;
+    else if (h.includes('vendor') || h.includes('supplier')) vendorIdx = idx;
+    else if (h.includes('rate') || h.includes('price') || h.includes('cost')) rateIdx = idx;
+    else if (h.includes('uom') || h.includes('unit')) uomIdx = idx;
+    else if (h.includes('opening')) openingIdx = idx;
+    else if (h.includes('inward')) inwardIdx = idx;
+    else if (h.includes('sales') || h.includes('used')) salesIdx = idx;
+    else if (h.includes('wastage') || h.includes('waste')) wastageIdx = idx;
+  });
+  const list = [];
+  for (let r=1; r<aoa.length; r++){
+    const row = aoa[r] || [];
+    const desc = row[descIdx];
+    if (desc == null || String(desc).trim()==='') continue;
+    const vendorVal = row[vendorIdx] != null ? String(row[vendorIdx]).trim() : '';
+    if (vendorVal.toUpperCase() === 'PRE PREP') continue;
+    const rateVal = toNum(row[rateIdx]);
+    const item = {
+      desc: String(desc).trim(), vendor: vendorVal, rate: (rateVal > 100000 || isNaN(rateVal)) ? 0 : rateVal,
+      uom: row[uomIdx] != null ? String(row[uomIdx]).trim() : 'GRM',
+      opening: toNum(row[openingIdx]), inward: toNum(row[inwardIdx]), sales: toNum(row[salesIdx]), wastage: toNum(row[wastageIdx])
+    };
+    calculateStockItem(item);
+    list.push(item);
+  }
+  return list;
+}
+
+function parseRecipe(ws, sheetName){
+  const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+  let headerIdx = -1, slColIdx = 1;
+  for (let r = 0; r < Math.min(10, aoa.length); r++) {
+    const row = aoa[r] || [];
+    for (let c = 0; c < Math.min(5, row.length); c++) {
+      if (row[c] != null && String(row[c]).trim().toLowerCase().includes('sl no')) { headerIdx = r; slColIdx = c; break; }
+    }
+    if (headerIdx !== -1) break;
+  }
+  if (headerIdx === -1) headerIdx = 2;
+
+  let titleIdx = -1;
+  for (let r = headerIdx - 1; r >= 0; r--) {
+    const row = aoa[r] || [];
+    let rowText = '';
+    for (let colVal of row) { if (colVal != null && String(colVal).trim().length > 0) { rowText = String(colVal).trim(); break; } }
+    if (!rowText || /^Batch Yield:/i.test(rowText)) continue;
+    titleIdx = r; break;
+  }
+  let cleanTitle = (titleIdx !== -1 && aoa[titleIdx]) ? String(aoa[titleIdx].find(v => v != null && String(v).trim().length > 0) || '').replace(/\s*\((MAIN|BASE)\s+RECIPE\)/i, '').trim() : sheetName.trim();
+
+  let explicitYieldQty = null, explicitYieldUnit = null;
+  for (let r = 0; r < headerIdx; r++) {
+    const rowStr = (aoa[r] || []).join(' ');
+    if (rowStr.includes('Batch Yield:')) {
+      const match = rowStr.match(/Batch Yield:\s*([\d.]+)\s*([A-Za-z]+)/i);
+      if (match && match[1]) { explicitYieldQty = parseFloat(match[1]); explicitYieldUnit = match[2].toUpperCase(); }
+    }
+  }
+
+  if (explicitYieldQty == null) {
+    const numMatch = cleanTitle.match(/(\d+)\s*(g|gm|ml|pc|pcs|portion|portions)?/i);
+    if (numMatch && numMatch[1]) {
+      explicitYieldQty = parseFloat(numMatch[1]);
+      const u = (numMatch[2] || 'g').toLowerCase();
+      explicitYieldUnit = u.includes('ml') ? 'ML' : (u.includes('pc') || u.includes('portion') ? 'PCS' : 'GRM');
+    } else { explicitYieldQty = 1000; explicitYieldUnit = 'GRM'; }
+  }
+
+  const rows = [];
+  let i = headerIdx + 1;
+  while (i < aoa.length){
+    const r = aoa[i] || [];
+    const sl = r[slColIdx] != null ? r[slColIdx] : r[slColIdx - 1];
+    if (sl == null || isNaN(toNum(sl)) || String(sl).trim() === '') {
+      if (i + 1 < aoa.length && aoa[i+1][slColIdx] != null && !isNaN(toNum(aoa[i+1][slColIdx]))) { i++; continue; }
+      else break;
+    }
+    const desc = r[slColIdx + 1] != null ? String(r[slColIdx + 1]) : '';
+    const qty = r[slColIdx + 2] != null ? r[slColIdx + 2] : '';
+    const unit = r[slColIdx + 3] != null ? String(r[slColIdx + 3]) : 'GRM';
+    const rawGrams = toNum(r[slColIdx + 4]);
+    let vendor = r[slColIdx + 6] != null ? String(r[slColIdx + 6]) : '';
+    if (findSubRecipe(desc)) vendor = 'PRE PREP';
+    const conv = calculateGramsAndUomDefault(qty, unit, rawGrams);
+
+    const itemRow = {
+      sl: toNum(sl), desc: desc.trim(), qty, unit, grams: conv.grams, factor: 0.001, uom: conv.uom, vendor, rate: toNum(r[slColIdx + 7]),
+      matched: true, manualOverride: false, manualGrams: false, cost: 0, costPct: 0,
+      opening: toNum(r[slColIdx + 10]), inward: toNum(r[slColIdx + 11]), sales: toNum(r[slColIdx + 12]), wastage: toNum(r[slColIdx + 13])
+    };
+    calculateStockItem(itemRow);
+    rows.push(itemRow);
+    i++;
+  }
+
+  let totalCostCached = null, idealCached = null, manualPriceCached = null;
+  for (let k = i; k < Math.min(i + 6, aoa.length); k++){
+    const r = aoa[k] || [];
+    for (let c = 0; c < r.length; c++) {
+      const label = String(r[c] || '').trim().toLowerCase();
+      if (label === 'total cost' || label === 'total') totalCostCached = toNum(r[c + 1] || r[c + 2]);
+      else if (label === 'manual selling price') manualPriceCached = toNum(r[c + 1] || r[c + 2]);
+      else if (label.startsWith('ideal selling price')) idealCached = toNum(r[c + 1] || r[c + 2]);
+    }
+  }
+
+  let marginPercent = 30;
+  if (totalCostCached && idealCached && idealCached > 0){
+    marginPercent = Math.round((totalCostCached / idealCached) * 100);
+    if (marginPercent <= 0 || marginPercent >= 100) marginPercent = 30;
+  }
+
+  rows.forEach(row => { row.matched = !!lookupMaster(row.desc); });
+
+  return {
+    title: cleanTitle, type: isBaseRecipeName(cleanTitle) ? 'BASE' : 'MAIN',
+    batchYieldQty: explicitYieldQty, yieldUnit: explicitYieldUnit || 'GRM', portionSize: 1, manualSellingPrice: manualPriceCached || 0, effectiveRatePerUnit: 0,
+    rows, marginPercent, dirty: false, isNew: false, totalCost: 0, idealPrice: 0
+  };
+}
+
+function recomputeRecipe(recipe){
+  resequenceSlNo(recipe);
+  recipe.rows.forEach(row => {
+    if (!row.manualGrams) {
+      const conv = calculateGramsAndUomDefault(row.qty, row.unit, row.grams);
+      row.grams = conv.grams; row.uom = conv.uom;
+    }
+    const exactSubKey = findSubRecipeExact(row.desc);
+    const masterHit = lookupMaster(row.desc);
+    let referenceUom = null;
+
+    if (exactSubKey && rcbRecipes[exactSubKey] && rcbRecipes[exactSubKey].effectiveRatePerUnit > 0) {
+      row.rate = rcbRecipes[exactSubKey].effectiveRatePerUnit;
+      row.matched = true; row.vendor = 'PRE PREP';
+      referenceUom = rcbRecipes[exactSubKey].yieldUnit || 'GRM';
+    } else if (masterHit) {
+      row.matched = true; referenceUom = masterHit.uom;
+      if (!row.manualOverride) { row.rate = masterHit.rate; row.vendor = masterHit.vendor; }
+    } else {
+      const fuzzySubKey = findSubRecipeFuzzy(row.desc);
+      if (fuzzySubKey && rcbRecipes[fuzzySubKey] && rcbRecipes[fuzzySubKey].effectiveRatePerUnit > 0 && !row.manualOverride) {
+        row.rate = rcbRecipes[fuzzySubKey].effectiveRatePerUnit;
+        row.matched = true; row.vendor = 'PRE PREP';
+        referenceUom = rcbRecipes[fuzzySubKey].yieldUnit || 'GRM';
+      } else { row.matched = false; }
+    }
+
+    row.factor = getPricingFactor(referenceUom != null ? referenceUom : row.uom);
+    if (!row.manualCost) row.cost = (row.grams || 0) * (row.rate || 0) * row.factor;
+    calculateStockItem(row);
+  });
+
+  const total = recipe.rows.reduce((s,r)=>s+(r.cost||0), 0);
+  recipe.rows.forEach(r => r.costPct = total>0 ? r.cost/total : 0);
+  recipe.totalCost = total;
+  recipe.idealPrice = recipe.marginPercent>0 ? total/(recipe.marginPercent/100) : 0;
+
+  if (recipe.type === 'BASE') {
+    const qty = recipe.batchYieldQty || 1000;
+    const unit = recipe.yieldUnit || 'GRM';
+    if (unit === 'GRM' || unit === 'ML') {
+      const yieldInBaseUnits = qty / 1000;
+      recipe.effectiveRatePerUnit = yieldInBaseUnits > 0 ? (recipe.totalCost / yieldInBaseUnits) : recipe.totalCost;
+    } else if (unit === 'PCS') {
+      recipe.effectiveRatePerUnit = qty > 0 ? (recipe.totalCost / qty) : recipe.totalCost;
+    }
+  }
+}
+
+function recomputeAllRecipes(){
+  sortRecipeOrderAlphabetically();
+  rcbRecipeOrder.forEach(name => { if (rcbRecipes[name].type === 'BASE') recomputeRecipe(rcbRecipes[name]); });
+  rcbRecipeOrder.forEach(name => { if (rcbRecipes[name].type === 'BASE') recomputeRecipe(rcbRecipes[name]); });
+  rcbRecipeOrder.forEach(name => { if (rcbRecipes[name].type === 'MAIN') recomputeRecipe(rcbRecipes[name]); });
+}
+
+function renderRCBSidebarList(){
+  sortRecipeOrderAlphabetically();
+  const listEl = document.getElementById('rcbRecipeList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const mainList = rcbRecipeOrder.filter(name => rcbRecipes[name].type === 'MAIN');
+  if (rcbSortMainByCost) {
+    mainList.sort((a, b) => {
+      const costA = rcbRecipes[a].manualSellingPrice > 0 ? (rcbRecipes[a].totalCost / rcbRecipes[a].manualSellingPrice) : 0;
+      const costB = rcbRecipes[b].manualSellingPrice > 0 ? (rcbRecipes[b].totalCost / rcbRecipes[b].manualSellingPrice) : 0;
+      return costB - costA;
+    });
+  }
+  const baseList = rcbRecipeOrder.filter(name => rcbRecipes[name].type === 'BASE');
+
+  function renderGroup(titleText, groupNames) {
+    if (groupNames.length === 0) return;
+    const groupHeader = document.createElement('div');
+    groupHeader.className = 'sidebar-category-title';
+    groupHeader.textContent = titleText;
+    listEl.appendChild(groupHeader);
+
+    groupNames.forEach(name => {
+      const recipe = rcbRecipes[name];
+      if (!rcbSidebarItemNodes[name]) {
+        const item = document.createElement('div');
+        const tagClass = recipe.type === 'MAIN' ? 'tag-main' : 'tag-base';
+        item.className = `sidebar-item ${tagClass}`;
+        item.onclick = () => selectRCBSheet(name);
+        rcbSidebarItemNodes[name] = item;
+      }
+      const item = rcbSidebarItemNodes[name];
+      const tagClass = recipe.type === 'MAIN' ? 'tag-main' : 'tag-base';
+      item.className = `sidebar-item ${tagClass} ${name === rcbCurrentSheet ? 'active' : ''} ${recipe.dirty ? 'dirty' : ''}`;
+      
+      const yieldSubText = recipe.type === 'BASE' ? `<div style="font-size:9.5px; color:var(--ink-soft); margin-top:2px;">Yield: ${recipe.batchYieldQty || 1000} ${recipe.yieldUnit || 'GRM'} | ₹${(recipe.effectiveRatePerUnit || 0).toFixed(2)}</div>` : '';
+
+      item.innerHTML = `
+        <div style="flex:1; min-width:0; overflow:hidden; padding-right:4px;">
+          <div style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink);">${esc(recipe.title || name)}</div>
+          ${yieldSubText}
+        </div>
+        <span class="tag">${recipe.type}</span>
+        <span class="dot"></span>
+      `;
+      listEl.appendChild(item);
+    });
+  }
+
+  renderGroup('Main Dishes (Billable)', mainList);
+  renderGroup('Base / Pre-Prep Recipes (BOM)', baseList);
+
+  const mItem = document.getElementById('rcbMasterListItem'); if (mItem) { mItem.classList.toggle('active', rcbCurrentSheet === '__master__'); mItem.classList.toggle('dirty', rcbMasterDirty); }
+  const bItem = document.getElementById('rcbBillingTerminalItem'); if (bItem) bItem.classList.toggle('active', rcbCurrentSheet === '__billing__');
+  const wItem = document.getElementById('rcbWastageTerminalItem'); if (wItem) wItem.classList.toggle('active', rcbCurrentSheet === '__wastage__');
+}
+
+function selectRCBSheet(name){
+  rcbCurrentSheet = name;
+  renderRCBSidebarList();
+  if (name === '__master__') renderRCBMasterView();
+  else if (name === '__billing__') renderRCBBillingView();
+  else if (name === '__wastage__') renderRCBWastageView();
+  else if (name && rcbRecipes[name]) renderRCBRecipeView(rcbRecipes[name], name);
+}
+
+function renderRCBBillingView(){
+  const mainEl = document.getElementById('rcbMain');
+  if (!mainEl) return;
+  mainEl.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'sheet-head';
+  head.innerHTML = `<div><div class="eyebrow">POS Terminal (Cloud Synced)</div><div class="master-title">Sales & Billing Terminal</div></div><div class="head-actions"><span class="save-status" id="saveStatusIndicator">Saved ✓</span><button class="btn btn-save" id="downloadClosingStockBtn">📊 Download Closing Stock (Excel)</button></div>`;
+  mainEl.appendChild(head);
+
+  head.querySelector('#downloadClosingStockBtn').onclick = downloadClosingStockReport;
+
+  const billingCard = document.createElement('div');
+  billingCard.className = 'billing-card';
+  sortRecipeOrderAlphabetically();
+  const mainRecipeKeys = rcbRecipeOrder.filter(name => rcbRecipes[name].type === 'MAIN');
+  let recipeOptions = mainRecipeKeys.map(name => `<option value="${esc(name)}">${esc(rcbRecipes[name].title || name)} (${fmt(rcbRecipes[name].idealPrice || 0)})</option>`).join('');
+  if (mainRecipeKeys.length === 0) recipeOptions = `<option value="">No Main Recipes available</option>`;
+
+  billingCard.innerHTML = `
+    <div class="billing-form">
+      <div class="form-group" style="flex:1;"><label>Bill No.</label><input type="text" id="billNoInput" value="BILL-${rcbBillCounter}"></div>
+      <div class="form-group" style="flex:2;"><label>Select Main Dish Sold</label><select id="billRecipeSelect">${recipeOptions}</select></div>
+      <div class="form-group" style="flex:1;"><label>Portions Qty</label><input type="number" id="billQtyInput" value="1" min="1" step="1"></div>
+      <button class="btn btn-billing" id="processBillBtn">🛒 Bill Order & Deduct Cloud Stock</button>
+    </div>
+  `;
+  mainEl.appendChild(billingCard);
+
+  const logSection = document.createElement('div');
+  logSection.innerHTML = `<div class="eyebrow" style="margin-bottom:8px;">Recent Cloud Order Log</div><div class="bill-log" id="billLogContainer"></div>`;
+  mainEl.appendChild(logSection);
+
+  function updateLogDisplay() {
+    const container = document.getElementById('billLogContainer');
+    if (!container) return;
+    if (rcbBillingLog.length === 0) { container.innerHTML = '<em>No orders billed yet.</em>'; return; }
+    container.innerHTML = rcbBillingLog.map(log => `
+      <div style="margin-bottom:8px; border-bottom:1px dashed var(--line); padding-bottom:6px;">
+        <strong>[${log.time}] ${esc(log.billNo)} - Billed ${log.qty}x ${esc(log.recipe)}</strong>
+        <div style="font-size:10.5px; color:var(--ink-soft); margin-top:2px;">Deductions: ${log.deductions.map(d => `${esc(d.desc)}: -${fmtNum(d.used)} ${d.uom}`).join(' | ')}</div>
+      </div>
+    `).join('');
+  }
+  updateLogDisplay();
+
+  billingCard.querySelector('#processBillBtn').onclick = () => {
+    const select = document.getElementById('billRecipeSelect');
+    const qtyInput = document.getElementById('billQtyInput');
+    const billNoInput = document.getElementById('billNoInput');
+    if (!select || !select.value) return;
+
+    const recipe = rcbRecipes[select.value];
+    if (!recipe || recipe.type !== 'MAIN') return;
+    const qty = toNum(qtyInput.value) || 1;
+    const billNo = billNoInput.value || ('BILL-' + rcbBillCounter++);
+
+    const deductions = [];
+    recipe.rows.forEach(r => {
+      if (!r.desc) return;
+      const totalGramsUsed = (r.grams || 0) * qty;
+      r.sales = (r.sales || 0) + totalGramsUsed;
+      calculateStockItem(r);
+      
+      const masterItem = lookupMaster(r.desc);
+      if (masterItem) {
+        const deductionQty = (['KG','KGS','LTR','L'].includes(masterItem.uom)) ? totalGramsUsed / 1000 : totalGramsUsed;
+        masterItem.sales = (masterItem.sales || 0) + deductionQty;
+        calculateStockItem(masterItem);
+        deductions.push({ desc: masterItem.desc, used: deductionQty, uom: masterItem.uom || 'GRM' });
+      }
+    });
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    rcbBillingLog.unshift({ billNo, time: timestamp, recipe: recipe.title || select.value, qty, deductions });
+
+    rcbMasterDirty = true;
+    recomputeAllRecipes();
+    saveRCBToCloud();
+    updateLogDisplay();
+    notifySaved();
+  };
+}
+
+function renderRCBWastageView(){
+  const mainEl = document.getElementById('rcbMain');
+  if (!mainEl) return;
+  mainEl.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'sheet-head';
+  head.innerHTML = `<div><div class="eyebrow">Inventory Spoilage</div><div class="master-title">Wastage Entry</div></div><div class="head-actions"><span class="save-status" id="saveStatusIndicator">Saved ✓</span></div>`;
+  mainEl.appendChild(head);
+
+  const wastageCard = document.createElement('div');
+  wastageCard.className = 'billing-card';
+  wastageCard.innerHTML = `
+    <div class="billing-form">
+      <div class="form-group" style="flex:2;"><label>Ingredient</label><input type="text" id="wastageIngredientInput" list="rcbMasterDatalist" placeholder="Select ingredient..."></div>
+      <div class="form-group" style="flex:1;"><label>Wastage Qty</label><input type="number" id="wastageQtyInput" value="100" min="1" step="any"></div>
+      <div class="form-group" style="flex:2;"><label>Reason</label><input type="text" id="wastageReasonInput" placeholder="Spoilage / Prep Loss..."></div>
+      <button class="btn btn-wastage" id="processWastageBtn">🗑️ Record Wastage</button>
+    </div>
+  `;
+  mainEl.appendChild(wastageCard);
+
+  const logSection = document.createElement('div');
+  logSection.innerHTML = `<div class="eyebrow" style="margin-bottom:8px;">Wastage Log</div><div class="bill-log" id="wastageLogContainer"></div>`;
+  mainEl.appendChild(logSection);
+
+  function updateWastageLogDisplay() {
+    const container = document.getElementById('wastageLogContainer');
+    if (!container) return;
+    if (rcbWastageLog.length === 0) { container.innerHTML = '<em>No wastage recorded.</em>'; return; }
+    container.innerHTML = rcbWastageLog.map(log => `
+      <div style="margin-bottom:6px; border-bottom:1px dashed var(--line); padding-bottom:4px;">
+        <strong>[${log.time}] Wastage: ${fmtNum(log.qty)} ${log.uom} of ${esc(log.ingredient)}</strong> <span style="color:var(--rust);">(${esc(log.reason)})</span>
+      </div>
+    `).join('');
+  }
+  updateWastageLogDisplay();
+
+  wastageCard.querySelector('#processWastageBtn').onclick = () => {
+    const desc = document.getElementById('wastageIngredientInput').value;
+    const qty = toNum(document.getElementById('wastageQtyInput').value) || 0;
+    const reason = document.getElementById('wastageReasonInput').value || 'Spoilage';
+
+    const masterItem = lookupMaster(desc);
+    if (!masterItem) { alert('Ingredient not found'); return; }
+
+    masterItem.wastage = (masterItem.wastage || 0) + qty;
+    calculateStockItem(masterItem);
+    rcbMasterDirty = true;
+    recomputeAllRecipes();
+    saveRCBToCloud();
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    rcbWastageLog.unshift({ time: timestamp, ingredient: masterItem.desc, qty, uom: masterItem.uom || 'GRM', reason });
+    updateWastageLogDisplay();
+    notifySaved();
+  };
+}
+
+function renderRCBRecipeView(recipe, name){
+  const mainEl = document.getElementById('rcbMain');
+  if (!mainEl) return;
+  mainEl.innerHTML = '';
+  const isBase = recipe.type === 'BASE';
+
+  const head = document.createElement('div');
+  head.className = 'sheet-head';
+  head.innerHTML = `
+    <div><div class="eyebrow">Recipe Costing & Category</div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <input id="recipeTitleInput" value="${esc(recipe.title)}" placeholder="Recipe name">
+      <select id="recipeCategorySelect" class="type-select">
+        <option value="MAIN" ${recipe.type === 'MAIN' ? 'selected' : ''}>Main Recipe</option>
+        <option value="BASE" ${recipe.type === 'BASE' ? 'selected' : ''}>Base Recipe</option>
+      </select>
+    </div></div>
+    <div class="head-actions">
+      <span class="save-status" id="saveStatusIndicator">Saved ✓</span>
+      <button class="btn btn-save" id="saveBtn">Save Changes</button>
+    </div>`;
+  mainEl.appendChild(head);
+
+  head.querySelector('#saveBtn').onclick = () => triggerSave(recipe, name, true);
+  head.querySelector('#recipeCategorySelect').onchange = e => {
+    recipe.type = e.target.value; recomputeAllRecipes(); triggerSave(recipe, name); renderRCBRecipeView(recipe, name);
+  };
+  head.querySelector('#recipeTitleInput').oninput = e => { recipe.title = e.target.value; };
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'rcb-table-wrap';
+  tableWrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th class="col-sticky-1">#</th><th class="col-sticky-2">Ingredient Description</th>
+        <th>Qty</th><th>Unit</th><th>Grams / Ml</th><th>UOM</th>
+        <th>Vendor</th><th>Rate / kg</th><th>Cost</th><th>Cost %</th><th>Opening</th><th>Inward</th><th>Sales</th><th>Wastage</th><th>Closing</th><th></th>
+      </tr></thead>
+      <tbody id="recipeTbody"></tbody>
+    </table>
+    <div class="add-row-bar">
+      <button class="btn-outline" id="addIngredientBtn">+ Add Raw Ingredient</button>
+      <button class="btn btn-save" id="saveBtnBottom">Save Sheet</button>
+    </div>
+  `;
+  mainEl.appendChild(tableWrap);
+
+  tableWrap.querySelector('#saveBtnBottom').onclick = () => triggerSave(recipe, name, true);
+
+  const tbody = tableWrap.querySelector('#recipeTbody');
+  recipe.rows.forEach((row, idx) => tbody.appendChild(buildRCBIngredientRow(recipe, name, row, idx)));
+
+  tableWrap.querySelector('#addIngredientBtn').onclick = () => {
+    const nextSl = recipe.rows.length ? recipe.rows[recipe.rows.length-1].sl + 1 : 1;
+    const newRow = {sl:nextSl, desc:'', qty:'', unit:'GRM', grams:0, factor:0.001, uom:'GRM', vendor:'', rate:0, matched:false, manualOverride:false, manualGrams:false, cost:0, costPct:0, opening:0, inward:0, sales:0, wastage:0, closing:0, stockValue:0};
+    calculateStockItem(newRow);
+    recipe.rows.push(newRow);
+    recomputeAllRecipes(); triggerSave(recipe, name); renderRCBRecipeView(recipe, name);
+  };
+
+  const totals = document.createElement('div');
+  totals.className = 'totals-row';
+  totals.innerHTML = `
+    <div class="stat-card"><div class="label">Total Batch Cost</div><div class="value" id="totalCostVal">${fmt(recipe.totalCost)}</div></div>
+    ${!isBase ? `<div class="stamp"><div class="label">Ideal selling price</div><div class="value" id="idealPriceVal">${fmt(recipe.idealPrice)}</div></div>` : ''}
+  `;
+  mainEl.appendChild(totals);
+}
+
+function buildRCBIngredientRow(recipe, name, row, idx) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="readonly-cell col-sticky-1">${row.sl}</td>
+    <td class="col-sticky-2"><input class="cell" list="rcbMasterDatalist" value="${esc(row.desc)}"></td>
+    <td><input class="cell num-input" value="${esc(row.qty)}"></td>
+    <td><select class="cell-select"><option value="GRM" ${row.unit==='GRM'?'selected':''}>GRM</option><option value="KG" ${row.unit==='KG'?'selected':''}>KG</option><option value="ML" ${row.unit==='ML'?'selected':''}>ML</option><option value="LTR" ${row.unit==='LTR'?'selected':''}>LTR</option><option value="PCS" ${row.unit==='PCS'?'selected':''}>PCS</option></select></td>
+    <td><input type="number" class="cell num-input" value="${row.grams}"></td>
+    <td><select class="cell-select"><option value="GRM" ${row.uom==='GRM'?'selected':''}>GRM</option><option value="KG" ${row.uom==='KG'?'selected':''}>KG</option><option value="ML" ${row.uom==='ML'?'selected':''}>ML</option><option value="LTR" ${row.uom==='LTR'?'selected':''}>LTR</option><option value="PCS" ${row.uom==='PCS'?'selected':''}>PCS</option></select></td>
+    <td class="readonly-cell">${esc(row.vendor)}</td>
+    <td><input type="number" class="cell num-input" value="${row.rate}"></td>
+    <td><input type="number" class="cell num-input cost-input" value="${Number((row.cost || 0).toFixed(2))}"></td>
+    <td class="pct-cell readonly-cell">${fmtPct(row.costPct)}</td>
+    <td><input type="number" class="cell num-input" value="${row.opening||0}"></td>
+    <td><input type="number" class="cell num-input" value="${row.inward||0}"></td>
+    <td><input type="number" class="cell num-input" value="${row.sales||0}"></td>
+    <td><input type="number" class="cell num-input" value="${row.wastage||0}"></td>
+    <td class="readonly-cell">${fmtNum(row.closing)}</td>
+    <td><button class="icon-btn">✕</button></td>
+  `;
+
+  const inputs = tr.querySelectorAll('input, select');
+  inputs[0].onchange = e => { row.desc = e.target.value; recomputeAllRecipes(); triggerSave(recipe, name); };
+  inputs[1].onchange = e => { row.qty = e.target.value; recomputeAllRecipes(); triggerSave(recipe, name); };
+  inputs[2].onchange = e => { row.unit = e.target.value; recomputeAllRecipes(); triggerSave(recipe, name); };
+  inputs[3].onchange = e => { row.grams = toNum(e.target.value); row.manualGrams = true; recomputeAllRecipes(); triggerSave(recipe, name); };
+  inputs[4].onchange = e => { row.uom = e.target.value; recomputeAllRecipes(); triggerSave(recipe, name); };
+  inputs[5].onchange = e => { row.rate = toNum(e.target.value); row.manualOverride = true; recomputeAllRecipes(); triggerSave(recipe, name); };
+  
+  tr.querySelector('.icon-btn').onclick = () => {
+    recipe.rows.splice(idx, 1); resequenceSlNo(recipe); recomputeAllRecipes(); triggerSave(recipe, name); renderRCBRecipeView(recipe, name);
+  };
+
+  return tr;
+}
+
+function renderRCBMasterView(){
+  const mainEl = document.getElementById('rcbMain');
+  if (!mainEl) return;
+  mainEl.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'sheet-head';
+  head.innerHTML = `<div><div class="eyebrow">Reference & Inventory Table</div><div class="master-title">Master Ingredient Ledger (Cloud)</div></div><div class="head-actions"><span class="save-status" id="saveStatusIndicator">Saved ✓</span><button class="btn btn-save" id="saveMasterBtn">Save Master</button></div>`;
+  mainEl.appendChild(head);
+
+  head.querySelector('#saveMasterBtn').onclick = () => { rcbMasterDirty = true; saveRCBToCloud(true); renderRCBSidebarList(); };
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'rcb-table-wrap';
+  tableWrap.innerHTML = `
+    <table>
+      <thead><tr><th class="col-sticky-1">Ingredient Description</th><th>Vendor</th><th>Rate / kg</th><th>UOM</th><th>Opening</th><th>Inward</th><th>Sales</th><th>Wastage</th><th>Closing</th><th>Stock Value</th><th></th></tr></thead>
+      <tbody id="masterTbody"></tbody>
+    </table>
+    <div class="add-row-bar"><button class="btn-outline" id="addIngredientToMasterBtn">+ Add ingredient</button></div>
+  `;
+  mainEl.appendChild(tableWrap);
+
+  const tbody = tableWrap.querySelector('#masterTbody');
+  rcbMasterList.forEach((m, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="col-sticky-1"><input class="cell" value="${esc(m.desc)}"></td>
+      <td><input class="cell" value="${esc(m.vendor)}"></td>
+      <td><input type="number" class="cell num-input" value="${m.rate}"></td>
+      <td><select class="cell-select"><option value="GRM" ${m.uom==='GRM'?'selected':''}>GRM</option><option value="KG" ${m.uom==='KG'?'selected':''}>KG</option><option value="ML" ${m.uom==='ML'?'selected':''}>ML</option><option value="LTR" ${m.uom==='LTR'?'selected':''}>LTR</option><option value="PCS" ${m.uom==='PCS'?'selected':''}>PCS</option></select></td>
+      <td><input type="number" class="cell num-input" value="${m.opening||0}"></td>
+      <td><input type="number" class="cell num-input" value="${m.inward||0}"></td>
+      <td><input type="number" class="cell num-input" value="${m.sales||0}"></td>
+      <td><input type="number" class="cell num-input" value="${m.wastage||0}"></td>
+      <td class="readonly-cell">${fmtNum(m.closing)}</td>
+      <td class="readonly-cell">${fmt(m.stockValue)}</td>
+      <td><button class="icon-btn">✕</button></td>
+    `;
+
+    const inputs = tr.querySelectorAll('input, select');
+    inputs[0].onchange = e => { m.desc = e.target.value; rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[1].onchange = e => { m.vendor = e.target.value; rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[2].onchange = e => { m.rate = toNum(e.target.value); calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[3].onchange = e => { m.uom = e.target.value; calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[4].onchange = e => { m.opening = toNum(e.target.value); calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[5].onchange = e => { m.inward = toNum(e.target.value); calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[6].onchange = e => { m.sales = toNum(e.target.value); calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+    inputs[7].onchange = e => { m.wastage = toNum(e.target.value); calculateStockItem(m); rcbMasterDirty = true; saveRCBToCloud(); };
+
+    tr.querySelector('.icon-btn').onclick = () => {
+      rcbMasterList.splice(i, 1); rcbMasterDirty = true; recomputeAllRecipes(); rebuildDatalist(); saveRCBToCloud(); renderRCBMasterView();
+    };
+
+    tbody.appendChild(tr);
+  });
+
+  tableWrap.querySelector('#addIngredientToMasterBtn').onclick = () => {
+    const newItem = {desc:'', vendor:'', rate:0, uom:'GRM', opening:0, inward:0, sales:0, wastage:0, closing:0, stockValue:0};
+    calculateStockItem(newItem); rcbMasterList.push(newItem); rcbMasterDirty = true; rebuildDatalist(); saveRCBToCloud(); renderRCBMasterView();
+  };
+}
+
+function downloadClosingStockReport() {
+  const exportWb = XLSX.utils.book_new();
+  const aoa = [['Ingredient Description', 'Vendor', 'Rate (₹/kg)', 'UOM', 'Opening Stock', 'Inward Stock', 'Sales / Used Stock', 'Wastage', 'Closing Stock Balance', 'Stock Valuation (₹)']];
+  rcbMasterList.forEach(m => {
+    if (!m.desc || !String(m.desc).trim()) return;
+    aoa.push([m.desc, m.vendor || '', m.rate || 0, m.uom || 'GRM', m.opening || 0, m.inward || 0, m.sales || 0, m.wastage || 0, m.closing || 0, Number((m.stockValue || 0).toFixed(2))]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  XLSX.utils.book_append_sheet(exportWb, ws, 'Closing Stock Report');
+  XLSX.writeFile(exportWb, "Closing_Stock_Report.xlsx");
+}
+
+function downloadFullRCBExcel() {
+  const exportWb = XLSX.utils.book_new();
+  const masterAoa = [['Ingredient Description','Vendor','Rate (/kg)','UOM','Opening Stock','Stock Inward','Sales/Used Stock','Wastage','Closing Stock','Stock Value (₹)']];
+  rcbMasterList.forEach(m => {
+    if (!m.desc || !String(m.desc).trim()) return;
+    masterAoa.push([m.desc, m.vendor, m.rate, m.uom || 'GRM', m.opening || 0, m.inward || 0, m.sales || 0, m.wastage || 0, m.closing || 0, Number((m.stockValue || 0).toFixed(2))]);
+  });
+  const wsMaster = XLSX.utils.aoa_to_sheet(masterAoa);
+  XLSX.utils.book_append_sheet(exportWb, wsMaster, rcbMasterSheetName || 'Master Ingredient List');
+
+  sortRecipeOrderAlphabetically();
+  rcbRecipeOrder.forEach(name => {
+    const recipe = rcbRecipes[name];
+    const aoa = [];
+    aoa.push([]); aoa.push([null, recipe.title]);
+    if (recipe.type === 'BASE') {
+      aoa.push([null, "Batch Yield: " + (recipe.batchYieldQty || 1000) + " " + (recipe.yieldUnit || 'GRM') + " | Effective Rate: ₹" + (recipe.effectiveRatePerUnit || 0).toFixed(2)]);
+    }
+    aoa.push([]);
+    aoa.push([null,'Sl No.','Ingredient Description','Original Qty','Unit','Grams / Ml','UOM','Vendor','Rate (₹/kg)','Cost Formula','Cost Contribution %','Opening Stock','Inward Stock','Sales Stock','Wastage','Closing Stock']);
+    recipe.rows.forEach(r => {
+      aoa.push([null, r.sl, r.desc, r.qty, r.unit || 'GRM', r.grams, r.uom || 'GRM', r.vendor, r.rate, Number(r.cost.toFixed(4)), Number(r.costPct.toFixed(6)), r.opening || 0, r.inward || 0, r.sales || 0, r.wastage || 0, r.closing || 0]);
+    });
+    aoa.push([]);
+    aoa.push([null,null,null,null,null,null,null,'Total Cost', Number(recipe.totalCost.toFixed(4))]);
+    if (recipe.type === 'MAIN') {
+      aoa.push([null,null,null,null,null,null,null,'Manual Selling Price', Number((recipe.manualSellingPrice || 0).toFixed(2))]);
+      aoa.push([null,null,null,null,null,null,null,'Ideal Selling Price ('+recipe.marginPercent+'% food cost)', Number(recipe.idealPrice.toFixed(4))]);
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(exportWb, ws, name);
+  });
+
+  XLSX.writeFile(exportWb, rcbOriginalFilename.replace(/\.xlsx?$/i,'') + ' - Full Backup.xlsx');
+}
 
 (function boot() {
   document.addEventListener('touchstart', unlockAudio, { once: true });
