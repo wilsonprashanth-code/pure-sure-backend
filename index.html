@@ -227,7 +227,7 @@ function retailPanel() {
   return `
   <div class="mb-3 rounded-2xl bg-brand text-cream px-4 py-3 flex items-center gap-2.5">
     <i data-lucide="leaf" class="w-4 h-4 text-gold-400 shrink-0"></i>
-    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices (Billed at MRP).</span>
+    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices (MRP Billed).</span>
   </div>
   <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
     ${cats.map(c => `<button data-rcat="${c}" class="retail-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeRetailCat === c || (!session.activeRetailCat && c === 'All') ? 'bg-gold text-white border-gold' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
@@ -324,38 +324,59 @@ function cartLine(c) {
 }
 
 function billModal(order) {
-  const isCafe = order.type === 'cafe';
-  const subtotal = order.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const gst = isCafe ? (subtotal * 0.05) : 0;
-  const grandTotal = subtotal + gst;
+  const cafeItems = order.items.filter(it => it.kind === 'cafe' || (!it.kind && order.type === 'cafe'));
+  const retailItems = order.items.filter(it => it.kind === 'retail' || (!it.kind && order.type === 'retail'));
+
+  const cafeSubtotal = cafeItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const cafeGst = cafeSubtotal * 0.05;
+  const retailTotal = retailItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const grandTotal = cafeSubtotal + cafeGst + retailTotal;
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/70 flex items-center justify-center p-4">
-    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
-      <div class="w-12 h-12 rounded-full bg-green-100 text-green-700 mx-auto flex items-center justify-center mb-3">
-        <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="w-12 h-12 rounded-full bg-green-100 text-green-700 mx-auto flex items-center justify-center mb-2">
+        <i data-lucide="receipt" class="w-6 h-6"></i>
       </div>
       <h3 class="font-display text-xl text-brand-900 mb-0.5">Order Served!</h3>
-      <p class="text-xs text-brand-500 mb-4">Table ${order.table} · #${order.id.slice(-4)}</p>
+      <p class="text-xs text-brand-500 mb-3">Table ${order.table} · #${order.id.slice(-4)}</p>
 
       <div class="bg-cream rounded-2xl p-4 text-left space-y-2 mb-4">
         <div class="text-xs font-bold text-brand-800 border-b border-brand-100 pb-1.5 flex justify-between">
           <span>Customer:</span>
           <span>${order.customerName || 'Guest'}</span>
         </div>
-        <div class="space-y-1 py-1">
-          ${order.items.map(it => `
-            <div class="flex justify-between text-xs text-brand-700">
-              <span>${it.qty}× ${it.name}</span>
-              <span>${money(it.price * it.qty)}</span>
-            </div>
-          `).join('')}
-        </div>
+
+        ${cafeItems.length ? `
+          <div class="text-[10px] font-bold uppercase tracking-wide text-brand-600 pt-1">Cafe Items</div>
+          <div class="space-y-1">
+            ${cafeItems.map(it => `
+              <div class="flex justify-between text-xs text-brand-700">
+                <span>${it.qty}× ${it.name}</span>
+                <span>${money(it.price * it.qty)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        ${retailItems.length ? `
+          <div class="text-[10px] font-bold uppercase tracking-wide text-gold-700 pt-1">Retail Products (MRP)</div>
+          <div class="space-y-1">
+            ${retailItems.map(it => `
+              <div class="flex justify-between text-xs text-brand-700">
+                <span>${it.qty}× ${it.name}</span>
+                <span>${money(it.price * it.qty)}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
         <div class="border-t border-brand-100 pt-2 space-y-1 text-xs">
-          <div class="flex justify-between text-brand-600"><span>${isCafe ? 'Subtotal' : 'Total (MRP)'}</span><span>${money(subtotal)}</span></div>
-          ${isCafe ? `<div class="flex justify-between text-brand-500"><span>GST (5% Cafe Tax)</span><span>${money(gst)}</span></div>` : ''}
-          <div class="flex justify-between font-bold text-sm text-brand-900 border-t border-brand-100 pt-1.5">
-            <span>Total Bill</span>
+          ${cafeSubtotal > 0 ? `<div class="flex justify-between text-brand-600"><span>Cafe Subtotal</span><span>${money(cafeSubtotal)}</span></div>` : ''}
+          ${cafeGst > 0 ? `<div class="flex justify-between text-brand-500"><span>GST (5% Cafe Tax)</span><span>${money(cafeGst)}</span></div>` : ''}
+          ${retailTotal > 0 ? `<div class="flex justify-between text-gold-700"><span>Retail Total (MRP)</span><span>${money(retailTotal)}</span></div>` : ''}
+          <div class="flex justify-between font-bold text-sm text-brand-900 border-t border-brand-100 pt-2 mt-1">
+            <span>Grand Total</span>
             <span class="text-brand text-base">${money(grandTotal)}</span>
           </div>
         </div>
@@ -482,8 +503,8 @@ function wireCustomer() {
       table: session.table,
       customerName: name,
       customerPhone: phone,
-      type: session.cafeCart.length ? 'cafe' : 'retail',
-      items: [...session.cafeCart, ...session.retailCart].map(c => ({ name: c.name, qty: c.qty, price: c.price })),
+      type: session.cafeCart.length && session.retailCart.length ? 'combined' : (session.cafeCart.length ? 'cafe' : 'retail'),
+      items: [...session.cafeCart, ...session.retailCart].map(c => ({ kind: c.kind, name: c.name, qty: c.qty, price: c.price })),
       notes: session.cartNotes || '',
       status: 'received',
       ts: Date.now()
