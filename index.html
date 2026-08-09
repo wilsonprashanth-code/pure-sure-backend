@@ -6,6 +6,25 @@
 <title>Phalada Pure &amp; Sure — Organic Cafe &amp; Retail Menu</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgcmuM3JjPPwrDdeRWuwNKuW2Uelc0Eso",
+    authDomain: "pure-sure-app.firebaseapp.com",
+    databaseURL: "https://pure-sure-app-default-rtdb.firebaseio.com",
+    projectId: "pure-sure-app",
+    storageBucket: "pure-sure-app.firebasestorage.app",
+    messagingSenderId: "995301245014",
+    appId: "1:995301245014:web:56a9cf39e5c21c3418bbf7"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
+
 <script>
   tailwind.config = {
     theme: {
@@ -50,18 +69,6 @@
 
 <script>
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
-const STORAGE_KEYS = { settings:'ps:settings', menu:'ps:menu', retail:'ps:retail', orders:'ps:orders' };
-
-let DEFAULT_MENU = [
-  { id:'m1', name:'Millet Power Bowl', category:'Millet Bowls', price:249, img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500', badges:['100% Organic','Vegan','Gluten-Free'], nutrition:{cal:380,protein:14,carbs:52,fat:11}, stock:true, desc:'Foxtail millet, roasted chickpeas, seasonal veg, tahini drizzle.' },
-  { id:'m2', name:'A2 Ghee Masala Dosa', category:'Breakfast', price:189, img:'https://images.unsplash.com/photo-1630383249896-424e482df921?w=500', badges:['100% Organic','Gluten-Free'], nutrition:{cal:410,protein:9,carbs:58,fat:16}, stock:true, desc:'Stone-ground batter, potato masala, cold-pressed coconut chutney.' },
-  { id:'m3', name:'Cold-Pressed Beet Salad', category:'Salads & Wraps', price:219, img:'https://images.unsplash.com/photo-1512852939750-1305098529bf?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:220,protein:6,carbs:24,fat:11}, stock:true, desc:'Roasted beets, walnuts, microgreens, cold-pressed olive oil.' }
-];
-
-let DEFAULT_RETAIL = [
-  { id:'r1', name:'Cold-Pressed Coconut Oil', category:'Oils & Ghee', price:420, img:'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Wood cold-pressed, unrefined, single origin.' },
-  { id:'r2', name:'A2 Bilona Ghee', category:'Oils & Ghee', price:895, img:'https://images.unsplash.com/photo-1631206753348-db44968fd7c1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Traditional bilona-churned, grass-fed A2 cow milk.' }
-];
 
 let DB = {
   settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure", tagline:"Everyday food, made good. Since 1999" },
@@ -69,20 +76,6 @@ let DB = {
 };
 
 let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false };
-
-async function storeGet(key, fallback) {
-  try { const item = localStorage.getItem(key); return item ? JSON.parse(item) : fallback; } catch(e) { return fallback; }
-}
-async function storeSet(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch(e) {}
-}
-
-async function loadAll() {
-  DB.settings = await storeGet(STORAGE_KEYS.settings, DB.settings);
-  DB.menu = await storeGet(STORAGE_KEYS.menu, DEFAULT_MENU);
-  DB.retail = await storeGet(STORAGE_KEYS.retail, DEFAULT_RETAIL);
-  DB.orders = await storeGet(STORAGE_KEYS.orders, []);
-}
 
 function money(n) { return '₹' + Number(n).toFixed(0); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
@@ -179,7 +172,7 @@ function menuPanel() {
     ${cats.map(c => `<button data-cat="${c}" class="cafe-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeCafeCat === c || (!session.activeCafeCat && c === 'All') ? 'bg-brand text-cream border-brand' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
   </div>
   <div class="grid grid-cols-1 gap-3.5 mt-1">
-    ${items.map(dishCard).join('') || emptyState('No dishes match your search.')}
+    ${items.map(dishCard).join('') || emptyState('No dishes found.')}
   </div>`;
 }
 
@@ -199,7 +192,7 @@ function dishCard(item) {
         ${!item.stock ? '<span class="text-[10px] font-bold text-red-500 shrink-0 whitespace-nowrap">SOLD OUT</span>' : ''}
       </div>
       <div class="flex flex-wrap gap-1 mt-1">${(item.badges || []).map(badgeChip).join('')}</div>
-      <p class="text-xs text-brand-500 mt-1.5 line-clamp-2">${item.desc || 'Freshly prepared with farm-direct organic ingredients.'}</p>
+      <p class="text-xs text-brand-500 mt-1.5 line-clamp-2">${item.desc || 'Freshly prepared organic dish.'}</p>
       ${item.nutrition ? `
       <button class="nutri-toggle text-[11px] text-brand-600 underline mt-1" data-id="${item.id}">Nutrition facts</button>
       <div id="nutri-${item.id}" class="hidden mt-1.5 grid grid-cols-4 gap-1 text-center">
@@ -231,7 +224,7 @@ function retailPanel() {
   return `
   <div class="mb-3 rounded-2xl bg-brand text-cream px-4 py-3 flex items-center gap-2.5">
     <i data-lucide="leaf" class="w-4 h-4 text-gold-400 shrink-0"></i>
-    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices, delivered to your table.</span>
+    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices.</span>
   </div>
   <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
     ${cats.map(c => `<button data-rcat="${c}" class="retail-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeRetailCat === c || (!session.activeRetailCat && c === 'All') ? 'bg-gold text-white border-gold' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
@@ -399,15 +392,19 @@ function wireCustomer() {
   const placeBtn = document.getElementById('placeOrderBtn');
   if (placeBtn) placeBtn.onclick = async () => {
     if (!session.table) { toast('Please scan a table QR code first.', 'alert-triangle'); return; }
-    const jobs = [];
-    if (session.cafeCart.length) {
-      jobs.push({ id:uid('ord'), table:session.table, type:'cafe', items: session.cafeCart.map(c => ({name:c.name,qty:c.qty,price:c.price})), notes: session.cartNotes || '', status:'received', ts:Date.now() });
-    }
-    if (session.retailCart.length) {
-      jobs.push({ id:uid('ord'), table:session.table, type:'retail', items: session.retailCart.map(c => ({name:c.name,qty:c.qty,price:c.price})), notes: session.cartNotes || '', status:'received', ts:Date.now() });
-    }
-    DB.orders.push(...jobs);
-    await storeSet(STORAGE_KEYS.orders, DB.orders);
+    
+    const newOrder = {
+      id: uid('ord'),
+      table: session.table,
+      type: session.cafeCart.length ? 'cafe' : 'retail',
+      items: [...session.cafeCart, ...session.retailCart].map(c => ({ name: c.name, qty: c.qty, price: c.price })),
+      notes: session.cartNotes || '',
+      status: 'received',
+      ts: Date.now()
+    };
+
+    await db.ref('orders/' + newOrder.id).set(newOrder);
+
     session.cafeCart = []; session.retailCart = []; session.cartNotes = ''; session.cartOpen = false; session.showCrossSell = true;
     render(); toast('Order placed successfully!', 'check-circle');
   };
@@ -421,26 +418,35 @@ function renderKeepFocus(id) {
   const el2 = document.getElementById(id); if (el2) { el2.focus(); if (pos != null) el2.setSelectionRange(pos, pos); }
 }
 
-async function pollSync() {
-  const prevMenu = JSON.stringify(DB.menu);
-  const prevRetail = JSON.stringify(DB.retail);
-  const prevOrders = JSON.stringify(DB.orders);
-  
-  await loadAll();
-  
-  if ((JSON.stringify(DB.menu) !== prevMenu || JSON.stringify(DB.retail) !== prevRetail || JSON.stringify(DB.orders) !== prevOrders) && !session.cartOpen) {
-    render();
-  }
-}
+db.ref('menu').on('value', snap => {
+  const data = snap.val();
+  DB.menu = data ? Object.values(data) : [];
+  if (!session.cartOpen) render();
+});
 
-(async function boot() {
-  await loadAll();
+db.ref('retail').on('value', snap => {
+  const data = snap.val();
+  DB.retail = data ? Object.values(data) : [];
+  if (!session.cartOpen) render();
+});
+
+db.ref('orders').on('value', snap => {
+  const data = snap.val();
+  DB.orders = data ? Object.values(data) : [];
+  if (!session.cartOpen) render();
+});
+
+db.ref('settings').on('value', snap => {
+  const data = snap.val();
+  if (data) { DB.settings = data; if (!session.cartOpen) render(); }
+});
+
+(function boot() {
   const qs = new URLSearchParams(location.search);
   const t = qs.get('table');
   if (t && Number(t) >= 1 && Number(t) <= 20) session.table = Number(t);
   session.custTab = 'menu';
   render();
-  setInterval(pollSync, 2000);
 })();
 </script>
 </body>
