@@ -377,7 +377,8 @@ function retailEditorModal() {
 }
 
 function qrPanel() {
-  const base = location.origin + '/index.html';
+  const repoPath = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+  const base = location.origin + repoPath + 'index.html';
   return `
   <div class="bg-white rounded-2xl card-shadow p-5">
     <div class="flex items-center justify-between mb-3 no-print">
@@ -397,11 +398,7 @@ function tentCard(n, base) {
   <div class="border-2 border-brand rounded-2xl p-4 text-center bg-cream break-inside-avoid">
     <img src="${DB.settings.logoUrl}" class="w-10 h-10 object-contain mx-auto mb-1.5">
     <div class="font-display text-sm text-brand-800">${DB.settings.restaurantName}</div>
-    <img src="${qrImg}" class="w-full aspect-square my-2.5" alt="QR table ${n}" loading="eager" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden')">
-    <div class="qr-fallback hidden w-full aspect-square my-2.5 rounded-xl border-2 border-dashed border-brand-200 bg-white flex flex-col items-center justify-center gap-2 p-3">
-      <i data-lucide="qr-code" class="w-8 h-8 text-brand-200"></i>
-      <code class="text-[9px] text-brand-600 break-all leading-tight">${url}</code>
-    </div>
+    <img src="${qrImg}" class="w-full aspect-square my-2.5" alt="QR table ${n}" loading="eager">
     <div class="font-display text-2xl text-brand">Table ${String(n).padStart(2,'0')}</div>
     <div class="text-[10px] text-brand-400 mt-1">Scan to view menu &amp; order</div>
   </div>`;
