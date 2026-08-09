@@ -12,32 +12,32 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Socket.io Setup for Real-time Kitchen Updates
+// Socket.io Setup for Real-time Kitchen Stream Sync
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
 });
 
-// Database Order Schema
+// MongoDB Schema for Cafe & Retail Orders
 const OrderSchema = new mongoose.Schema({
-  id: String,
-  type: String,
-  table: Number,
+  id: { type: String, required: true },
+  type: { type: String, default: 'cafe' },
+  table: mongoose.Schema.Types.Mixed,
   items: Array,
-  notes: String,
+  notes: { type: String, default: '' },
   status: { type: String, default: 'received' },
   ts: { type: Number, default: Date.now }
 });
 
 const Order = mongoose.model('Order', OrderSchema);
 
-// --- REST API Endpoints ---
+// --- REST API ENDPOINTS ---
 
-// Root Health Check Route for Render
+// 1. Root Health Check Route
 app.get('/', (req, res) => {
   res.send('API Server is running live!');
 });
 
-// GET: Fetch all orders sorted by newest first
+// 2. GET: Fetch all active & past orders
 app.get('/api/orders', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -50,13 +50,13 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// POST: Create a new order from Mobile Web App
+// 3. POST: Create a new order from customer menu or retail store request
 app.post('/api/orders', async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
     
-    // Broadcast live event to Kitchen Dashboard via WebSockets
+    // Broadcast live event to all connected dashboards via Socket.io
     io.emit('new_order', newOrder);
     
     res.status(201).json(newOrder);
@@ -65,7 +65,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// PUT: Update order status (e.g., received -> preparing -> ready -> completed)
+// 4. PUT: Update order status (received -> preparing -> ready -> completed)
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const updatedOrder = await Order.findOneAndUpdate(
@@ -74,7 +74,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { new: true }
     );
     
-    // Broadcast status change to all connected screens
+    // Broadcast updated order status to all connected screens
     io.emit('order_updated', updatedOrder);
     
     res.json(updatedOrder);
@@ -83,15 +83,15 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// WebSocket Connection Logging
+// WebSocket Connection Listener
 io.on('connection', (socket) => {
   console.log('⚡ Socket connected:', socket.id);
 });
 
-// --- Server & Database Connection ---
-const PORT = process.env.PORT || 3000;
+// --- SERVER & DATABASE CONNECTION ---
+const PORT = process.env.PORT || 10000;
 
-// Uses Environment Variable if present, otherwise falls back directly to string
+// Direct MongoDB URI Fallback String
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://wilsonprashanth_db_user:c34BzDaqyAIc3kRR@cluster0.pcotgkg.mongodb.net/pure_sure_db?retryWrites=true&w=majority";
 
 server.listen(PORT, () => {
