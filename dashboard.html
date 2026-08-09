@@ -82,6 +82,16 @@ async function loadAll() {
 }
 async function saveAndSync(part) { await storeSet(STORAGE_KEYS[part], DB[part]); }
 
+function getBase64(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) resolve('');
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
 let actx = null;
 function beep(freq, start, dur, gainPeak) {
   if (!actx) return;
@@ -319,7 +329,10 @@ function dishEditorModal() {
         <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Dish Name</label><input id="dName" value="${d.name}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
         <div><label class="text-xs font-semibold text-brand-500">Category</label><input id="dCategory" value="${d.category}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
         <div><label class="text-xs font-semibold text-brand-500">Price (₹)</label><input id="dPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
-        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Photo URL</label><input id="dImg" value="${d.img}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2">
+          <label class="text-xs font-semibold text-brand-500">Dish Photo (Upload File)</label>
+          <input id="dImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm bg-white">
+        </div>
         <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Description</label><textarea id="dDesc" rows="2" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm">${d.desc}</textarea></div>
         <div class="col-span-2">
           <label class="text-xs font-semibold text-brand-500">Dietary Badges</label>
@@ -349,7 +362,10 @@ function retailEditorModal() {
         <div><label class="text-xs font-semibold text-brand-500">Category</label><input id="rCategory" value="${d.category}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
         <div><label class="text-xs font-semibold text-brand-500">Price (₹)</label><input id="rPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
         <div><label class="text-xs font-semibold text-brand-500">Size / Pack</label><input id="rSize" value="${d.size}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
-        <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Photo URL</label><input id="rImg" value="${d.img}" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm"></div>
+        <div class="col-span-2">
+          <label class="text-xs font-semibold text-brand-500">Product Photo (Upload File)</label>
+          <input id="rImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm bg-white">
+        </div>
         <div class="col-span-2"><label class="text-xs font-semibold text-brand-500">Description</label><textarea id="rDesc" rows="2" class="w-full mt-1 border border-brand-100 rounded-xl px-3 py-2 text-sm">${d.desc}</textarea></div>
       </div>
       <div class="flex gap-2 mt-5">
@@ -482,18 +498,26 @@ function wireKitchen() {
   const saveDish = document.getElementById('saveDishBtn');
   if (saveDish) saveDish.onclick = async () => {
     const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
+    const fileInput = document.getElementById('dImgFile');
+    const existing = saveDish.dataset.id ? DB.menu.find(m => m.id === saveDish.dataset.id) : null;
+    let imgData = existing ? existing.img : '';
+
+    if (fileInput && fileInput.files[0]) {
+      imgData = await getBase64(fileInput.files[0]);
+    }
+
     const payload = {
       name: document.getElementById('dName').value.trim(),
       category: document.getElementById('dCategory').value.trim(),
       price: Number(document.getElementById('dPrice').value) || 0,
-      img: document.getElementById('dImg').value.trim(),
+      img: imgData,
       desc: document.getElementById('dDesc').value.trim(),
       badges, stock: true,
       nutrition: { cal: Number(document.getElementById('dCal').value) || 0, protein: Number(document.getElementById('dProt').value) || 0, carbs: Number(document.getElementById('dCarb').value) || 0, fat: Number(document.getElementById('dFat').value) || 0 }
     };
     if (!payload.name) { toast('Please enter a dish name.', 'alert-triangle'); return; }
     const id = saveDish.dataset.id;
-    if (id) { const existing = DB.menu.find(m => m.id === id); Object.assign(existing, payload); }
+    if (id) { Object.assign(existing, payload); }
     else { DB.menu.push({ id: uid('m'), stock: true, ...payload }); }
     await saveAndSync('menu'); session.editingDish = null; render(); toast('Dish saved.');
   };
@@ -501,18 +525,26 @@ function wireKitchen() {
 
   const saveRetail = document.getElementById('saveRetailBtn');
   if (saveRetail) saveRetail.onclick = async () => {
+    const fileInput = document.getElementById('rImgFile');
+    const existing = saveRetail.dataset.id ? DB.retail.find(m => m.id === saveRetail.dataset.id) : null;
+    let imgData = existing ? existing.img : '';
+
+    if (fileInput && fileInput.files[0]) {
+      imgData = await getBase64(fileInput.files[0]);
+    }
+
     const payload = {
       name: document.getElementById('rName').value.trim(),
       category: document.getElementById('rCategory').value.trim(),
       price: Number(document.getElementById('rPrice').value) || 0,
       size: document.getElementById('rSize').value.trim(),
-      img: document.getElementById('rImg').value.trim(),
+      img: imgData,
       desc: document.getElementById('rDesc').value.trim(),
       badges: ['100% Organic']
     };
     if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
     const id = saveRetail.dataset.id;
-    if (id) { const existing = DB.retail.find(m => m.id === id); Object.assign(existing, payload); }
+    if (id) { Object.assign(existing, payload); }
     else { DB.retail.push({ id: uid('r'), stock: true, ...payload }); }
     await saveAndSync('retail'); session.editingRetail = null; render(); toast('Product saved.');
   };
