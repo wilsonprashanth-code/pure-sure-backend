@@ -15,9 +15,6 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
 });
 
-// Prevent queries from timing out silently if disconnected
-mongoose.set('bufferCommands', false);
-
 // Database Order Schema
 const OrderSchema = new mongoose.Schema({
   id: String,
@@ -34,6 +31,9 @@ const Order = mongoose.model('Order', OrderSchema);
 // REST API Endpoints
 app.get('/api/orders', async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ error: "Database connecting... please retry in 5 seconds." });
+    }
     const orders = await Order.find().sort({ ts: -1 });
     res.json(orders);
   } catch (err) {
@@ -66,21 +66,23 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// Socket.io Listener
+// Health check endpoint for Render
+app.get('/', (req, res) => {
+  res.send('API Server is running live!');
+});
+
+// WebSockets
 io.on('connection', (socket) => {
   console.log('⚡ Socket connected:', socket.id);
 });
 
-// Connect Database BEFORE Starting Server
+// Start Express FIRST so Render health check passes
 const PORT = process.env.PORT || 3000;
-
-mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 5000 // Fast fail on connection issues
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB Atlas Cloud Database!');
-  server.listen(PORT, () => console.log(`🚀 Cloud Server active on port ${PORT}`));
-})
-.catch(err => {
-  console.error('❌ MongoDB Connection Failure:', err.message);
+server.listen(PORT, () => {
+  console.log(`🚀 Server active on port ${PORT}`);
+  
+  // Connect to MongoDB Atlas
+  mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('✅ Connected to MongoDB Atlas Cloud Database!'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
 });
