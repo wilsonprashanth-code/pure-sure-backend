@@ -7,6 +7,9 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
+<!-- SheetJS for Excel File Import -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -94,7 +97,6 @@ function getBase64(file) {
   });
 }
 
-/* Synthesized Loud Continuous Web Audio API Siren */
 let actx = null;
 function unlockAudio() {
   try {
@@ -218,6 +220,7 @@ function kitchenShell() {
         ${kTab('history','Order History','history','')}
         ${kTab('retail','Retail Requests','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
         ${kTab('inventory','Inventory','package','')}
+        ${kTab('bulk','Bulk Import','file-spreadsheet','')}
         ${kTab('qr','QR Table Manager','qr-code','')}
         ${kTab('brand','Brand Settings','image','')}
         ${kTab('users','User Management','users','')}
@@ -228,6 +231,7 @@ function kitchenShell() {
       ${session.kitchenTab === 'history' ? historyPanel() : ''}
       ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
       ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
+      ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
       ${session.kitchenTab === 'qr' ? qrPanel() : ''}
       ${session.kitchenTab === 'brand' ? brandPanel() : ''}
       ${session.kitchenTab === 'users' ? usersPanel() : ''}
@@ -268,10 +272,11 @@ function orderCard(o) {
   const nextLabel = { received:'Start Preparing', preparing:'Mark Ready', ready:'Mark Served / Complete' };
   return `
   <div class="bg-white rounded-xl card-shadow p-3.5 border-l-4 ${o.status==='ready'?'border-green-500':o.status==='preparing'?'border-brand-500':'border-gold'}">
-    <div class="flex items-center justify-between mb-1.5">
+    <div class="flex items-center justify-between mb-1">
       <span class="font-display text-base">Table ${o.table}</span>
       <span class="text-[10px] text-brand-400">${timeAgo(o.ts)}</span>
     </div>
+    ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-1.5"><i data-lucide="user" class="w-3 h-3 inline mr-1 text-gold-600"></i>${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
     <div class="space-y-0.5 mb-2">
       ${o.items.map(it => `<div class="text-xs text-brand-700">${it.qty}× ${it.name}</div>`).join('')}
     </div>
@@ -296,6 +301,7 @@ function historyPanel() {
           <tr>
             <th class="p-3">Order ID</th>
             <th class="p-3">Table</th>
+            <th class="p-3">Customer</th>
             <th class="p-3">Type</th>
             <th class="p-3">Items</th>
             <th class="p-3">Ordered Time</th>
@@ -308,16 +314,45 @@ function historyPanel() {
             <tr class="hover:bg-brand-50/50 transition">
               <td class="p-3 font-mono font-bold">#${o.id.slice(-6)}</td>
               <td class="p-3 font-bold text-brand-800">Table ${o.table}</td>
+              <td class="p-3 font-semibold text-brand-900">${o.customerName || 'Guest'}<br><span class="text-[10px] text-brand-400">${o.customerPhone || ''}</span></td>
               <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${o.type==='retail'?'bg-gold-100 text-gold-800':'bg-brand-100 text-brand-800'}">${o.type.toUpperCase()}</span></td>
               <td class="p-3">${o.items.map(i => `${i.qty}× ${i.name}`).join(', ')}</td>
               <td class="p-3 text-brand-600">${formatTime(o.ts)}</td>
               <td class="p-3 text-brand-600">${formatTime(o.completedTs)}</td>
               <td class="p-3 font-bold text-green-700">${formatDuration(o.completedTs - o.ts)}</td>
             </tr>
-          `).join('') || `<tr><td colspan="7" class="text-center py-8 text-brand-400">No completed orders recorded yet.</td></tr>`}
+          `).join('') || `<tr><td colspan="8" class="text-center py-8 text-brand-400">No completed orders recorded yet.</td></tr>`}
         </tbody>
       </table>
     </div>
+  </div>`;
+}
+
+function bulkPanel() {
+  return `
+  <div class="max-w-2xl mx-auto bg-white rounded-2xl card-shadow p-6">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-full bg-gold-100 flex items-center justify-center text-gold-700"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>
+      <div>
+        <h3 class="font-display text-lg">Excel / CSV Bulk Upload</h3>
+        <p class="text-xs text-brand-400">Add multiple Cafe Dishes and Retail Items directly to Firebase.</p>
+      </div>
+    </div>
+    
+    <div class="border-2 border-dashed border-brand-200 rounded-2xl p-6 text-center bg-brand-50/50 mb-4">
+      <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-brand-400 mb-2"></i>
+      <label class="block text-xs font-bold text-brand-700 mb-1">Choose Excel (.xlsx, .xls) or CSV file</label>
+      <input id="excelFileInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand file:text-cream hover:file:bg-brand-600">
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1 mb-4">
+      <div class="font-bold flex items-center gap-1"><i data-lucide="info" class="w-3.5 h-3.5"></i> Required Columns in your Excel Sheet:</div>
+      <p class="text-[11px] font-mono leading-relaxed">
+        <strong>type</strong> (cafe or retail), <strong>name</strong>, <strong>category</strong>, <strong>price</strong>, <strong>desc</strong>, <strong>size</strong> (retail), <strong>badges</strong> (comma-separated), <strong>cal</strong>, <strong>protein</strong>, <strong>carbs</strong>, <strong>fat</strong>
+      </p>
+    </div>
+
+    <button id="processExcelBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm hover:bg-brand-600 transition">Process &amp; Upload Items to Live App</button>
   </div>`;
 }
 
@@ -330,7 +365,8 @@ function retailBoard(orders) {
     ${active.map(o => `
     <div class="bg-white rounded-xl card-shadow p-4 border-l-4 border-gold relative overflow-hidden">
       <span class="absolute top-0 right-0 bg-gold text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">RETAIL ORDER</span>
-      <div class="font-display text-base mb-1">Table ${o.table}</div>
+      <div class="font-display text-base mb-0.5">Table ${o.table}</div>
+      ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-1">${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
       <div class="text-[10px] text-brand-400 mb-2">${timeAgo(o.ts)}</div>
       ${o.items.map(it => `<div class="text-xs text-brand-700">${it.qty}× ${it.name}</div>`).join('')}
       ${o.notes ? `<div class="text-[11px] bg-cream text-brand-600 rounded-lg px-2 py-1 mt-2">${o.notes}</div>` : ''}
@@ -366,7 +402,7 @@ function inventoryPanel() {
 function inventoryRow(kind, item) {
   return `
   <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-2.5">
-    <img src="${item.img}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
+    <img src="${item.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
     <div class="flex-1 min-w-0">
       <div class="text-sm font-semibold truncate">${item.name}</div>
       <div class="text-[11px] text-brand-400">${item.category} · ${money(item.price)}</div>
@@ -617,6 +653,82 @@ function wireKitchen() {
   };
   const cancelRetail = document.getElementById('cancelRetailBtn'); if (cancelRetail) cancelRetail.onclick = () => { session.editingRetail = null; render(); };
 
+  /* Excel Process Handler */
+  const processBtn = document.getElementById('processExcelBtn');
+  if (processBtn) {
+    processBtn.onclick = () => {
+      const fileInput = document.getElementById('excelFileInput');
+      if (!fileInput || !fileInput.files[0]) {
+        toast('Please select an Excel or CSV file first.', 'alert-triangle');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet);
+
+          if (!json.length) {
+            toast('The selected Excel sheet is empty.', 'alert-triangle');
+            return;
+          }
+
+          let cafeCount = 0;
+          let retailCount = 0;
+
+          for (const row of json) {
+            const kind = (row.type || 'cafe').toString().toLowerCase().trim();
+            const badges = row.badges ? row.badges.toString().split(',').map(b => b.trim()) : ['100% Organic'];
+
+            if (kind === 'cafe') {
+              const id = uid('m');
+              await db.ref('menu/' + id).set({
+                id,
+                name: (row.name || 'Untitled Dish').toString().trim(),
+                category: (row.category || 'Millet Bowls').toString().trim(),
+                price: Number(row.price) || 0,
+                desc: (row.desc || '').toString().trim(),
+                img: (row.img || '').toString().trim(),
+                badges,
+                stock: true,
+                nutrition: {
+                  cal: Number(row.cal) || 0,
+                  protein: Number(row.protein) || 0,
+                  carbs: Number(row.carbs) || 0,
+                  fat: Number(row.fat) || 0
+                }
+              });
+              cafeCount++;
+            } else {
+              const id = uid('r');
+              await db.ref('retail/' + id).set({
+                id,
+                name: (row.name || 'Untitled Product').toString().trim(),
+                category: (row.category || 'Oils & Ghee').toString().trim(),
+                price: Number(row.price) || 0,
+                size: (row.size || '').toString().trim(),
+                desc: (row.desc || '').toString().trim(),
+                img: (row.img || '').toString().trim(),
+                badges,
+                stock: true
+              });
+              retailCount++;
+            }
+          }
+
+          toast(`Bulk upload complete! Added ${cafeCount} Cafe dishes & ${retailCount} Retail items.`, 'check-circle');
+        } catch (err) {
+          toast('Error parsing Excel file. Check format.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
+    };
+  }
+
   const printBtn = document.getElementById('printAllBtn'); if (printBtn) printBtn.onclick = () => window.print();
 
   const saveBrand = document.getElementById('saveBrandBtn');
@@ -679,7 +791,6 @@ db.ref('settings').on('value', snap => {
   if (data) { DB.settings = data; render(); }
 });
 
-// 5-Second Interval Siren for Active Pending Orders
 setInterval(() => {
   const pendingOrders = DB.orders.filter(o => o.status === 'received');
   if (pendingOrders.length > 0 && session.staff && session.soundOn) {
