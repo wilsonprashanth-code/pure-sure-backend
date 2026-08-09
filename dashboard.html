@@ -3,44 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pure & Sure - Staff Management Dashboard</title>
+  <title>Pure & Sure - Operations & Kitchen Control</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     :root {
       --primary: #1e7e34;
-      --primary-dark: #145a23;
       --secondary: #2c3e50;
       --bg: #f4f7f6;
       --card-bg: #ffffff;
       --warning: #f39c12;
       --info: #2980b9;
       --success: #27ae60;
+      --danger: #e74c3c;
     }
 
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: var(--bg); margin: 0; padding: 0; color: #333; }
 
-    /* Header & Navigation Bar */
     header { background: var(--card-bg); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 100; }
     .brand { display: flex; align-items: center; gap: 12px; }
     .brand h1 { margin: 0; font-size: 20px; color: var(--secondary); }
     .nav-tabs { display: flex; gap: 10px; }
-    .tab-btn { background: #e9ecef; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; color: #495057; transition: 0.2s; }
+    .tab-btn { background: #e9ecef; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; color: #495057; }
     .tab-btn.active { background: var(--primary); color: white; }
 
-    /* Auth Modal */
     .auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .auth-card { background: white; padding: 30px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .auth-card { background: white; padding: 30px; border-radius: 12px; width: 320px; text-align: center; }
     .auth-card input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 1px solid #ccc; border-radius: 6px; margin: 15px 0; }
     .auth-card button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-    /* Main Content Sections */
     .container { padding: 30px; max-width: 1200px; margin: 0 auto; }
     .section { display: none; }
     .section.active { display: block; }
 
-    /* Cards & Layouts */
     .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
     .card { background: var(--card-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
     .card.preparing { border-left-color: var(--warning); }
@@ -50,7 +46,6 @@
     .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; margin-bottom: 10px; color: var(--secondary); }
     .items-list { background: #f8f9fa; padding: 10px 15px; border-radius: 6px; margin: 10px 0; list-style: none; }
     .items-list li { padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
-    .items-list li:last-child { border: none; }
 
     .btn-group { display: flex; gap: 8px; margin-top: 15px; }
     .action-btn { flex: 1; padding: 8px; border: none; border-radius: 5px; font-weight: 600; cursor: pointer; color: white; text-align: center; font-size: 13px; }
@@ -58,15 +53,18 @@
     .btn-ready { background: var(--info); }
     .btn-complete { background: var(--success); }
 
-    /* Forms & Controls */
     .form-group { margin-bottom: 15px; }
     .form-group label { display: block; font-weight: 600; margin-bottom: 5px; }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
     .submit-btn { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
 
-    /* QR Code Display Card */
     .qr-stand { text-align: center; border: 2px dashed #cbd5e1; padding: 25px; border-radius: 12px; background: white; margin-top: 20px; max-width: 300px; }
     .qr-stand img { margin: 15px auto; }
+
+    .dish-row { display: flex; justify-content: space-between; align-items: center; background: white; padding: 12px 20px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .toggle-stock-btn { padding: 6px 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+    .in-stock { background: var(--success); }
+    .out-stock { background: var(--danger); }
   </style>
 </head>
 <body>
@@ -75,14 +73,13 @@
   <div id="authModal" class="auth-overlay">
     <div class="auth-card">
       <h2>🔒 Staff Access</h2>
-      <p>Enter 4-digit Passcode</p>
+      <p>Enter Passcode to Unmute Loud Alert Chime</p>
       <input type="password" id="pinInput" maxlength="4" placeholder="••••">
-      <button onclick="verifyPin()">Authenticate</button>
+      <button onclick="verifyPin()">Authenticate & Activate Audio</button>
       <p id="pinError" style="color:red; display:none; margin-top:10px;">Invalid Passcode!</p>
     </div>
   </div>
 
-  <!-- Main Navigation Header -->
   <header>
     <div class="brand">
       <span style="font-size:24px;">🥗</span>
@@ -91,63 +88,56 @@
     <div class="nav-tabs">
       <button class="tab-btn active" onclick="switchTab('orders-tab', this)">📋 Active Orders</button>
       <button class="tab-btn" onclick="switchTab('qr-tab', this)">📲 Table QR Generator</button>
-      <button class="tab-btn" onclick="switchTab('menu-tab', this)">🍲 Menu & Dishes</button>
-      <button class="tab-btn" id="audioBtn" onclick="toggleAudio()" style="background:#d1e7dd; color:#0f5132;">🔊 Audio: On</button>
+      <button class="tab-btn" onclick="switchTab('menu-tab', this)">🍲 Menu & Stock Control</button>
+      <button class="tab-btn" id="audioBtn" onclick="toggleAudio()" style="background:#d1e7dd; color:#0f5132;">🔊 Audio: Active</button>
     </div>
   </header>
 
   <div class="container">
     
-    <!-- SECTION 1: LIVE KITCHEN ORDERS -->
+    <!-- TAB 1: ORDERS STREAM -->
     <div id="orders-tab" class="section active">
-      <h2>Live Orders Stream</h2>
+      <h2>Live Kitchen Orders</h2>
       <div id="ordersContainer" class="card-grid">Loading orders...</div>
     </div>
 
-    <!-- SECTION 2: TABLE QR STAND GENERATOR -->
+    <!-- TAB 2: DYNAMIC TABLE QR GENERATOR -->
     <div id="qr-tab" class="section">
-      <h2>Table QR Code Generator</h2>
-      <p>Select a table number to generate a printable dining table QR card.</p>
-      <div class="form-group" style="max-width: 300px;">
-        <label>Select Table Number:</label>
-        <select id="tableSelect" onchange="generateQR()">
-          <option value="1">Table 01</option>
-          <option value="2">Table 02</option>
-          <option value="3">Table 03</option>
-          <option value="4">Table 04</option>
-          <option value="5">Table 05</option>
-          <option value="10">Table 10</option>
-        </select>
+      <h2>Add Table & Generate QR Code</h2>
+      <div style="background:white; padding:20px; border-radius:10px; max-width:400px; box-shadow:0 4px 10px rgba(0,0,0,0.05);">
+        <div class="form-group">
+          <label>Enter Table Number / Name:</label>
+          <input type="text" id="customTableInput" placeholder="e.g. 5 or Outdoor-01" value="1">
+        </div>
+        <button class="submit-btn" onclick="generateCustomQR()">Generate Table Stand</button>
       </div>
-      <div class="qr-stand" id="qrContainer">
+
+      <div class="qr-stand" id="qrContainer" style="margin-top:20px;">
         <div id="qrcode"></div>
         <h3 id="qrTableTitle">Table 01</h3>
         <p style="font-size:12px; color:#666;">Scan to View Menu & Order</p>
-        <button class="submit-btn" onclick="window.print()" style="margin-top:10px;">🖨️ Print Stand Card</button>
+        <button class="submit-btn" onclick="window.print()">🖨️ Print QR Stand Card</button>
       </div>
     </div>
 
-    <!-- SECTION 3: ADD NEW DISH TO MENU -->
+    <!-- TAB 3: MENU MANAGEMENT & OUT OF STOCK TOGGLE -->
     <div id="menu-tab" class="section">
-      <h2>Add New Dish / Product</h2>
-      <div style="background:white; padding:25px; border-radius:10px; max-width:500px; box-shadow:0 4px 10px rgba(0,0,0,0.05);">
+      <h2>Add New Dish</h2>
+      <div style="background:white; padding:20px; border-radius:10px; max-width:500px; margin-bottom:30px; box-shadow:0 4px 10px rgba(0,0,0,0.05);">
         <div class="form-group">
           <label>Dish Name:</label>
           <input type="text" id="dishName" placeholder="e.g. Paneer Manchurian">
         </div>
         <div class="form-group">
-          <label>Category:</label>
-          <select id="dishCategory">
-            <option value="cafe">Cafe Hot Dish</option>
-            <option value="retail">Retail Organic Product</option>
-          </select>
-        </div>
-        <div class="form-group">
           <label>Price (₹):</label>
           <input type="number" id="dishPrice" placeholder="180">
         </div>
-        <button class="submit-btn" onclick="addDish()">➕ Save Dish to Database</button>
+        <button class="submit-btn" onclick="addDishToCloud()">➕ Publish to Customer App</button>
       </div>
+
+      <h2>Live Stock Inventory Management</h2>
+      <p style="color:#666; font-size:14px;">Toggle dishes to 'Out of Stock' to instantly hide them from customer mobile screens.</p>
+      <div id="menuItemsContainer">Loading items...</div>
     </div>
 
   </div>
@@ -156,15 +146,42 @@
     const API_URL = 'https://pure-sure-api.onrender.com';
     const socket = io(API_URL);
     let audioEnabled = true;
+    let audioContext = null;
 
     function verifyPin() {
       if (document.getElementById('pinInput').value === '1999') {
         document.getElementById('authModal').style.display = 'none';
+        // Unlock Web Audio API context for browser autoplay permissions
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         fetchOrders();
-        generateQR();
+        fetchMenuItems();
+        generateCustomQR();
       } else {
         document.getElementById('pinError').style.display = 'block';
       }
+    }
+
+    function playLoudAlertTone() {
+      if (!audioEnabled || !audioContext) return;
+      
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      // Synthesize a continuous 3-second loud double chime sequence
+      const now = audioContext.currentTime;
+      [0, 0.4, 0.8, 1.2, 1.6, 2.0].forEach(delay => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(delay % 0.8 === 0 ? 880 : 1174.66, now + delay);
+        gain.gain.setValueAtTime(0.5, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.3);
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.3);
+      });
     }
 
     function switchTab(tabId, btn) {
@@ -222,37 +239,85 @@
       fetchOrders();
     }
 
-    function generateQR() {
-      const table = document.getElementById('tableSelect').value;
+    function generateCustomQR() {
+      const tableVal = document.getElementById('customTableInput').value || '1';
       const qrContainer = document.getElementById('qrcode');
       qrContainer.innerHTML = '';
-      document.getElementById('qrTableTitle').innerText = `Table ${table.padStart(2, '0')}`;
+      document.getElementById('qrTableTitle').innerText = `Table ${tableVal}`;
       
-      const targetURL = `https://wilsonprashanth-code.github.io/pure-sure-backend/?table=${table}`;
+      const targetURL = `https://wilsonprashanth-code.github.io/pure-sure-backend/?table=${encodeURIComponent(tableVal)}`;
       new QRCode(qrContainer, { text: targetURL, width: 160, height: 160 });
     }
 
-    async function addDish() {
-      const name = document.getElementById('dishName').value;
-      const category = document.getElementById('dishCategory').value;
-      const price = document.getElementById('dishPrice').value;
+    async function fetchMenuItems() {
+      try {
+        const res = await fetch(`${API_URL}/api/menu`);
+        const items = await res.json();
+        renderMenuItems(items);
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
-      if (!name || !price) {
-        alert('Please complete all dish fields.');
+    function renderMenuItems(items) {
+      const container = document.getElementById('menuItemsContainer');
+      if (!items.length) {
+        container.innerHTML = '<p>No menu items added yet.</p>';
         return;
       }
 
-      alert(`Dish "${name}" (₹${price}) added successfully!`);
+      container.innerHTML = items.map(item => `
+        <div class="dish-row">
+          <div>
+            <strong>${item.name}</strong> — ₹${item.price}
+          </div>
+          <button class="toggle-stock-btn ${item.inStock ? 'in-stock' : 'out-stock'}" onclick="toggleStock('${item._id}', ${!item.inStock})">
+            ${item.inStock ? 'In Stock' : 'Out of Stock'}
+          </button>
+        </div>
+      `).join('');
+    }
+
+    async function addDishToCloud() {
+      const name = document.getElementById('dishName').value;
+      const price = document.getElementById('dishPrice').value;
+
+      if (!name || !price) {
+        alert('Please fill out both Dish Name and Price.');
+        return;
+      }
+
+      await fetch(`${API_URL}/api/menu`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, price: Number(price), inStock: true })
+      });
+
       document.getElementById('dishName').value = '';
       document.getElementById('dishPrice').value = '';
+      alert(`Dish "${name}" added to cloud and visible on Customer Menu!`);
+      fetchMenuItems();
+    }
+
+    async function toggleStock(id, newStockStatus) {
+      await fetch(`${API_URL}/api/menu/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inStock: newStockStatus })
+      });
+      fetchMenuItems();
     }
 
     function toggleAudio() {
       audioEnabled = !audioEnabled;
-      document.getElementById('audioBtn').innerText = audioEnabled ? '🔊 Audio: On' : '🔇 Audio: Muted';
+      document.getElementById('audioBtn').innerText = audioEnabled ? '🔊 Audio: Active' : '🔇 Audio: Muted';
     }
 
-    socket.on('new_order', () => { fetchOrders(); });
+    socket.on('new_order', () => { 
+      playLoudAlertTone();
+      fetchOrders(); 
+    });
+    
     socket.on('order_updated', () => { fetchOrders(); });
   </script>
 </body>

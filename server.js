@@ -12,12 +12,14 @@ const server = http.createServer(app);
 app.use(cors());
 app.use(express.json());
 
-// Socket.io Setup for Real-time Kitchen Stream Sync
+// Socket.io Setup for Real-time Stream Sync
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
 });
 
-// MongoDB Schema for Cafe & Retail Orders
+// --- MONGOOSE SCHEMAS & MODELS ---
+
+// 1. Order Schema
 const OrderSchema = new mongoose.Schema({
   id: { type: String, required: true },
   type: { type: String, default: 'cafe' },
@@ -27,17 +29,29 @@ const OrderSchema = new mongoose.Schema({
   status: { type: String, default: 'received' },
   ts: { type: Number, default: Date.now }
 });
-
 const Order = mongoose.model('Order', OrderSchema);
+
+// 2. Menu Item Schema (with Stock Toggle Support)
+const MenuSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  price: { type: Number, required: true },
+  category: { type: String, default: 'cafe' },
+  inStock: { type: Boolean, default: true }
+});
+const MenuItem = mongoose.model('MenuItem', MenuSchema);
+
 
 // --- REST API ENDPOINTS ---
 
-// 1. Root Health Check Route
+// Root Health Check Route
 app.get('/', (req, res) => {
   res.send('API Server is running live!');
 });
 
-// 2. GET: Fetch all active & past orders
+
+// === ORDERS API ===
+
+// GET: Fetch all active & past orders
 app.get('/api/orders', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
@@ -50,13 +64,13 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// 3. POST: Create a new order from customer menu or retail store request
+// POST: Create a new order from customer menu
 app.post('/api/orders', async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
     
-    // Broadcast live event to all connected dashboards via Socket.io
+    // Broadcast live event to staff dashboard via Socket.io
     io.emit('new_order', newOrder);
     
     res.status(201).json(newOrder);
@@ -65,7 +79,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// 4. PUT: Update order status (received -> preparing -> ready -> completed)
+// PUT: Update order status (received -> preparing -> ready -> completed)
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const updatedOrder = await Order.findOneAndUpdate(
@@ -74,7 +88,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
       { new: true }
     );
     
-    // Broadcast updated order status to all connected screens
+    // Broadcast updated order status
     io.emit('order_updated', updatedOrder);
     
     res.json(updatedOrder);
@@ -83,15 +97,61 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
+
+// === MENU & INVENTORY STOCK API ===
+
+// GET: Fetch all menu items
+app.get('/api/menu', async (req, res) => {
+  try {
+    const items = await MenuItem.find();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST: Add new dish / product to cloud database
+app.post('/api/menu', async (req, res) => {
+  try {
+    const newItem = new MenuItem(req.body);
+    await newItem.save();
+    
+    // Broadcast menu update to connected customer screens
+    io.emit('menu_updated');
+    
+    res.status(201).json(newItem);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT: Toggle item In-Stock / Out-of-Stock status
+app.put('/api/menu/:id', async (req, res) => {
+  try {
+    const updatedItem = await MenuItem.findByIdAndUpdate(
+      req.params.id,
+      { inStock: req.body.inStock },
+      { new: true }
+    );
+    
+    // Broadcast stock toggle event
+    io.emit('menu_updated');
+    
+    res.json(updatedItem);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+
 // WebSocket Connection Listener
 io.on('connection', (socket) => {
   console.log('⚡ Socket connected:', socket.id);
 });
 
+
 // --- SERVER & DATABASE CONNECTION ---
 const PORT = process.env.PORT || 10000;
-
-// Direct MongoDB URI Fallback String
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://wilsonprashanth_db_user:c34BzDaqyAIc3kRR@cluster0.pcotgkg.mongodb.net/pure_sure_db?retryWrites=true&w=majority";
 
 server.listen(PORT, () => {
