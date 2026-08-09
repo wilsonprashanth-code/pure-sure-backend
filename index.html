@@ -69,6 +69,7 @@
 
 <script>
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
+const GOOGLE_REVIEW_URL = "https://www.google.com/search?q=Pure+%26+Sure+Organic+Cafe+Jayanagar+Google+Reviews";
 
 let DB = {
   settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure", tagline:"Everyday food, made good. Since 1999" },
@@ -390,6 +391,18 @@ function billModal(order) {
             <span class="text-brand text-base">${money(grandTotal)}</span>
           </div>
         </div>
+      </div>
+
+      <!-- Google Review Section -->
+      <div class="bg-gold-50 border border-gold-200 rounded-2xl p-3.5 mb-3 text-center">
+        <div class="text-xs font-bold text-brand-900 mb-1 flex items-center justify-center gap-1">
+          <i data-lucide="star" class="w-4 h-4 text-gold-500 fill-gold-500"></i>
+          Enjoyed your meal?
+        </div>
+        <p class="text-[11px] text-brand-600 mb-2.5">Leave us a review on Google and help us spread organic goodness!</p>
+        <a href="${GOOGLE_REVIEW_URL}" target="_blank" id="leaveReviewBtn" class="block w-full bg-gold text-white font-bold py-2.5 rounded-full text-xs hover:opacity-90 transition">
+          ⭐ Leave a Google Review
+        </a>
       </div>
 
       <div class="space-y-2">
