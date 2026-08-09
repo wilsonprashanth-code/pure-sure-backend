@@ -119,6 +119,7 @@ function customerShell() {
   const table = session.table;
   const userPhone = (session.custPhone || '').trim();
 
+  // ONLY match active orders placed by THIS exact phone number or current session order ID
   const activeOrder = (userPhone && userPhone.length === 10)
     ? [...DB.orders].reverse().find(o => o.table === table && o.customerPhone === userPhone && o.status !== 'served')
     : (session.activeOrderId ? DB.orders.find(o => o.id === session.activeOrderId && o.status !== 'served') : null);
@@ -470,7 +471,7 @@ function crossSellModal() {
 function statusPanel(order) {
   const userPhone = (session.custPhone || '').trim();
 
-  // Strictly block showing ANY history unless a valid 10-digit phone number is entered
+  // Strictly block showing ANY history unless a valid 10-digit phone number is entered by THIS customer
   const past = (userPhone && userPhone.length === 10)
     ? [...DB.orders].reverse().filter(o => o.table === session.table && o.customerPhone === userPhone)
     : [];
