@@ -3,56 +3,177 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pure & Sure - Kitchen & Staff Dashboard</title>
+  <title>Pure & Sure - Staff Management Dashboard</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; margin: 0; padding: 20px; }
-    .header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    h1 { color: #2c3e50; margin: 0; font-size: 24px; }
-    .pin-box { background: #fff; padding: 40px; text-align: center; max-width: 350px; margin: 80px auto; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    input[type="password"] { width: 80%; padding: 12px; font-size: 18px; margin: 15px 0; text-align: center; border: 1px solid #ccc; border-radius: 6px; }
-    button { background: #27ae60; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 6px; cursor: pointer; }
-    .order-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .status-btn { padding: 8px 12px; margin-right: 5px; border-radius: 4px; border: none; cursor: pointer; color: white; }
-    .btn-preparing { background: #f39c12; }
-    .btn-ready { background: #2980b9; }
-    .btn-completed { background: #27ae60; }
+    :root {
+      --primary: #1e7e34;
+      --primary-dark: #145a23;
+      --secondary: #2c3e50;
+      --bg: #f4f7f6;
+      --card-bg: #ffffff;
+      --warning: #f39c12;
+      --info: #2980b9;
+      --success: #27ae60;
+    }
+
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: var(--bg); margin: 0; padding: 0; color: #333; }
+
+    /* Header & Navigation Bar */
+    header { background: var(--card-bg); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 100; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand h1 { margin: 0; font-size: 20px; color: var(--secondary); }
+    .nav-tabs { display: flex; gap: 10px; }
+    .tab-btn { background: #e9ecef; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; cursor: pointer; color: #495057; transition: 0.2s; }
+    .tab-btn.active { background: var(--primary); color: white; }
+
+    /* Auth Modal */
+    .auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .auth-card { background: white; padding: 30px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .auth-card input { width: 100%; padding: 12px; font-size: 18px; text-align: center; border: 1px solid #ccc; border-radius: 6px; margin: 15px 0; }
+    .auth-card button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+    /* Main Content Sections */
+    .container { padding: 30px; max-width: 1200px; margin: 0 auto; }
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* Cards & Layouts */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .card { background: var(--card-bg); border-radius: 10px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
+    .card.preparing { border-left-color: var(--warning); }
+    .card.ready { border-left-color: var(--info); }
+    .card.completed { border-left-color: var(--success); }
+
+    .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; margin-bottom: 10px; color: var(--secondary); }
+    .items-list { background: #f8f9fa; padding: 10px 15px; border-radius: 6px; margin: 10px 0; list-style: none; }
+    .items-list li { padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+    .items-list li:last-child { border: none; }
+
+    .btn-group { display: flex; gap: 8px; margin-top: 15px; }
+    .action-btn { flex: 1; padding: 8px; border: none; border-radius: 5px; font-weight: 600; cursor: pointer; color: white; text-align: center; font-size: 13px; }
+    .btn-prep { background: var(--warning); }
+    .btn-ready { background: var(--info); }
+    .btn-complete { background: var(--success); }
+
+    /* Forms & Controls */
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-weight: 600; margin-bottom: 5px; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+    .submit-btn { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+    /* QR Code Display Card */
+    .qr-stand { text-align: center; border: 2px dashed #cbd5e1; padding: 25px; border-radius: 12px; background: white; margin-top: 20px; max-width: 300px; }
+    .qr-stand img { margin: 15px auto; }
   </style>
 </head>
 <body>
 
-  <!-- PIN Protection Screen -->
-  <div id="auth-screen" class="pin-box">
-    <h2>🔒 Staff Access Only</h2>
-    <p>Enter Staff Passcode to view live orders</p>
-    <input type="password" id="pin-input" placeholder="Enter PIN" maxlength="4">
-    <br>
-    <button onclick="verifyPin()">Access Dashboard</button>
-    <p id="error-msg" style="color: red; display: none; margin-top: 10px;">Incorrect PIN!</p>
+  <!-- Auth Screen -->
+  <div id="authModal" class="auth-overlay">
+    <div class="auth-card">
+      <h2>🔒 Staff Access</h2>
+      <p>Enter 4-digit Passcode</p>
+      <input type="password" id="pinInput" maxlength="4" placeholder="••••">
+      <button onclick="verifyPin()">Authenticate</button>
+      <p id="pinError" style="color:red; display:none; margin-top:10px;">Invalid Passcode!</p>
+    </div>
   </div>
 
-  <!-- Protected Dashboard -->
-  <div id="dashboard-screen" style="display: none;">
-    <div class="header">
-      <h1>👨‍🍳 Kitchen & Staff Live Display</h1>
-      <button onclick="toggleAudio()" id="audio-btn">🔊 Audio Alerts: Active</button>
+  <!-- Main Navigation Header -->
+  <header>
+    <div class="brand">
+      <span style="font-size:24px;">🥗</span>
+      <h1>Pure & Sure Staff Control Centre</h1>
     </div>
-    <div id="orders-container">Loading live orders...</div>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('orders-tab', this)">📋 Active Orders</button>
+      <button class="tab-btn" onclick="switchTab('qr-tab', this)">📲 Table QR Generator</button>
+      <button class="tab-btn" onclick="switchTab('menu-tab', this)">🍲 Menu & Dishes</button>
+      <button class="tab-btn" id="audioBtn" onclick="toggleAudio()" style="background:#d1e7dd; color:#0f5132;">🔊 Audio: On</button>
+    </div>
+  </header>
+
+  <div class="container">
+    
+    <!-- SECTION 1: LIVE KITCHEN ORDERS -->
+    <div id="orders-tab" class="section active">
+      <h2>Live Orders Stream</h2>
+      <div id="ordersContainer" class="card-grid">Loading orders...</div>
+    </div>
+
+    <!-- SECTION 2: TABLE QR STAND GENERATOR -->
+    <div id="qr-tab" class="section">
+      <h2>Table QR Code Generator</h2>
+      <p>Select a table number to generate a printable dining table QR card.</p>
+      <div class="form-group" style="max-width: 300px;">
+        <label>Select Table Number:</label>
+        <select id="tableSelect" onchange="generateQR()">
+          <option value="1">Table 01</option>
+          <option value="2">Table 02</option>
+          <option value="3">Table 03</option>
+          <option value="4">Table 04</option>
+          <option value="5">Table 05</option>
+          <option value="10">Table 10</option>
+        </select>
+      </div>
+      <div class="qr-stand" id="qrContainer">
+        <div id="qrcode"></div>
+        <h3 id="qrTableTitle">Table 01</h3>
+        <p style="font-size:12px; color:#666;">Scan to View Menu & Order</p>
+        <button class="submit-btn" onclick="window.print()" style="margin-top:10px;">🖨️ Print Stand Card</button>
+      </div>
+    </div>
+
+    <!-- SECTION 3: ADD NEW DISH TO MENU -->
+    <div id="menu-tab" class="section">
+      <h2>Add New Dish / Product</h2>
+      <div style="background:white; padding:25px; border-radius:10px; max-width:500px; box-shadow:0 4px 10px rgba(0,0,0,0.05);">
+        <div class="form-group">
+          <label>Dish Name:</label>
+          <input type="text" id="dishName" placeholder="e.g. Paneer Manchurian">
+        </div>
+        <div class="form-group">
+          <label>Category:</label>
+          <select id="dishCategory">
+            <option value="cafe">Cafe Hot Dish</option>
+            <option value="retail">Retail Organic Product</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Price (₹):</label>
+          <input type="number" id="dishPrice" placeholder="180">
+        </div>
+        <button class="submit-btn" onclick="addDish()">➕ Save Dish to Database</button>
+      </div>
+    </div>
+
   </div>
 
   <script>
     const API_URL = 'https://pure-sure-api.onrender.com';
     const socket = io(API_URL);
+    let audioEnabled = true;
 
     function verifyPin() {
-      const pin = document.getElementById('pin-input').value;
-      if (pin === '1999') {
-        document.getElementById('auth-screen').style.display = 'none';
-        document.getElementById('dashboard-screen').style.display = 'block';
+      if (document.getElementById('pinInput').value === '1999') {
+        document.getElementById('authModal').style.display = 'none';
         fetchOrders();
+        generateQR();
       } else {
-        document.getElementById('error-msg').style.display = 'block';
+        document.getElementById('pinError').style.display = 'block';
       }
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        if (!b.id.includes('audioBtn')) b.classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
     }
 
     async function fetchOrders() {
@@ -66,24 +187,27 @@
     }
 
     function renderOrders(orders) {
-      const container = document.getElementById('orders-container');
+      const container = document.getElementById('ordersContainer');
       if (!orders.length) {
-        container.innerHTML = '<p>No active orders right now.</p>';
+        container.innerHTML = '<p>No active orders.</p>';
         return;
       }
 
       container.innerHTML = orders.map(o => `
-        <div class="order-card">
-          <h3>Order #${o.id} - Table ${o.table || 'N/A'} (${o.type})</h3>
+        <div class="card ${o.status}">
+          <div class="card-title">
+            <span>Order #${o.id}</span>
+            <span>Table ${o.table || 'N/A'}</span>
+          </div>
           <p><strong>Status:</strong> ${o.status.toUpperCase()}</p>
-          <ul>
-            ${o.items.map(item => `<li>${item.name} x ${item.qty || 1}</li>`).join('')}
+          <ul class="items-list">
+            ${o.items.map(i => `<li>${i.name} x ${i.qty || 1}</li>`).join('')}
           </ul>
-          <p><em>${o.notes ? 'Notes: ' + o.notes : ''}</em></p>
-          <div>
-            <button class="status-btn btn-preparing" onclick="updateStatus('${o.id}', 'preparing')">Start Preparing</button>
-            <button class="status-btn btn-ready" onclick="updateStatus('${o.id}', 'ready')">Mark Ready</button>
-            <button class="status-btn btn-completed" onclick="updateStatus('${o.id}', 'completed')">Complete Order</button>
+          <p style="font-size:12px; color:#666;"><em>${o.notes || 'No notes'}</em></p>
+          <div class="btn-group">
+            <button class="action-btn btn-prep" onclick="updateStatus('${o.id}', 'preparing')">Preparing</button>
+            <button class="action-btn btn-ready" onclick="updateStatus('${o.id}', 'ready')">Ready</button>
+            <button class="action-btn btn-complete" onclick="updateStatus('${o.id}', 'completed')">Complete</button>
           </div>
         </div>
       `).join('');
@@ -98,9 +222,38 @@
       fetchOrders();
     }
 
-    // Real-time update listeners via WebSockets
-    socket.on('new_order', () => fetchOrders());
-    socket.on('order_updated', () => fetchOrders());
+    function generateQR() {
+      const table = document.getElementById('tableSelect').value;
+      const qrContainer = document.getElementById('qrcode');
+      qrContainer.innerHTML = '';
+      document.getElementById('qrTableTitle').innerText = `Table ${table.padStart(2, '0')}`;
+      
+      const targetURL = `https://wilsonprashanth-code.github.io/pure-sure-backend/?table=${table}`;
+      new QRCode(qrContainer, { text: targetURL, width: 160, height: 160 });
+    }
+
+    async function addDish() {
+      const name = document.getElementById('dishName').value;
+      const category = document.getElementById('dishCategory').value;
+      const price = document.getElementById('dishPrice').value;
+
+      if (!name || !price) {
+        alert('Please complete all dish fields.');
+        return;
+      }
+
+      alert(`Dish "${name}" (₹${price}) added successfully!`);
+      document.getElementById('dishName').value = '';
+      document.getElementById('dishPrice').value = '';
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      document.getElementById('audioBtn').innerText = audioEnabled ? '🔊 Audio: On' : '🔇 Audio: Muted';
+    }
+
+    socket.on('new_order', () => { fetchOrders(); });
+    socket.on('order_updated', () => { fetchOrders(); });
   </script>
 </body>
 </html>
