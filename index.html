@@ -52,22 +52,20 @@
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
 const STORAGE_KEYS = { settings:'ps:settings', menu:'ps:menu', retail:'ps:retail', orders:'ps:orders' };
 
+let DEFAULT_MENU = [
+  { id:'m1', name:'Millet Power Bowl', category:'Millet Bowls', price:249, img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500', badges:['100% Organic','Vegan','Gluten-Free'], nutrition:{cal:380,protein:14,carbs:52,fat:11}, stock:true, desc:'Foxtail millet, roasted chickpeas, seasonal veg, tahini drizzle.' },
+  { id:'m2', name:'A2 Ghee Masala Dosa', category:'Breakfast', price:189, img:'https://images.unsplash.com/photo-1630383249896-424e482df921?w=500', badges:['100% Organic','Gluten-Free'], nutrition:{cal:410,protein:9,carbs:58,fat:16}, stock:true, desc:'Stone-ground batter, potato masala, cold-pressed coconut chutney.' },
+  { id:'m3', name:'Cold-Pressed Beet Salad', category:'Salads & Wraps', price:219, img:'https://images.unsplash.com/photo-1512852939750-1305098529bf?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:220,protein:6,carbs:24,fat:11}, stock:true, desc:'Roasted beets, walnuts, microgreens, cold-pressed olive oil.' }
+];
+
+let DEFAULT_RETAIL = [
+  { id:'r1', name:'Cold-Pressed Coconut Oil', category:'Oils & Ghee', price:420, img:'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Wood cold-pressed, unrefined, single origin.' },
+  { id:'r2', name:'A2 Bilona Ghee', category:'Oils & Ghee', price:895, img:'https://images.unsplash.com/photo-1631206753348-db44968fd7c1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Traditional bilona-churned, grass-fed A2 cow milk.' }
+];
+
 let DB = {
   settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure", tagline:"Everyday food, made good. Since 1999" },
-  menu: [
-    { id:'m1', name:'Millet Power Bowl', category:'Millet Bowls', price:249, img:'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500', badges:['100% Organic','Vegan','Gluten-Free'], nutrition:{cal:380,protein:14,carbs:52,fat:11}, stock:true, desc:'Foxtail millet, roasted chickpeas, seasonal veg, tahini drizzle.' },
-    { id:'m2', name:'A2 Ghee Masala Dosa', category:'Breakfast', price:189, img:'https://images.unsplash.com/photo-1630383249896-424e482df921?w=500', badges:['100% Organic','Gluten-Free'], nutrition:{cal:410,protein:9,carbs:58,fat:16}, stock:true, desc:'Stone-ground batter, potato masala, cold-pressed coconut chutney.' },
-    { id:'m3', name:'Cold-Pressed Beet Salad', category:'Salads & Wraps', price:219, img:'https://images.unsplash.com/photo-1512852939750-1305098529bf?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:220,protein:6,carbs:24,fat:11}, stock:true, desc:'Roasted beets, walnuts, microgreens, cold-pressed olive oil.' },
-    { id:'m4', name:'Turmeric Ginger Latte', category:'Beverages', price:149, img:'https://images.unsplash.com/photo-1578374173705-969cbe6f2d6b?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:120,protein:3,carbs:16,fat:5}, stock:true, desc:'A2 milk or oat milk, organic turmeric, black pepper, raw honey.' },
-    { id:'m5', name:'Ragi Choco Brownie', category:'Desserts', price:159, img:'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=500', badges:['100% Organic'], nutrition:{cal:290,protein:5,carbs:34,fat:15}, stock:true, desc:'Finger millet flour, jaggery, dark cocoa, walnuts.' },
-    { id:'m6', name:'Sprouted Moong Wrap', category:'Salads & Wraps', price:199, img:'https://images.unsplash.com/photo-1626700051175-6818013e1d4f?w=500', badges:['100% Organic','Vegan'], nutrition:{cal:310,protein:15,carbs:40,fat:9}, stock:false, desc:'Multigrain roti, sprouted moong, mint chutney, pickled onion.' }
-  ],
-  retail: [
-    { id:'r1', name:'Cold-Pressed Coconut Oil', category:'Oils & Ghee', price:420, img:'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Wood cold-pressed, unrefined, single origin.' },
-    { id:'r2', name:'A2 Bilona Ghee', category:'Oils & Ghee', price:895, img:'https://images.unsplash.com/photo-1631206753348-db44968fd7c1?w=500', badges:['100% Organic'], size:'500ml', stock:true, desc:'Traditional bilona-churned, grass-fed A2 cow milk.' },
-    { id:'r3', name:'Native Turmeric Powder', category:'Spices & Masalas', price:145, img:'https://images.unsplash.com/photo-1615485500704-8e990f9900f3?w=500', badges:['100% Organic'], size:'200g', stock:true, desc:'High-curcumin native turmeric, stone-ground.' }
-  ],
-  orders: []
+  menu: [], retail: [], orders: []
 };
 
 let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false };
@@ -78,11 +76,12 @@ async function storeGet(key, fallback) {
 async function storeSet(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch(e) {}
 }
+
 async function loadAll() {
   DB.settings = await storeGet(STORAGE_KEYS.settings, DB.settings);
-  DB.menu = await storeGet(STORAGE_KEYS.menu, DB.menu);
-  DB.retail = await storeGet(STORAGE_KEYS.retail, DB.retail);
-  DB.orders = await storeGet(STORAGE_KEYS.orders, DB.orders);
+  DB.menu = await storeGet(STORAGE_KEYS.menu, DEFAULT_MENU);
+  DB.retail = await storeGet(STORAGE_KEYS.retail, DEFAULT_RETAIL);
+  DB.orders = await storeGet(STORAGE_KEYS.orders, []);
 }
 
 function money(n) { return '₹' + Number(n).toFixed(0); }
@@ -193,18 +192,19 @@ function dishCard(item) {
   const inCart = session.cafeCart.find(c => c.id === item.id);
   return `
   <div class="bg-white rounded-2xl card-shadow overflow-hidden flex ${!item.stock ? 'opacity-60' : ''}">
-    <img src="${item.img}" class="w-28 h-auto object-cover shrink-0" onerror="this.style.display='none'">
+    <img src="${item.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'}" class="w-28 h-auto object-cover shrink-0" onerror="this.style.display='none'">
     <div class="flex-1 p-3.5 min-w-0">
       <div class="flex items-start justify-between gap-2">
         <div class="font-display text-base leading-snug text-brand-900">${item.name}</div>
         ${!item.stock ? '<span class="text-[10px] font-bold text-red-500 shrink-0 whitespace-nowrap">SOLD OUT</span>' : ''}
       </div>
-      <div class="flex flex-wrap gap-1 mt-1">${item.badges.map(badgeChip).join('')}</div>
-      <p class="text-xs text-brand-500 mt-1.5 line-clamp-2">${item.desc}</p>
+      <div class="flex flex-wrap gap-1 mt-1">${(item.badges || []).map(badgeChip).join('')}</div>
+      <p class="text-xs text-brand-500 mt-1.5 line-clamp-2">${item.desc || 'Freshly prepared with farm-direct organic ingredients.'}</p>
+      ${item.nutrition ? `
       <button class="nutri-toggle text-[11px] text-brand-600 underline mt-1" data-id="${item.id}">Nutrition facts</button>
       <div id="nutri-${item.id}" class="hidden mt-1.5 grid grid-cols-4 gap-1 text-center">
         ${nutriPill('Cal', item.nutrition.cal)}${nutriPill('Prot', item.nutrition.protein+'g')}${nutriPill('Carb', item.nutrition.carbs+'g')}${nutriPill('Fat', item.nutrition.fat+'g')}
-      </div>
+      </div>` : ''}
       <div class="flex items-center justify-between mt-2.5">
         <span class="font-display text-lg text-brand-800">${money(item.price)}</span>
         ${item.stock ? (inCart ? qtyStepper('cafe', item.id, inCart.qty) : `<button class="add-cafe bg-brand text-cream text-xs font-bold px-4 py-2 rounded-full hover:bg-brand-600 transition" data-id="${item.id}">Add</button>`) : ''}
@@ -245,7 +245,7 @@ function retailCard(item) {
   const inCart = session.retailCart.find(c => c.id === item.id);
   return `
   <div class="bg-white rounded-2xl card-shadow overflow-hidden ${!item.stock ? 'opacity-60' : ''}">
-    <img src="${item.img}" class="w-full h-24 object-cover" onerror="this.style.display='none'">
+    <img src="${item.img || 'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500'}" class="w-full h-24 object-cover" onerror="this.style.display='none'">
     <div class="p-3">
       <div class="font-display text-sm leading-snug text-brand-900">${item.name}</div>
       <div class="text-[10px] text-brand-400">${item.size || ''}</div>
@@ -422,9 +422,15 @@ function renderKeepFocus(id) {
 }
 
 async function pollSync() {
-  const prevOrdersJSON = JSON.stringify(DB.orders);
+  const prevMenu = JSON.stringify(DB.menu);
+  const prevRetail = JSON.stringify(DB.retail);
+  const prevOrders = JSON.stringify(DB.orders);
+  
   await loadAll();
-  if (JSON.stringify(DB.orders) !== prevOrdersJSON && !session.cartOpen) render();
+  
+  if ((JSON.stringify(DB.menu) !== prevMenu || JSON.stringify(DB.retail) !== prevRetail || JSON.stringify(DB.orders) !== prevOrders) && !session.cartOpen) {
+    render();
+  }
 }
 
 (async function boot() {
@@ -434,7 +440,7 @@ async function pollSync() {
   if (t && Number(t) >= 1 && Number(t) <= 20) session.table = Number(t);
   session.custTab = 'menu';
   render();
-  setInterval(pollSync, 3000);
+  setInterval(pollSync, 2000);
 })();
 </script>
 </body>
