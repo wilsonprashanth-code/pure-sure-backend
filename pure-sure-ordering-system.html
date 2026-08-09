@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#F9F8F3]">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phalada Pure & Sure | Organic Cafe & Kitchen System</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#105955', // Deep Organic Teal
+              dark: '#0B3F3C',
+              light: '#1B7B75',
+              cream: '#F9F8F3',
+              gold: '#D4A359',
+              goldlight: '#F5E6C8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Socket.io CDN for Live Web Stream Sync -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #printable-qr-stand, #printable-qr-stand * { visibility: visible; }
+      #printable-qr-stand { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="h-full font-sans text-slate-800 antialiased selection:bg-brand selection:text-white">
+
+  <!-- GLOBAL HEADER -->
+  <header class="bg-brand text-white sticky top-0 z-40 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <!-- Brand Identity -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center p-1.5 shadow">
+          <svg viewBox="0 0 100 100" class="w-full h-full fill-brand">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#105955" stroke-width="6"/>
+            <path d="M50 22 C35 38 35 55 50 78 C65 55 65 38 50 22 Z M50 32 C50 50 60 60 60 60 C52 58 48 50 50 32 Z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-bold text-base sm:text-lg leading-tight tracking-wide">phalada pure & sure</h1>
+          <p class="text-[10px] sm:text-xs text-brand-goldlight tracking-wider font-medium uppercase">everyday food, made good. since 1999</p>
+        </div>
+      </div>
+
+      <!-- Staff Portal Pin Lock Button -->
+      <div id="staff-login-container">
+        <button onclick="openPinModal()" class="flex items-center space-x-1 bg-brand-dark/60 hover:bg-brand-dark text-xs text-brand-goldlight px-2.5 py-1.5 rounded-xl border border-white/10 font-semibold transition">
+          <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Staff Dashboard</span>
+        </button>
+      </div>
+
+      <!-- Admin Top Switcher -->
+      <div id="admin-nav-container" class="hidden flex items-center bg-brand-dark/80 p-1 rounded-xl border border-white/10 text-xs">
+        <button onclick="exitAdminView()" class="flex items-center space-x-1 px-3 py-1.5 rounded-lg font-semibold text-slate-300 hover:text-white">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+          <span>Exit Dashboard</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP VIEWS -->
+  <main class="min-h-[calc(100vh-4rem)]">
+
+    <!-- VIEW 1: CUSTOMER ORDERING INTERFACE -->
+    <div id="customer-view" class="max-w-md mx-auto min-h-screen bg-brand-cream border-x border-slate-200/80 shadow-xl relative pb-28">
+      
+      <!-- Dynamic Table Banner -->
+      <div class="bg-brand text-white p-4 rounded-b-2xl shadow-md">
+        <div class="flex items-center justify-between mb-2">
+          <span class="bg-brand-gold/20 text-brand-goldlight border border-brand-gold/30 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+            <i data-lucide="map-pin" class="w-3 h-3"></i> <span id="customer-table-display">Table 04</span>
+          </span>
+          <span class="text-xs text-white/80 flex items-center gap-1">
+            <i data-lucide="leaf" class="w-3 h-3 text-emerald-400"></i> 100% Certified Organic
+          </span>
+        </div>
+        <h2 class="text-xl font-bold">Organic Cafe Menu</h2>
+        <p class="text-xs text-brand-goldlight mt-0.5">Freshly prepared with farm-direct organic ingredients.</p>
+        
+        <!-- Search Bar -->
+        <div class="mt-4 relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="menu-search" oninput="renderCustomerMenu()" placeholder="Search dishes, ingredients..." 
+            class="w-full pl-9 pr-4 py-2 bg-white text-slate-800 rounded-xl text-xs sm:text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-gold border-0 shadow-inner">
+        </div>
+      </div>
+
+      <!-- Menu Categories -->
+      <div class="px-4 mt-4 overflow-x-auto no-scrollbar flex space-x-2 py-1" id="category-tabs"></div>
+
+      <!-- Dish Menu Grid -->
+      <div class="px-4 mt-4 space-y-4" id="customer-menu-grid"></div>
+
+      <!-- Floating Cart Bottom Bar -->
+      <div id="cart-floating-bar" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-4 bg-gradient-to-t from-brand-cream via-brand-cream to-transparent z-30 transition-transform duration-300 transform translate-y-full">
+        <button onclick="toggleCartDrawer(true)" class="w-full bg-brand hover:bg-brand-dark text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between border border-brand-light/30">
+          <div class="flex items-center space-x-3">
+            <div class="relative bg-brand-dark px-2.5 py-1 rounded-lg">
+              <i data-lucide="shopping-bag" class="w-5 h-5 text-brand-gold"></i>
+              <span id="cart-badge-count" class="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+            </div>
+            <div class="text-left">
+              <p class="text-xs text-brand-goldlight font-medium">View Your Order</p>
+              <p id="cart-total-preview" class="text-sm font-bold">₹0</p>
+            </div>
+          </div>
+          <div class="flex items-center text-xs font-semibold bg-brand-gold text-brand-dark px-3 py-1.5 rounded-xl">
+            Checkout <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+          </div>
+        </button>
+      </div>
+
+      <!-- Cart Drawer -->
+      <div id="cart-drawer" class="fixed inset-0 bg-slate-900/60 z-50 transition-opacity duration-300 opacity-0 pointer-events-none flex justify-center">
+        <div class="w-full max-w-md bg-white h-full flex flex-col justify-between shadow-2xl transform transition-transform duration-300 translate-y-full" id="cart-drawer-content">
+          <div class="p-4 bg-brand text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="shopping-cart" class="w-5 h-5 text-brand-gold"></i>
+              <h3 class="font-bold text-lg">Your Cart (<span id="cart-table-tag">Table 04</span>)</h3>
+            </div>
+            <button onclick="toggleCartDrawer(false)" class="p-1 rounded-full hover:bg-brand-dark text-white/80">
+              <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+          </div>
+
+          <div class="p-4 flex-1 overflow-y-auto divide-y divide-slate-100" id="cart-items-container"></div>
+
+          <div class="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Special Cooking Instructions</label>
+              <input type="text" id="order-special-notes" placeholder="e.g. Less spicy, Jain preparation..." class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-brand focus:outline-none">
+            </div>
+
+            <div class="space-y-1 text-xs text-slate-600 pt-2 border-t border-slate-200">
+              <div class="flex justify-between"><span>Subtotal</span><span id="cart-subtotal">₹0</span></div>
+              <div class="flex justify-between text-slate-500"><span>Organic Taxes (5% GST)</span><span id="cart-tax">₹0</span></div>
+              <div class="flex justify-between text-sm font-bold text-slate-800 pt-1 border-t border-slate-200">
+                <span>Total Amount</span>
+                <span id="cart-final-total" class="text-brand">₹0</span>
+              </div>
+            </div>
+
+            <button onclick="placeOrder()" class="w-full bg-brand hover:bg-brand-dark text-white font-bold py-3.5 rounded-xl shadow-lg transition flex items-center justify-center space-x-2">
+              <i data-lucide="check-circle-2" class="w-5 h-5 text-brand-gold"></i>
+              <span>Confirm & Send to Kitchen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Order Status Tracker Screen -->
+      <div id="order-status-screen" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 overflow-hidden space-y-5">
+          <div class="text-center space-y-1.5">
+            <div class="inline-flex p-3 rounded-full bg-emerald-100 text-emerald-600 mb-1">
+              <i data-lucide="check-circle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800">Order Sent to Kitchen!</h3>
+            <p class="text-xs text-slate-500">Order ID: <span id="active-order-id" class="font-mono font-bold text-slate-700">#0000</span></p>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+            <div class="flex items-center justify-between text-xs font-semibold">
+              <span id="status-step-received" class="text-brand font-bold flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Received</span>
+              <span id="status-step-preparing" class="text-slate-400 flex items-center gap-1"><i data-lucide="flame" class="w-3.5 h-3.5"></i> Preparing</span>
+              <span id="status-step-ready" class="text-slate-400 flex items-center gap-1"><i data-lucide="utensils" class="w-3.5 h-3.5"></i> Ready</span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div id="status-progress-bar" class="bg-brand h-full w-1/3 transition-all duration-500"></div>
+            </div>
+            <div class="text-center pt-1">
+              <p class="text-xs text-slate-500">Estimated Preparation Time</p>
+              <p id="eta-countdown" class="text-2xl font-black text-brand tracking-tight">12:00 mins</p>
+            </div>
+          </div>
+
+          <!-- Retail Cross-Sell Promo -->
+          <div class="bg-gradient-to-br from-brand/10 via-brand-cream to-brand-goldlight/30 border border-brand-gold/40 p-4 rounded-2xl space-y-3 relative">
+            <div class="flex items-start space-x-3">
+              <div class="p-2 bg-brand rounded-xl text-white">
+                <i data-lucide="shopping-bag" class="w-5 h-5 text-brand-gold"></i>
+              </div>
+              <div>
+                <span class="text-[10px] font-bold tracking-wider text-brand uppercase bg-brand-gold/30 px-2 py-0.5 rounded-full">Organic Retail Store</span>
+                <h4 class="text-xs font-bold text-slate-800 mt-1">While your food is being prepared...</h4>
+                <p class="text-[11px] text-slate-600 mt-0.5">Explore our organic cold-pressed oils, ghee, and native spices available at our store counter!</p>
+              </div>
+            </div>
+            <button onclick="openRetailStoreModal()" class="w-full bg-brand-gold hover:bg-amber-600 text-brand-dark font-bold text-xs py-2 rounded-xl shadow transition flex items-center justify-center space-x-1">
+              <span>Browse Retail Products</span>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <button onclick="closeOrderStatusScreen()" class="w-full py-2.5 text-xs text-slate-500 font-medium border border-slate-200 rounded-xl hover:bg-slate-50">
+            Back to Menu
+          </button>
+        </div>
+      </div>
+
+      <!-- Retail Store Modal -->
+      <div id="retail-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl h-[85vh] flex flex-col overflow-hidden">
+          <div class="p-4 bg-brand text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="store" class="w-5 h-5 text-brand-gold"></i>
+              <div>
+                <h3 class="font-bold text-sm">Pure & Sure Organic Retail</h3>
+                <p class="text-[10px] text-brand-goldlight">Take healthy organic goodness home</p>
+              </div>
+            </div>
+            <button onclick="closeRetailStoreModal()" class="p-1 rounded-full hover:bg-brand-dark text-white/80">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <div class="p-4 flex-1 overflow-y-auto space-y-3" id="retail-products-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: KITCHEN & ADMIN DASHBOARD -->
+    <div id="admin-view" class="hidden bg-[#0A2624] text-slate-100 min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
+      <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Dashboard Top Bar -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-brand-dark/80 p-4 rounded-2xl border border-white/10 shadow-lg">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i data-lucide="chef-hat" class="w-6 h-6 text-brand-gold"></i> Kitchen Display System & POS
+            </h2>
+            <p class="text-xs text-slate-300 mt-0.5">Real-time order stream, retail requests & table QR management.</p>
+          </div>
+
+          <div class="flex items-center space-x-2.5">
+            <button id="audio-toggle-btn" onclick="toggleAudioAlerts()" class="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-semibold border border-white/10 transition">
+              <i id="audio-icon" data-lucide="volume-x" class="w-4 h-4 text-red-400"></i>
+              <span id="audio-status-text">Audio: Muted</span>
+            </button>
+
+            <button onclick="openQRModal()" class="flex items-center space-x-1.5 bg-brand-light hover:bg-brand text-white font-bold px-3 py-2 rounded-xl text-xs shadow border border-white/10 transition">
+              <i data-lucide="qr-code" class="w-4 h-4 text-brand-gold"></i>
+              <span>Table QR Stands (Up to 20)</span>
+            </button>
+
+            <button onclick="openAddDishModal()" class="flex items-center space-x-1.5 bg-brand-gold hover:bg-amber-500 text-brand-dark font-bold px-3 py-2 rounded-xl text-xs shadow transition">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              <span>Add Dish</span>
+            </button>
+
+            <button onclick="fetchCloudOrders()" title="Refresh Cloud Orders" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-white/10">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Content Stream Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-7 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold uppercase tracking-wider text-brand-gold flex items-center gap-2">
+                <i data-lucide="activity" class="w-4 h-4"></i> Live Kitchen & Retail Stream
+              </h3>
+              <span id="active-order-counter-badge" class="bg-brand text-xs font-bold px-2.5 py-0.5 rounded-full text-white border border-white/10">0 Active</span>
+            </div>
+
+            <div id="admin-orders-stream" class="space-y-4"></div>
+          </div>
+
+          <div class="lg:col-span-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold uppercase tracking-wider text-brand-gold flex items-center gap-2">
+                <i data-lucide="sliders" class="w-4 h-4"></i> Live Inventory Stock Toggle
+              </h3>
+              <span class="text-xs text-slate-400">Instant Customer Menu Sync</span>
+            </div>
+
+            <div id="admin-inventory-list" class="bg-brand-dark/60 rounded-2xl border border-white/10 p-4 space-y-3 max-h-[75vh] overflow-y-auto divide-y divide-white/5"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: STAFF SECURITY PIN PASSCODE -->
+  <div id="pin-modal" class="fixed inset-0 bg-slate-950/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-xs bg-slate-900 text-slate-100 rounded-3xl border border-white/10 shadow-2xl p-6 text-center space-y-4">
+      <div class="w-12 h-12 bg-brand/30 text-brand-gold rounded-2xl mx-auto flex items-center justify-center">
+        <i data-lucide="shield-check" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h3 class="font-bold text-base text-white">Staff Dashboard Passcode</h3>
+        <p class="text-xs text-slate-400 mt-0.5">Default PIN: <span class="text-brand-gold font-bold">1999</span></p>
+      </div>
+
+      <input type="password" id="staff-pin-input" maxlength="4" placeholder="••••" class="w-full bg-slate-800 text-center text-xl font-bold tracking-widest text-white border border-slate-700 rounded-xl py-2.5 focus:outline-none focus:border-brand-gold">
+
+      <p id="pin-error-msg" class="text-xs text-red-400 font-bold hidden">Invalid PIN Code!</p>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="closePinModal()" class="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300">Cancel</button>
+        <button onclick="verifyStaffPin()" class="w-1/2 py-2.5 bg-brand-gold hover:bg-amber-500 rounded-xl text-xs font-bold text-brand-dark">Authenticate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: TABLE QR CODE GENERATOR -->
+  <div id="qr-modal" class="fixed inset-0 bg-slate-950/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-slate-900 text-slate-100 rounded-3xl border border-white/10 shadow-2xl p-6 space-y-4">
+      <div class="flex justify-between items-center pb-2 border-b border-white/10">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="qr-code" class="w-4 h-4 text-brand-gold"></i>
+          <span>Table QR Code Stand Generator</span>
+        </h3>
+        <button onclick="closeQRModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="flex items-center space-x-3 bg-slate-800 p-2.5 rounded-xl border border-slate-700">
+        <label class="text-xs font-bold text-slate-300 whitespace-nowrap">Select Table No:</label>
+        <select id="qr-table-select" onchange="generateTableQR()" class="w-full bg-slate-900 text-white rounded-lg p-2 text-xs border border-slate-700 focus:outline-none focus:border-brand-gold"></select>
+      </div>
+
+      <div id="printable-qr-stand" class="bg-[#105955] text-white p-6 rounded-2xl text-center space-y-4 border-2 border-brand-gold/40 shadow-2xl">
+        <div class="space-y-1">
+          <div class="w-10 h-10 rounded-full bg-white mx-auto flex items-center justify-center p-1.5 shadow">
+            <svg viewBox="0 0 100 100" class="w-full h-full fill-[#105955]">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#105955" stroke-width="6"/>
+              <path d="M50 22 C35 38 35 55 50 78 C65 55 65 38 50 22 Z M50 32 C50 50 60 60 60 60 C52 58 48 50 50 32 Z"/>
+            </svg>
+          </div>
+          <h4 class="font-bold text-base tracking-wide">phalada pure & sure</h4>
+          <p class="text-[9px] text-brand-goldlight uppercase tracking-widest font-semibold">organic cafe & store</p>
+        </div>
+
+        <div class="bg-white p-3 rounded-xl inline-block shadow-inner">
+          <div id="qrcode-box" class="flex justify-center"></div>
+        </div>
+
+        <div>
+          <h2 id="qr-card-table-title" class="text-lg font-black text-brand-gold tracking-wide">TABLE 04</h2>
+          <p class="text-xs text-white/90 font-medium mt-0.5">Scan to View Organic Menu & Order</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <p id="qr-target-url" class="text-[10px] text-slate-400 font-mono truncate max-w-[200px]"></p>
+        <button onclick="window.print()" class="bg-brand-gold hover:bg-amber-500 text-brand-dark font-bold px-4 py-2 rounded-xl text-xs shadow flex items-center gap-1">
+          <i data-lucide="printer" class="w-4 h-4"></i>
+          <span>Print QR Stand</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT DISH -->
+  <div id="dish-modal" class="fixed inset-0 bg-slate-950/80 z-50 hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-slate-900 text-slate-100 rounded-3xl border border-white/10 shadow-2xl p-6 space-y-4 overflow-y-auto max-h-[90vh]">
+      <div class="flex justify-between items-center pb-2 border-b border-white/10">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="utensils" class="w-4 h-4 text-brand-gold"></i>
+          <span id="dish-modal-title">Add New Organic Dish</span>
+        </h3>
+        <button onclick="closeDishModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="dish-form" onsubmit="saveDish(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="form-dish-id">
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Dish Name</label>
+          <input type="text" id="form-dish-title" required class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-gold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-slate-300 mb-1">Category</label>
+            <select id="form-dish-category" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-gold">
+              <option value="Organic Bowls">Organic Bowls</option>
+              <option value="Cafe Classics">Cafe Classics</option>
+              <option value="Beverages">Beverages</option>
+              <option value="Desserts">Desserts</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-slate-300 mb-1">Price (₹)</label>
+            <input type="number" id="form-dish-price" required min="1" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-gold">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Description</label>
+          <textarea id="form-dish-desc" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-gold"></textarea>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Image URL</label>
+          <input type="url" id="form-dish-image" placeholder="https://images.unsplash.com/..." class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-brand-gold">
+        </div>
+
+        <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700 space-y-2">
+          <p class="font-bold text-brand-gold text-[11px] uppercase tracking-wider">Nutritional Values (Per Serving)</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400">Calories</label>
+              <input type="text" id="form-dish-cal" placeholder="350 kcal" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Protein</label>
+              <input type="text" id="form-dish-protein" placeholder="12g" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Carbs</label>
+              <input type="text" id="form-dish-carbs" placeholder="45g" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Fats</label>
+              <input type="text" id="form-dish-fats" placeholder="10g" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-white">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3">
+          <button type="button" onclick="closeDishModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 font-medium">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-brand-gold hover:bg-amber-500 text-brand-dark font-bold rounded-xl shadow">Save Dish</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    const API_URL = 'https://pure-sure-api.onrender.com';
+    let socket = null;
+
+    const INITIAL_MENU = [
+      {
+        id: 'd1',
+        title: 'Ancient Grain Organic Buddha Bowl',
+        category: 'Organic Bowls',
+        price: 320,
+        desc: 'Organic red rice, roasted chickpeas, steamed kale, roasted pumpkin & tahini turmeric dressing.',
+        image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+        inStock: true,
+        nutrition: { calories: '420 kcal', protein: '14g', carbs: '58g', fats: '12g' },
+        tags: ['100% Organic', 'Vegan', 'Gluten-Free']
+      },
+      {
+        id: 'd2',
+        title: 'Pure & Sure Organic Paneer Sandwich',
+        category: 'Cafe Classics',
+        price: 240,
+        desc: 'Artisanal sourdough, fresh organic cottage cheese, mint pesto, grilled pepper & microgreens.',
+        image: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=600&q=80',
+        inStock: true,
+        nutrition: { calories: '380 kcal', protein: '18g', carbs: '34g', fats: '16g' },
+        tags: ['High Protein', 'Organic Dairy']
+      },
+      {
+        id: 'd3',
+        title: 'Cold-Pressed Wild Berry Smoothie Bowl',
+        category: 'Beverages',
+        price: 280,
+        desc: 'Blended organic wild berries, coconut yogurt, topped with chia seeds & almond flakes.',
+        image: 'https://images.unsplash.com/photo-1590301157890-4810ed352733?auto=format&fit=crop&w=600&q=80',
+        inStock: true,
+        nutrition: { calories: '290 kcal', protein: '6g', carbs: '42g', fats: '8g' },
+        tags: ['Antioxidant Rich', 'Vegan']
+      },
+      {
+        id: 'd4',
+        title: 'Organic Ragi Jalapeño Dosa',
+        category: 'Cafe Classics',
+        price: 210,
+        desc: 'Fermented finger millet batter, jalapeño twist, served with organic coconut chutney.',
+        image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=600&q=80',
+        inStock: false,
+        nutrition: { calories: '310 kcal', protein: '8g', carbs: '48g', fats: '7g' },
+        tags: ['Gluten-Free', 'Traditional']
+      }
+    ];
+
+    const RETAIL_PRODUCTS = [
+      { id: 'r1', name: 'Cold Pressed Organic Sesame Oil (500ml)', price: 340, image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=300&q=80' },
+      { id: 'r2', name: 'Pure Organic A2 Desi Cow Ghee (250g)', price: 490, image: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=300&q=80' },
+      { id: 'r3', name: 'Organic Turmeric Powder (200g)', price: 120, image: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=300&q=80' }
+    ];
+
+    let state = {
+      menu: [],
+      cart: [],
+      orders: [],
+      activeTable: 'Table 04',
+      activeCategory: 'All',
+      audioEnabled: false,
+      activeOrderTracker: null,
+      isAdminAuthenticated: false
+    };
+
+    let audioCtx = null;
+
+    // INITIALIZATION & WEBSOCKET SETUP
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tableParam = urlParams.get('table');
+      const viewParam = urlParams.get('view');
+
+      if (tableParam) {
+        state.activeTable = `Table ${tableParam.padStart(2, '0')}`;
+      }
+      
+      document.getElementById('customer-table-display').innerText = state.activeTable;
+      document.getElementById('cart-table-tag').innerText = state.activeTable;
+
+      const savedMenu = localStorage.getItem('pure_sure_menu');
+      state.menu = savedMenu ? JSON.parse(savedMenu) : INITIAL_MENU;
+
+      populateQRTableDropdown();
+      renderCategoryTabs();
+      renderCustomerMenu();
+      renderCartUI();
+      renderAdminInventory();
+
+      initWebSocket();
+      fetchCloudOrders();
+
+      if (viewParam === 'admin') {
+        openPinModal();
+      }
+
+      lucide.createIcons();
+    });
+
+    function initWebSocket() {
+      try {
+        socket = io(API_URL, { transports: ['websocket', 'polling'] });
+        socket.on('new_order', () => {
+          triggerSoundAlert();
+          fetchCloudOrders();
+        });
+        socket.on('order_updated', () => {
+          fetchCloudOrders();
+        });
+      } catch (err) {
+        console.error('WebSocket connection error:', err);
+      }
+    }
+
+    async function fetchCloudOrders() {
+      try {
+        const res = await fetch(`${API_URL}/api/orders`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          state.orders = data.map(o => ({
+            id: o.id,
+            type: o.type || 'cafe',
+            table: typeof o.table === 'number' ? `Table ${o.table.toString().padStart(2, '0')}` : o.table,
+            items: o.items.map(i => ({ title: i.title || i.name, qty: i.qty || 1, price: Number(i.price) || 0 })),
+            notes: o.notes || '',
+            total: o.items.reduce((sum, i) => sum + ((Number(i.price) || 0) * (i.qty || 1)), 0),
+            status: o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1) : 'Received',
+            timestamp: new Date(o.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }));
+
+          renderAdminOrders();
+
+          if (state.activeOrderTracker) {
+            const current = state.orders.find(o => o.id === state.activeOrderTracker.id);
+            if (current) updateOrderStatusUI(current.status);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch cloud orders:', err);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem('pure_sure_menu', JSON.stringify(state.menu));
+    }
+
+    // ROLE-BASED ACCESS & PIN VERIFICATION
+    function openPinModal() {
+      document.getElementById('pin-modal').classList.remove('hidden');
+      document.getElementById('staff-pin-input').value = '';
+      document.getElementById('pin-error-msg').classList.add('hidden');
+    }
+
+    function closePinModal() {
+      document.getElementById('pin-modal').classList.add('hidden');
+    }
+
+    function verifyStaffPin() {
+      const pin = document.getElementById('staff-pin-input').value;
+      if (pin === '1999') {
+        state.isAdminAuthenticated = true;
+        closePinModal();
+        enterAdminView();
+      } else {
+        document.getElementById('pin-error-msg').classList.remove('hidden');
+      }
+    }
+
+    function enterAdminView() {
+      document.getElementById('customer-view').classList.add('hidden');
+      document.getElementById('admin-view').classList.remove('hidden');
+      document.getElementById('staff-login-container').classList.add('hidden');
+      document.getElementById('admin-nav-container').classList.remove('hidden');
+      fetchCloudOrders();
+      renderAdminInventory();
+      lucide.createIcons();
+    }
+
+    function exitAdminView() {
+      state.isAdminAuthenticated = false;
+      document.getElementById('admin-view').classList.add('hidden');
+      document.getElementById('customer-view').classList.remove('hidden');
+      document.getElementById('admin-nav-container').classList.add('hidden');
+      document.getElementById('staff-login-container').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    // TABLE SELECTION DYNAMIC POPULATION
+    function populateQRTableDropdown() {
+      const select = document.getElementById('qr-table-select');
+      select.innerHTML = '';
+      for (let i = 1; i <= 20; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.text = `Table ${i.toString().padStart(2, '0')}`;
+        if (i === 4) option.selected = true;
+        select.appendChild(option);
+      }
+    }
+
+    // QR CODE GENERATOR
+    function openQRModal() {
+      document.getElementById('qr-modal').classList.remove('hidden');
+      generateTableQR();
+    }
+
+    function closeQRModal() {
+      document.getElementById('qr-modal').classList.add('hidden');
+    }
+
+    function generateTableQR() {
+      const tableNum = document.getElementById('qr-table-select').value;
+      const formattedTable = `TABLE ${tableNum.toString().padStart(2, '0')}`;
+      document.getElementById('qr-card-table-title').innerText = formattedTable;
+
+      const baseUrl = window.location.href.split('?')[0];
+      const targetUrl = `${baseUrl}?table=${tableNum}`;
+      document.getElementById('qr-target-url').innerText = targetUrl;
+
+      const qrContainer = document.getElementById('qrcode-box');
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=105955&data=${encodeURIComponent(targetUrl)}`;
+      
+      qrContainer.innerHTML = `<img src="${qrApiUrl}" alt="${formattedTable} QR Code" class="w-32 h-32 mx-auto rounded-lg shadow-sm">`;
+    }
+
+    // CUSTOMER MENU LOGIC
+    function renderCategoryTabs() {
+      const categories = ['All', ...new Set(state.menu.map(i => i.category))];
+      const container = document.getElementById('category-tabs');
+      
+      container.innerHTML = categories.map(cat => `
+        <button onclick="setCategory('${cat}')" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+          state.activeCategory === cat 
+            ? 'bg-brand text-white shadow-md' 
+            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+        }">
+          ${cat}
+        </button>
+      `).join('');
+    }
+
+    function setCategory(cat) {
+      state.activeCategory = cat;
+      renderCategoryTabs();
+      renderCustomerMenu();
+    }
+
+    function renderCustomerMenu() {
+      const query = document.getElementById('menu-search').value.toLowerCase();
+      const grid = document.getElementById('customer-menu-grid');
+
+      const filtered = state.menu.filter(item => {
+        const matchesCategory = state.activeCategory === 'All' || item.category === state.activeCategory;
+        const matchesSearch = item.title.toLowerCase().includes(query) || item.desc.toLowerCase().includes(query);
+        return matchesCategory && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="text-center py-12 text-slate-400 space-y-2">
+            <i data-lucide="utensils-crossed" class="w-10 h-10 mx-auto opacity-50"></i>
+            <p class="text-xs">No organic dishes match your selection.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      grid.innerHTML = filtered.map(item => {
+        const isOutOfStock = !item.inStock;
+        return `
+          <div class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex space-x-3 relative overflow-hidden transition ${isOutOfStock ? 'opacity-60 grayscale' : ''}">
+            <img src="${item.image}" alt="${item.title}" class="w-24 h-24 rounded-xl object-cover flex-shrink-0 bg-slate-100">
+            
+            <div class="flex-1 flex flex-col justify-between">
+              <div>
+                <h3 class="font-bold text-xs sm:text-sm text-slate-800 leading-snug">${item.title}</h3>
+                <p class="text-[11px] text-slate-500 line-clamp-2 mt-0.5">${item.desc}</p>
+                
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                  ${item.tags ? item.tags.map(t => `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] px-1.5 py-0.2 rounded-md font-medium">${t}</span>`).join('') : ''}
+                </div>
+              </div>
+
+              <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-500">
+                <span>🔥 ${item.nutrition.calories}</span>
+                <span>💪 P: ${item.nutrition.protein}</span>
+                <span>🌾 C: ${item.nutrition.carbs}</span>
+              </div>
+
+              <div class="flex items-center justify-between mt-2">
+                <span class="font-extrabold text-sm text-brand">₹${item.price}</span>
+                
+                ${isOutOfStock ? `
+                  <span class="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-lg font-bold">Out of Stock</span>
+                ` : `
+                  <button onclick="addToCart('${item.id}')" class="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow flex items-center space-x-1 active:scale-95 transition">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>Add</span>
+                  </button>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function addToCart(dishId) {
+      const dish = state.menu.find(d => d.id === dishId);
+      if (!dish || !dish.inStock) return;
+
+      const existing = state.cart.find(c => c.id === dishId);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        state.cart.push({ id: dish.id, title: dish.title, price: Number(dish.price), image: dish.image, qty: 1 });
+      }
+
+      renderCartUI();
+    }
+
+    function updateCartQty(dishId, delta) {
+      const item = state.cart.find(c => c.id === dishId);
+      if (!item) return;
+
+      item.qty += delta;
+      if (item.qty <= 0) {
+        state.cart = state.cart.filter(c => c.id !== dishId);
+      }
+      renderCartUI();
+    }
+
+    function renderCartUI() {
+      const totalCount = state.cart.reduce((sum, item) => sum + item.qty, 0);
+      const subtotal = state.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const tax = Math.round(subtotal * 0.05);
+      const finalTotal = subtotal + tax;
+
+      const floatingBar = document.getElementById('cart-floating-bar');
+      if (totalCount > 0) {
+        floatingBar.classList.remove('translate-y-full');
+      } else {
+        floatingBar.classList.add('translate-y-full');
+      }
+
+      document.getElementById('cart-badge-count').innerText = totalCount;
+      document.getElementById('cart-total-preview').innerText = `₹${finalTotal}`;
+
+      const cartContainer = document.getElementById('cart-items-container');
+      if (state.cart.length === 0) {
+        cartContainer.innerHTML = `
+          <div class="text-center py-12 text-slate-400 space-y-2">
+            <i data-lucide="shopping-bag" class="w-10 h-10 mx-auto opacity-40"></i>
+            <p class="text-xs">Your cart is empty.</p>
+          </div>
+        `;
+      } else {
+        cartContainer.innerHTML = state.cart.map(item => `
+          <div class="py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <img src="${item.image}" class="w-12 h-12 rounded-lg object-cover bg-slate-100">
+              <div>
+                <h4 class="text-xs font-bold text-slate-800">${item.title}</h4>
+                <p class="text-xs text-brand font-semibold mt-0.5">₹${item.price}</p>
+              </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl">
+              <button onclick="updateCartQty('${item.id}', -1)" class="w-6 h-6 bg-white text-slate-700 rounded-lg font-bold text-xs shadow-sm hover:bg-slate-200">-</button>
+              <span class="text-xs font-bold w-4 text-center">${item.qty}</span>
+              <button onclick="updateCartQty('${item.id}', 1)" class="w-6 h-6 bg-white text-slate-700 rounded-lg font-bold text-xs shadow-sm hover:bg-slate-200">+</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('cart-subtotal').innerText = `₹${subtotal}`;
+      document.getElementById('cart-tax').innerText = `₹${tax}`;
+      document.getElementById('cart-final-total').innerText = `₹${finalTotal}`;
+
+      lucide.createIcons();
+    }
+
+    function toggleCartDrawer(open) {
+      const drawer = document.getElementById('cart-drawer');
+      const drawerContent = document.getElementById('cart-drawer-content');
+
+      if (open) {
+        drawer.classList.remove('opacity-0', 'pointer-events-none');
+        drawerContent.classList.remove('translate-y-full');
+      } else {
+        drawer.classList.add('opacity-0', 'pointer-events-none');
+        drawerContent.classList.add('translate-y-full');
+      }
+    }
+
+    // POST ORDER TO RENDER API
+    async function placeOrder() {
+      if (state.cart.length === 0) return;
+
+      // Stock Validation Check
+      const outOfStockItems = state.cart.filter(cartItem => {
+        const menuItem = state.menu.find(m => m.id === cartItem.id);
+        return menuItem && !menuItem.inStock;
+      });
+
+      if (outOfStockItems.length > 0) {
+        alert(`Sorry, the following item is now out of stock: ${outOfStockItems.map(i => i.title).join(', ')}`);
+        return;
+      }
+
+      const specialNotes = document.getElementById('order-special-notes').value;
+      const tableNum = parseInt(state.activeTable.replace(/\D/g, '')) || 4;
+
+      const orderPayload = {
+        id: `ORD-${Date.now().toString().slice(-6)}`,
+        type: 'cafe',
+        table: tableNum,
+        items: state.cart.map(c => ({ name: c.title, title: c.title, qty: c.qty, price: c.price })),
+        notes: specialNotes,
+        status: 'received'
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/api/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(orderPayload)
+        });
+
+        if (res.ok) {
+          const createdOrder = await res.json();
+          state.cart = [];
+          document.getElementById('order-special-notes').value = '';
+          renderCartUI();
+          toggleCartDrawer(false);
+
+          triggerSoundAlert();
+          fetchCloudOrders();
+          showOrderStatusScreen({
+            id: createdOrder.id,
+            status: 'Received'
+          });
+        }
+      } catch (err) {
+        alert('Cloud server connection error. Please try again.');
+      }
+    }
+
+    function showOrderStatusScreen(order) {
+      state.activeOrderTracker = order;
+      document.getElementById('active-order-id').innerText = `#${order.id}`;
+      document.getElementById('order-status-screen').classList.remove('hidden');
+      updateOrderStatusUI('Received');
+    }
+
+    function updateOrderStatusUI(status) {
+      const progressBar = document.getElementById('status-progress-bar');
+      const stepReceived = document.getElementById('status-step-received');
+      const stepPreparing = document.getElementById('status-step-preparing');
+      const stepReady = document.getElementById('status-step-ready');
+      const etaCountdown = document.getElementById('eta-countdown');
+
+      const cleanStatus = status.toLowerCase();
+
+      if (cleanStatus === 'received') {
+        progressBar.style.width = '33%';
+        stepReceived.className = "text-brand font-bold flex items-center gap-1";
+        stepPreparing.className = "text-slate-400 flex items-center gap-1";
+        stepReady.className = "text-slate-400 flex items-center gap-1";
+        etaCountdown.innerText = "12:00 mins";
+      } else if (cleanStatus === 'preparing') {
+        progressBar.style.width = '66%';
+        stepReceived.className = "text-emerald-600 font-bold flex items-center gap-1";
+        stepPreparing.className = "text-brand font-bold flex items-center gap-1";
+        stepReady.className = "text-slate-400 flex items-center gap-1";
+        etaCountdown.innerText = "06:30 mins";
+      } else if (cleanStatus === 'ready' || cleanStatus === 'completed') {
+        progressBar.style.width = '100%';
+        stepReceived.className = "text-emerald-600 font-bold flex items-center gap-1";
+        stepPreparing.className = "text-emerald-600 font-bold flex items-center gap-1";
+        stepReady.className = "text-emerald-600 font-bold flex items-center gap-1";
+        etaCountdown.innerText = "Dishes Ready! 🎉";
+      }
+    }
+
+    function closeOrderStatusScreen() {
+      document.getElementById('order-status-screen').classList.add('hidden');
+    }
+
+    // RETAIL STORE BROWSING & REQUESTS
+    function openRetailStoreModal() {
+      const container = document.getElementById('retail-products-grid');
+      container.innerHTML = RETAIL_PRODUCTS.map(p => `
+        <div class="p-3 border border-slate-200 rounded-2xl flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <img src="${p.image}" class="w-12 h-12 rounded-xl object-cover bg-slate-100">
+            <div>
+              <h4 class="text-xs font-bold text-slate-800">${p.name}</h4>
+              <p class="text-xs text-brand font-extrabold mt-0.5">₹${p.price}</p>
+            </div>
+          </div>
+          <button onclick="requestRetailItem('${p.name}', ${p.price})" class="bg-brand-gold hover:bg-amber-500 text-brand-dark px-3 py-1.5 rounded-xl text-xs font-bold shadow">
+            Request at Table
+          </button>
+        </div>
+      `).join('');
+
+      document.getElementById('retail-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    async function requestRetailItem(productName, price) {
+      const tableNum = parseInt(state.activeTable.replace(/\D/g, '')) || 4;
+
+      const retailPayload = {
+        id: `RTL-${Date.now().toString().slice(-6)}`,
+        type: 'retail',
+        table: tableNum,
+        items: [{ name: productName, title: productName, qty: 1, price: price }],
+        notes: 'Retail store product request to table',
+        status: 'received'
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/api/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(retailPayload)
+        });
+
+        if (res.ok) {
+          triggerSoundAlert();
+          fetchCloudOrders();
+          alert(`Request sent! Our store team will deliver ${productName} to ${state.activeTable}.`);
+          closeRetailStoreModal();
+        }
+      } catch (err) {
+        alert('Failed to send request to backend.');
+      }
+    }
+
+    function closeRetailStoreModal() {
+      document.getElementById('retail-modal').classList.add('hidden');
+    }
+
+    // ADMIN DASHBOARD RENDER LOGIC
+    function renderAdminOrders() {
+      const stream = document.getElementById('admin-orders-stream');
+      const activeCountBadge = document.getElementById('active-order-counter-badge');
+
+      const activeOrders = state.orders.filter(o => o.status.toLowerCase() !== 'completed');
+      activeCountBadge.innerText = `${activeOrders.length} Active`;
+
+      if (state.orders.length === 0) {
+        stream.innerHTML = `
+          <div class="bg-brand-dark/40 rounded-2xl p-8 text-center text-slate-400 border border-white/5 space-y-2">
+            <i data-lucide="inbox" class="w-10 h-10 mx-auto opacity-30"></i>
+            <p class="text-xs">No active kitchen orders or retail requests.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      stream.innerHTML = state.orders.map(order => {
+        const isRetail = order.type === 'retail';
+        const normStatus = order.status.toLowerCase();
+        let statusColor = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+        if (normStatus === 'preparing') statusColor = 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+        if (normStatus === 'ready') statusColor = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+        if (normStatus === 'completed') statusColor = 'bg-slate-700/50 text-slate-400 border-white/5';
+
+        return `
+          <div class="bg-brand-dark/80 rounded-2xl p-4 border ${isRetail ? 'border-brand-gold/60 ring-1 ring-brand-gold/30' : 'border-white/10'} shadow-lg space-y-3 relative">
+            <div class="flex items-center justify-between pb-2 border-b border-white/10">
+              <div class="flex items-center space-x-2">
+                <span class="bg-brand-gold text-brand-dark text-xs font-black px-2.5 py-0.5 rounded-md">${order.table}</span>
+                <span class="text-xs text-slate-300 font-mono">${order.id}</span>
+                ${isRetail ? `<span class="bg-amber-500/20 text-brand-gold border border-brand-gold/40 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Retail Store Request</span>` : ''}
+              </div>
+              <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border ${statusColor}">
+                ${order.status}
+              </span>
+            </div>
+
+            <div class="space-y-1.5 text-xs">
+              ${order.items.map(i => `
+                <div class="flex justify-between items-center text-slate-200">
+                  <span><strong class="text-brand-gold">${i.qty}x</strong> ${i.title}</span>
+                  <span class="text-slate-400">₹${i.price * i.qty}</span>
+                </div>
+              `).join('')}
+            </div>
+
+            ${order.notes ? `
+              <div class="bg-black/30 p-2 rounded-xl text-[11px] text-amber-200/90 border border-amber-500/20 flex items-start space-x-1.5">
+                <i data-lucide="message-square" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+                <span>Note: ${order.notes}</span>
+              </div>
+            ` : ''}
+
+            <div class="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+              <span class="text-xs font-bold text-white">Total: ₹${order.total}</span>
+              
+              <div class="flex items-center space-x-1.5">
+                ${normStatus === 'received' ? `
+                  <button onclick="advanceOrderStatus('${order.id}', 'preparing')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition">Start Preparing</button>
+                ` : ''}
+                ${normStatus === 'preparing' ? `
+                  <button onclick="advanceOrderStatus('${order.id}', 'ready')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow transition">Mark Ready</button>
+                ` : ''}
+                ${normStatus === 'ready' ? `
+                  <button onclick="advanceOrderStatus('${order.id}', 'completed')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl shadow transition">Complete</button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    // PUT ORDER STATUS TO RENDER API
+    async function advanceOrderStatus(orderId, newStatus) {
+      try {
+        const res = await fetch(`${API_URL}/api/orders/${orderId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus })
+        });
+
+        if (res.ok) {
+          fetchCloudOrders();
+        }
+      } catch (err) {
+        console.error('Failed to update status on cloud backend:', err);
+      }
+    }
+
+    function renderAdminInventory() {
+      const container = document.getElementById('admin-inventory-list');
+      
+      container.innerHTML = state.menu.map(item => `
+        <div class="pt-3 first:pt-0 flex items-center justify-between space-x-3">
+          <div class="flex items-center space-x-2.5 overflow-hidden">
+            <img src="${item.image}" class="w-10 h-10 rounded-xl object-cover flex-shrink-0 bg-slate-800">
+            <div class="truncate">
+              <h4 class="text-xs font-bold text-white truncate">${item.title}</h4>
+              <p class="text-[10px] text-slate-400">₹${item.price} • ${item.category}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center space-x-3 flex-shrink-0">
+            <button onclick="openEditDishModal('${item.id}')" class="p-1.5 text-slate-400 hover:text-brand-gold">
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+            </button>
+
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" ${item.inStock ? 'checked' : ''} onchange="toggleDishStock('${item.id}')" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function toggleDishStock(dishId) {
+      const dish = state.menu.find(d => d.id === dishId);
+      if (dish) {
+        dish.inStock = !dish.inStock;
+        saveState();
+        renderAdminInventory();
+        renderCustomerMenu();
+      }
+    }
+
+    function openAddDishModal() {
+      document.getElementById('dish-modal-title').innerText = "Add New Organic Dish";
+      document.getElementById('form-dish-id').value = '';
+      document.getElementById('dish-form').reset();
+      document.getElementById('dish-modal').classList.remove('hidden');
+    }
+
+    function openEditDishModal(dishId) {
+      const dish = state.menu.find(d => d.id === dishId);
+      if (!dish) return;
+
+      document.getElementById('dish-modal-title').innerText = "Edit Dish Profile";
+      document.getElementById('form-dish-id').value = dish.id;
+      document.getElementById('form-dish-title').value = dish.title;
+      document.getElementById('form-dish-category').value = dish.category;
+      document.getElementById('form-dish-price').value = dish.price;
+      document.getElementById('form-dish-desc').value = dish.desc;
+      document.getElementById('form-dish-image').value = dish.image;
+      document.getElementById('form-dish-cal').value = dish.nutrition.calories;
+      document.getElementById('form-dish-protein').value = dish.nutrition.protein;
+      document.getElementById('form-dish-carbs').value = dish.nutrition.carbs;
+      document.getElementById('form-dish-fats').value = dish.nutrition.fats;
+
+      document.getElementById('dish-modal').classList.remove('hidden');
+    }
+
+    function closeDishModal() {
+      document.getElementById('dish-modal').classList.add('hidden');
+    }
+
+    function saveDish(event) {
+      event.preventDefault();
+      const id = document.getElementById('form-dish-id').value;
+      const title = document.getElementById('form-dish-title').value;
+      const category = document.getElementById('form-dish-category').value;
+      const price = parseFloat(document.getElementById('form-dish-price').value);
+      const desc = document.getElementById('form-dish-desc').value;
+      const image = document.getElementById('form-dish-image').value || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+      
+      const nutrition = {
+        calories: document.getElementById('form-dish-cal').value || '350 kcal',
+        protein: document.getElementById('form-dish-protein').value || '10g',
+        carbs: document.getElementById('form-dish-carbs').value || '40g',
+        fats: document.getElementById('form-dish-fats').value || '8g'
+      };
+
+      if (id) {
+        const dish = state.menu.find(d => d.id === id);
+        if (dish) {
+          dish.title = title;
+          dish.category = category;
+          dish.price = price;
+          dish.desc = desc;
+          dish.image = image;
+          dish.nutrition = nutrition;
+        }
+      } else {
+        state.menu.push({
+          id: `d-${Date.now()}`,
+          title, category, price, desc, image,
+          inStock: true,
+          nutrition,
+          tags: ['Organic Recipe']
+        });
+      }
+
+      saveState();
+      renderCategoryTabs();
+      renderCustomerMenu();
+      renderAdminInventory();
+      closeDishModal();
+    }
+
+    function toggleAudioAlerts() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      state.audioEnabled = !state.audioEnabled;
+      const btnText = document.getElementById('audio-status-text');
+      const icon = document.getElementById('audio-icon');
+
+      if (state.audioEnabled) {
+        btnText.innerText = 'Audio: Active';
+        icon.setAttribute('data-lucide', 'volume-2');
+        icon.className = 'w-4 h-4 text-emerald-400';
+        triggerSoundAlert();
+      } else {
+        btnText.innerText = 'Audio: Muted';
+        icon.setAttribute('data-lucide', 'volume-x');
+        icon.className = 'w-4 h-4 text-red-400';
+      }
+      lucide.createIcons();
+    }
+
+    function triggerSoundAlert() {
+      if (!state.audioEnabled) return;
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      try {
+        const now = audioCtx.currentTime;
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now);
+        gain1.gain.setValueAtTime(0.3, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.4);
+
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.15);
+        gain2.gain.setValueAtTime(0.4, now + 0.15);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(now + 0.15);
+        osc2.stop(now + 0.6);
+      } catch (e) {
+        console.log('Audio playback error:', e);
+      }
+    }
+  </script>
+</body>
+</html>
