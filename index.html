@@ -75,9 +75,9 @@ let DB = {
   menu: [], retail: [], orders: []
 };
 
-let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false, custName:'', custPhone:'' };
+let session = { table:null, cafeCart:[], retailCart:[], activeCafeCat:'All', activeRetailCat:'All', search:'', showCrossSell:false, cartOpen:false, custName:'', custPhone:'', dismissedBills: new Set() };
 
-function money(n) { return '₹' + Number(n).toFixed(0); }
+function money(n) { return '₹' + Number(n).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
   const host = document.getElementById('toastHost'); if (!host) return;
@@ -108,6 +108,8 @@ function render() {
 function customerShell() {
   const table = session.table;
   const activeOrder = [...DB.orders].reverse().find(o => o.table === table && o.status !== 'served');
+  const servedOrder = [...DB.orders].reverse().find(o => o.table === table && o.status === 'served' && !session.dismissedBills.has(o.id));
+
   return `
   <div class="min-h-screen bg-cream pb-28">
     <header class="sticky top-0 z-30 bg-brand text-cream shadow-lg">
@@ -139,6 +141,7 @@ function customerShell() {
     ${cartBar()}
     ${cartDrawer()}
     ${session.showCrossSell ? crossSellModal() : ''}
+    ${servedOrder ? billModal(servedOrder) : ''}
 
     <footer class="max-w-xl mx-auto px-4 pt-10 pb-6 text-center">
       <a href="dashboard.html" class="text-[11px] text-brand-400/70 underline hover:text-brand-600">Staff & Kitchen Portal</a>
@@ -224,7 +227,7 @@ function retailPanel() {
   return `
   <div class="mb-3 rounded-2xl bg-brand text-cream px-4 py-3 flex items-center gap-2.5">
     <i data-lucide="leaf" class="w-4 h-4 text-gold-400 shrink-0"></i>
-    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices.</span>
+    <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices (Billed at MRP).</span>
   </div>
   <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
     ${cats.map(c => `<button data-rcat="${c}" class="retail-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeRetailCat === c || (!session.activeRetailCat && c === 'All') ? 'bg-gold text-white border-gold' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
@@ -241,7 +244,7 @@ function retailCard(item) {
     <img src="${item.img || 'https://images.unsplash.com/photo-1620706857370-e1b9770e8bb1?w=500'}" class="w-full h-24 object-cover" onerror="this.style.display='none'">
     <div class="p-3">
       <div class="font-display text-sm leading-snug text-brand-900">${item.name}</div>
-      <div class="text-[10px] text-brand-400">${item.size || ''}</div>
+      <div class="text-[10px] text-brand-400">${item.size || ''} (MRP)</div>
       <div class="flex justify-between items-center mt-2">
         <span class="text-sm font-bold text-brand-800">${money(item.price)}</span>
         ${item.stock ? (inCart ? qtyStepper('retail', item.id, inCart.qty) : `<button class="add-retail bg-gold text-white text-[11px] font-bold px-3 py-1.5 rounded-full" data-id="${item.id}">Add</button>`) : `<span class="text-[10px] font-bold text-red-500">SOLD OUT</span>`}
@@ -257,7 +260,10 @@ function emptyState(msg) {
 function cartBar() {
   const count = session.cafeCart.reduce((a,c) => a + c.qty, 0) + session.retailCart.reduce((a,c) => a + c.qty, 0);
   if (count === 0 || session.cartOpen) return '';
-  const total = session.cafeCart.reduce((a,c) => a + c.qty * c.price, 0) + session.retailCart.reduce((a,c) => a + c.qty * c.price, 0);
+  const cafeTotal = session.cafeCart.reduce((a,c) => a + c.qty * c.price, 0);
+  const retailTotal = session.retailCart.reduce((a,c) => a + c.qty * c.price, 0);
+  const total = cafeTotal + (cafeTotal * 0.05) + retailTotal;
+
   return `
   <button id="openCartBtn" class="fixed bottom-4 left-4 right-4 max-w-xl mx-auto z-40 bg-brand-900 text-cream rounded-2xl px-5 py-3.5 flex items-center justify-between shadow-2xl">
     <span class="flex items-center gap-2 text-sm font-semibold"><i data-lucide="shopping-cart" class="w-4 h-4 text-gold-400"></i>${count} item${count > 1 ? 's' : ''}</span>
@@ -268,6 +274,9 @@ function cartBar() {
 function cartDrawer() {
   const cafeTotal = session.cafeCart.reduce((a,c) => a + c.qty * c.price, 0);
   const retailTotal = session.retailCart.reduce((a,c) => a + c.qty * c.price, 0);
+  const cafeGst = cafeTotal * 0.05;
+  const grandTotal = cafeTotal + cafeGst + retailTotal;
+
   return `
   <div id="cartDrawer" class="drawer ${session.cartOpen ? '' : 'drawer-hidden'} fixed inset-x-0 bottom-0 z-50 max-w-xl mx-auto bg-white rounded-t-3xl shadow-2xl max-h-[85vh] flex flex-col">
     <div class="px-5 pt-4 pb-2 flex items-center justify-between border-b border-brand-50">
@@ -295,11 +304,13 @@ function cartDrawer() {
         </div>
       </div>
     </div>
-    <div class="px-5 py-4 border-t border-brand-50 space-y-2 bg-white">
-      ${session.cafeCart.length ? `<div class="flex justify-between text-sm"><span>Cafe subtotal</span><span class="font-bold">${money(cafeTotal)}</span></div>` : ''}
-      ${session.retailCart.length ? `<div class="flex justify-between text-sm"><span>Retail subtotal</span><span class="font-bold">${money(retailTotal)}</span></div>` : ''}
-      <button id="placeOrderBtn" class="w-full bg-brand text-cream font-bold py-3.5 rounded-full text-sm disabled:opacity-40" ${(!session.cafeCart.length && !session.retailCart.length) ? 'disabled' : ''}>
-        ${!session.table ? 'Select a table first' : 'Place Order — ' + money(cafeTotal + retailTotal)}
+    <div class="px-5 py-4 border-t border-brand-50 space-y-1.5 bg-white">
+      ${session.cafeCart.length ? `<div class="flex justify-between text-xs text-brand-600"><span>Cafe Subtotal</span><span>${money(cafeTotal)}</span></div>` : ''}
+      ${session.cafeCart.length ? `<div class="flex justify-between text-xs text-brand-500"><span>GST (5% on Cafe Items)</span><span>${money(cafeGst)}</span></div>` : ''}
+      ${session.retailCart.length ? `<div class="flex justify-between text-xs text-brand-600"><span>Retail Total (MRP - Incl. Taxes)</span><span>${money(retailTotal)}</span></div>` : ''}
+      <div class="flex justify-between text-sm font-bold text-brand-900 border-t border-brand-50 pt-1.5"><span>Total Amount</span><span>${money(grandTotal)}</span></div>
+      <button id="placeOrderBtn" class="w-full mt-2 bg-brand text-cream font-bold py-3.5 rounded-full text-sm disabled:opacity-40" ${(!session.cafeCart.length && !session.retailCart.length) ? 'disabled' : ''}>
+        ${!session.table ? 'Select a table first' : 'Place Order — ' + money(grandTotal)}
       </button>
     </div>
   </div>`;
@@ -309,6 +320,49 @@ function cartLine(c) {
   return `<div class="flex items-center justify-between py-1.5">
     <div class="min-w-0"><div class="text-sm font-medium truncate">${c.name}</div><div class="text-xs text-brand-400">${money(c.price)} × ${c.qty}</div></div>
     ${qtyStepper(c.kind, c.id, c.qty)}
+  </div>`;
+}
+
+function billModal(order) {
+  const isCafe = order.type === 'cafe';
+  const subtotal = order.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const gst = isCafe ? (subtotal * 0.05) : 0;
+  const grandTotal = subtotal + gst;
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/70 flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+      <div class="w-12 h-12 rounded-full bg-green-100 text-green-700 mx-auto flex items-center justify-center mb-3">
+        <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+      </div>
+      <h3 class="font-display text-xl text-brand-900 mb-0.5">Order Served!</h3>
+      <p class="text-xs text-brand-500 mb-4">Table ${order.table} · #${order.id.slice(-4)}</p>
+
+      <div class="bg-cream rounded-2xl p-4 text-left space-y-2 mb-4">
+        <div class="text-xs font-bold text-brand-800 border-b border-brand-100 pb-1.5 flex justify-between">
+          <span>Customer:</span>
+          <span>${order.customerName || 'Guest'}</span>
+        </div>
+        <div class="space-y-1 py-1">
+          ${order.items.map(it => `
+            <div class="flex justify-between text-xs text-brand-700">
+              <span>${it.qty}× ${it.name}</span>
+              <span>${money(it.price * it.qty)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <div class="border-t border-brand-100 pt-2 space-y-1 text-xs">
+          <div class="flex justify-between text-brand-600"><span>${isCafe ? 'Subtotal' : 'Total (MRP)'}</span><span>${money(subtotal)}</span></div>
+          ${isCafe ? `<div class="flex justify-between text-brand-500"><span>GST (5% Cafe Tax)</span><span>${money(gst)}</span></div>` : ''}
+          <div class="flex justify-between font-bold text-sm text-brand-900 border-t border-brand-100 pt-1.5">
+            <span>Total Bill</span>
+            <span class="text-brand text-base">${money(grandTotal)}</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="closeBillBtn" data-id="${order.id}" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm hover:bg-brand-600 transition">Close Receipt</button>
+    </div>
   </div>`;
 }
 
@@ -443,6 +497,12 @@ function wireCustomer() {
 
   const dismissCross = document.getElementById('dismissCrossSell'); if (dismissCross) dismissCross.onclick = () => { session.showCrossSell = false; session.custTab = 'status'; render(); };
   const browseRetail = document.getElementById('browseRetailBtn'); if (browseRetail) browseRetail.onclick = () => { session.showCrossSell = false; session.custTab = 'retail'; render(); };
+
+  const closeBill = document.getElementById('closeBillBtn');
+  if (closeBill) closeBill.onclick = () => {
+    session.dismissedBills.add(closeBill.dataset.id);
+    render();
+  };
 }
 
 function renderKeepFocus(id) {
