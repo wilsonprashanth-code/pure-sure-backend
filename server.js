@@ -15,12 +15,10 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
 });
 
-// Connect to MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB Atlas Cloud Database!'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
+// Prevent queries from timing out silently if disconnected
+mongoose.set('bufferCommands', false);
 
-// Schemas
+// Database Order Schema
 const OrderSchema = new mongoose.Schema({
   id: String,
   type: String,
@@ -33,7 +31,7 @@ const OrderSchema = new mongoose.Schema({
 
 const Order = mongoose.model('Order', OrderSchema);
 
-// API Routes
+// REST API Endpoints
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ ts: -1 });
@@ -47,7 +45,7 @@ app.post('/api/orders', async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
-    io.emit('new_order', newOrder); // Real-time WebSocket push
+    io.emit('new_order', newOrder);
     res.status(201).json(newOrder);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -68,10 +66,21 @@ app.put('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// WebSockets
+// Socket.io Listener
 io.on('connection', (socket) => {
   console.log('⚡ Socket connected:', socket.id);
 });
 
+// Connect Database BEFORE Starting Server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
+
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000 // Fast fail on connection issues
+})
+.then(() => {
+  console.log('✅ Connected to MongoDB Atlas Cloud Database!');
+  server.listen(PORT, () => console.log(`🚀 Cloud Server active on port ${PORT}`));
+})
+.catch(err => {
+  console.error('❌ MongoDB Connection Failure:', err.message);
+});
