@@ -73,9 +73,9 @@
   <div id="authModal" class="auth-overlay">
     <div class="auth-card">
       <h2>🔒 Staff Access</h2>
-      <p>Enter Passcode to Unmute Loud Alert Chime</p>
+      <p>Enter Passcode to View Dashboard</p>
       <input type="password" id="pinInput" maxlength="4" placeholder="••••">
-      <button onclick="verifyPin()">Authenticate & Activate Audio</button>
+      <button onclick="verifyPin()">Authenticate</button>
       <p id="pinError" style="color:red; display:none; margin-top:10px;">Invalid Passcode!</p>
     </div>
   </div>
@@ -95,7 +95,7 @@
 
   <div class="container">
     
-    <!-- TAB 1: ORDERS STREAM -->
+    <!-- TAB 1: LIVE ORDERS STREAM -->
     <div id="orders-tab" class="section active">
       <h2>Live Kitchen Orders</h2>
       <div id="ordersContainer" class="card-grid">Loading orders...</div>
@@ -151,7 +151,6 @@
     function verifyPin() {
       if (document.getElementById('pinInput').value === '1999') {
         document.getElementById('authModal').style.display = 'none';
-        // Unlock Web Audio API context for browser autoplay permissions
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         fetchOrders();
         fetchMenuItems();
@@ -163,12 +162,8 @@
 
     function playLoudAlertTone() {
       if (!audioEnabled || !audioContext) return;
-      
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
+      if (audioContext.state === 'suspended') audioContext.resume();
 
-      // Synthesize a continuous 3-second loud double chime sequence
       const now = audioContext.currentTime;
       [0, 0.4, 0.8, 1.2, 1.6, 2.0].forEach(delay => {
         const osc = audioContext.createOscillator();
@@ -295,7 +290,7 @@
 
       document.getElementById('dishName').value = '';
       document.getElementById('dishPrice').value = '';
-      alert(`Dish "${name}" added to cloud and visible on Customer Menu!`);
+      alert(`Dish "${name}" added to cloud!`);
       fetchMenuItems();
     }
 
