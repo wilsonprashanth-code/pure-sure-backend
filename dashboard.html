@@ -213,7 +213,17 @@ function getRawMaterialDetails(name) {
 function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const unit = (ing.unit || 'GRM').toUpperCase();
-  
+
+  // If item is a Base Recipe, calculate cost per unit from Base Master
+  if (ing.type === 'base' || ing.isBase) {
+    const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+    if (baseObj) {
+      const unitRate = calculateBaseRecipeCostPerUnit(baseObj);
+      const gramsMl = Number(ing.gramsMl || getConvertedGramsMl(qty, unit));
+      return (gramsMl / 1000) * unitRate;
+    }
+  }
+
   let rate = Number(ing.unitPrice || 0);
   if (!rate && ing.name) {
     rate = getRawMaterialDetails(ing.name).unitPrice;
@@ -260,6 +270,43 @@ function calculateBaseRecipeCostPerUnit(base) {
   return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
+// RECURSIVE STOCK DEDUCTION ENGINE FOR BILLING INTEGRATION
+async function deductStockForDish(dishId, orderedPortions = 1) {
+  const recipe = DB.recipes[dishId];
+  if (!recipe || !recipe.ingredients) return;
+
+  const updates = {};
+
+  function processIngredient(ing, multiplier) {
+    if (ing.type === 'base' || ing.isBase) {
+      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (baseObj && baseObj.ingredients) {
+        const baseUsageGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const baseYieldGrams = Number(baseObj.batchYield || 1);
+        const batchFraction = baseYieldGrams > 0 ? (baseUsageGrams / baseYieldGrams) : 0;
+
+        baseObj.ingredients.forEach(subIng => {
+          processIngredient(subIng, batchFraction);
+        });
+      }
+    } else {
+      const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (rm) {
+        const requiredGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const currentStock = Number(rm.stockGrams || 100000); // Default placeholder
+        const newStock = Math.max(0, currentStock - requiredGrams);
+        updates[`rawMaterials/${rm.id}/stockGrams`] = newStock;
+      }
+    }
+  }
+
+  recipe.ingredients.forEach(ing => processIngredient(ing, orderedPortions));
+
+  if (Object.keys(updates).length > 0) {
+    await db.ref().update(updates);
+  }
+}
+
 function downloadRawMaterialsTemplate() {
   const sampleData = [
     { name: 'TOMATO', vendor: 'AD VEGETABLES', unit: 'GRM', unitPrice: 25 },
@@ -285,7 +332,7 @@ function downloadBaseRecipesTemplate() {
 
 function downloadMainRecipesTemplate() {
   const sampleData = [
-    { dishName: 'High Protein Penne Pasta', portions: 1, wastagePercent: 10, ingredientName: 'HIGH PROTEIN PASTA SAUCE', qty: 250, unit: 'GRM', gramsMl: 250, uom: 'GRM' }
+    { dishName: 'High Protein Penne Pasta', portions: 1, wastagePercent: 10, ingredientName: 'HIGH PROTEIN PASTA SAUCE', qty: 250, unit: 'GRM', gramsMl: 250, uom: 'GRM', isBase: true }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -481,7 +528,7 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE */
+/* RECIPE COSTING MODULE WITH LINKED BASE RECIPE SUPPORT */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -587,9 +634,20 @@ function recipeCostingPanel() {
                 </thead>
                 <tbody id="recipeRowsTable" class="divide-y divide-amber-200">
                   ${(activeRecipe?.ingredients || []).map((ing, idx) => {
-                    const masterDetails = getRawMaterialDetails(ing.name);
-                    const vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
-                    const unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    const isBase = ing.type === 'base' || ing.isBase;
+                    let vendor = 'FACTORY';
+                    let unitPrice = 0;
+
+                    if (isBase) {
+                      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+                      vendor = 'LINKED BASE PREP';
+                      unitPrice = baseObj ? calculateBaseRecipeCostPerUnit(baseObj) : 0;
+                    } else {
+                      const masterDetails = getRawMaterialDetails(ing.name);
+                      vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
+                      unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    }
+
                     const computedGrams = getConvertedGramsMl(ing.qty, ing.unit);
 
                     return `
@@ -599,10 +657,10 @@ function recipeCostingPanel() {
                         <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}" tabindex="${(idx * 7) + 1}">
                           <option value="">-- Choose Raw Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
-                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${!isBase && (ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
                           </optgroup>
-                          <optgroup label="Base Recipes / Sauces">
-                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
+                          <optgroup label="Base Recipes / Sauces (Linked Stock)">
+                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${isBase && (ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
                           </optgroup>
                         </select>
                       </td>
@@ -627,10 +685,10 @@ function recipeCostingPanel() {
                         <input type="text" class="ing-uom w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}" tabindex="${(idx * 7) + 5}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 truncate">
-                        ${vendor}
+                        <span class="${isBase ? 'text-gold-700 font-bold' : ''}">${vendor}</span>
                       </td>
                       <td class="p-2 border-r border-amber-200 text-right">
-                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}" tabindex="${(idx * 7) + 6}">
+                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}" ${isBase ? 'readonly' : ''} tabindex="${(idx * 7) + 6}">
                       </td>
                       <td class="p-2 text-right font-bold text-brand-900 ing-cost-cell">
                         ${money(calculateIngCost({ ...ing, gramsMl: ing.gramsMl || computedGrams, unitPrice }))}
@@ -1248,7 +1306,6 @@ function recalculateMainRecipeTotals() {
   const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
   const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
 
-  // Direct DOM updates to prevent losing focus/cursor during typing
   const summaryRaw = document.getElementById('summaryRawCost');
   if (summaryRaw) summaryRaw.textContent = money(rawTotalCost);
 
@@ -1301,7 +1358,6 @@ function wireKitchen() {
   document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
 
-  /* NON-DESTRUCTIVE INPUT LISTENERS FOR SEARCH BARS */
   const dashCafe = document.getElementById('dashCafeSearch');
   if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
 
@@ -1348,15 +1404,16 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            const isBase = Boolean(row.isBase || row.type === 'base');
             const rm = getRawMaterialDetails(ingName);
             const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
 
             let unitPrice = 0;
             let unit = (row.unit || 'GRM').toString().toUpperCase();
-            let vendor = rm ? rm.vendor : (br ? 'BASE PREP' : 'FACTORY');
+            let vendor = isBase || br ? 'LINKED BASE PREP' : (rm ? rm.vendor : 'FACTORY');
 
-            if (rm.unitPrice) unitPrice = rm.unitPrice;
-            else if (br) unitPrice = calculateBaseRecipeCostPerUnit(br);
+            if (isBase || br) unitPrice = br ? calculateBaseRecipeCostPerUnit(br) : 0;
+            else if (rm.unitPrice) unitPrice = rm.unitPrice;
 
             grouped[dishId].ingredients.push({
               name: ingName,
@@ -1365,7 +1422,8 @@ function wireKitchen() {
               unit: unit,
               uom: unit,
               vendor: vendor,
-              unitPrice: unitPrice
+              unitPrice: unitPrice,
+              type: (isBase || br) ? 'base' : 'raw'
             });
           });
 
@@ -1443,7 +1501,8 @@ function wireKitchen() {
               unit: (row.unit || 'GRM').toString().toUpperCase(),
               uom: (row.uom || row.unit || 'GRM').toString().toUpperCase(),
               vendor: rm ? rm.vendor : 'FACTORY',
-              unitPrice: rm ? rm.unitPrice : 0
+              unitPrice: rm ? rm.unitPrice : 0,
+              type: 'raw'
             });
           });
 
@@ -1627,7 +1686,7 @@ function wireKitchen() {
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase) {
         if (!activeBase.ingredients) activeBase.ingredients = [];
-        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0 });
+        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
         render();
       }
     };
@@ -1645,12 +1704,12 @@ function wireKitchen() {
         activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
         activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
         activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, activeBase.ingredients[idx].unit);
+        activeBase.ingredients[idx].type = 'raw';
         render();
       }
     };
   });
 
-  // NON-BLOCKING INLINE LISTENERS FOR BASE RECIPES
   document.querySelectorAll('.base-ing-unit').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
@@ -1725,7 +1784,7 @@ function wireKitchen() {
     };
   });
 
-  /* MAIN CAFE RECIPE HANDLERS WITH CONTINUOUS TYPING */
+  /* MAIN CAFE RECIPE HANDLERS WITH LINKED BASE RECIPES */
   const costingDishSelect = document.getElementById('costingDishSelect');
   if (costingDishSelect) {
     costingDishSelect.onchange = (e) => {
@@ -1761,7 +1820,7 @@ function wireKitchen() {
     addIngredientRowBtn.onclick = () => {
       if (session.activeRecipeDishId) {
         if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0 });
+        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
         render();
       }
     };
@@ -1782,6 +1841,7 @@ function wireKitchen() {
           DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
           DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice || 0;
           DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, rm.unit || 'GRM');
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
         } else if (val.startsWith('br_')) {
           const name = val.replace('br_', '');
           const br = DB.baseRecipes.find(b => b.name === name);
@@ -1789,9 +1849,10 @@ function wireKitchen() {
             DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
             DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit || 'GRM';
             DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = br.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'BASE PREP';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'LINKED BASE PREP';
             DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
             DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, br.unit || 'GRM');
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
           }
         }
         render();
@@ -1831,7 +1892,6 @@ function wireKitchen() {
     };
   });
 
-  // UNINTERRUPTED REAL-TIME TYPING LISTENERS (DOM UPDATES WITHOUT DOM DESTRUCTION)
   document.querySelectorAll('.ing-qty').forEach(input => {
     input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
@@ -1919,6 +1979,7 @@ function wireKitchen() {
     };
   }
 
+  // ADVANCE ORDER WITH AUTOMATIC STOCK DEDUCTION
   document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
     const o = DB.orders.find(x => x.id === b.dataset.id);
     if (o) {
@@ -1926,6 +1987,12 @@ function wireKitchen() {
       const updates = { status: nextStatus };
       if (nextStatus === 'served') {
         updates.completedTs = Date.now();
+        // Deduct raw material stock for each cafe dish ordered
+        for (const item of (o.items || [])) {
+          if (item.id) {
+            await deductStockForDish(item.id, item.qty || 1);
+          }
+        }
       }
       await db.ref('orders/' + o.id).update(updates);
       render();
