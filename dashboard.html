@@ -96,6 +96,7 @@ let session = {
   showAddStaff: false, 
   cafeSearch: '', 
   retailSearch: '', 
+  rmSearch: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -451,6 +452,9 @@ function recipeCostingPanel() {
   const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
   const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
 
+  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
   return `
   <div class="space-y-6">
     <div class="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between flex-wrap gap-3">
@@ -536,10 +540,10 @@ function recipeCostingPanel() {
                         <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs font-medium" data-idx="${idx}">
                           <option value="">-- Select Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
-                            ${DB.rawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
                           </optgroup>
                           <optgroup label="Base Recipes / Sauces">
-                            ${DB.baseRecipes.map(br => {
+                            ${sortedBaseRecipes.map(br => {
                               const costPerUnit = calculateBaseRecipeCostPerUnit(br);
                               return `<option value="br_${br.name}" ${ing.name === br.name ? 'selected' : ''}>⭐ [BASE] ${br.name} (${money(costPerUnit)}/${br.unit})</option>`;
                             }).join('')}
@@ -614,6 +618,7 @@ function baseRecipesModal() {
   const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
   const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + (Number(i.qty || 0) * Number(i.unitPrice || 0)), 0) : 0;
   const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
+  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4">
@@ -689,7 +694,7 @@ function baseRecipesModal() {
                   <div class="flex items-center gap-2 text-xs">
                     <select class="base-ing-select flex-1 border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
                       <option value="">-- Choose Raw Material --</option>
-                      ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                      ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
                     </select>
                     <input type="number" step="0.01" class="base-ing-qty w-16 border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
                     <span class="w-10 text-[10px] font-bold text-brand-500">${ing.unit || 'kg'}</span>
@@ -717,6 +722,11 @@ function baseRecipesModal() {
 }
 
 function rawMaterialsModal() {
+  const query = (session.rmSearch || '').toLowerCase().trim();
+  const filteredRm = DB.rawMaterials
+    .filter(rm => (rm.name || '').toLowerCase().includes(query) || (rm.vendor || '').toLowerCase().includes(query))
+    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4">
     <div class="modal-fade bg-white rounded-3xl max-w-2xl w-full p-6 my-8 max-h-[85vh] flex flex-col">
@@ -760,6 +770,12 @@ function rawMaterialsModal() {
         <button id="addRmBtn" class="w-full mt-2.5 bg-brand text-cream font-bold py-2 rounded-lg text-xs hover:bg-brand-600 transition">Add Single Material</button>
       </div>
 
+      <!-- Raw Materials Live Search -->
+      <div class="relative mb-3">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+        <input id="dashRmSearch" value="${session.rmSearch || ''}" placeholder="Search raw materials by name or vendor (A-Z sorted)..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+      </div>
+
       <div class="flex-1 overflow-y-auto pr-1">
         <table class="w-full text-left text-xs">
           <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
@@ -772,7 +788,7 @@ function rawMaterialsModal() {
             </tr>
           </thead>
           <tbody class="divide-y divide-brand-50">
-            ${DB.rawMaterials.map(rm => `
+            ${filteredRm.map(rm => `
               <tr>
                 <td class="p-2.5 font-bold text-brand-900">${rm.name}</td>
                 <td class="p-2.5 text-brand-600 font-semibold">${rm.vendor || 'General Supplier'}</td>
@@ -782,7 +798,7 @@ function rawMaterialsModal() {
                   <button class="delete-rm-btn text-red-500 hover:text-red-700" data-id="${rm.id}"><i data-lucide="trash-2" class="w-4 h-4 mx-auto"></i></button>
                 </td>
               </tr>
-            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No raw materials in database yet. Add individually or upload via Excel above.</td></tr>`}
+            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No raw materials match your search.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1096,6 +1112,9 @@ function wireKitchen() {
 
   const dashRetail = document.getElementById('dashRetailSearch');
   if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
+
+  const dashRm = document.getElementById('dashRmSearch');
+  if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
 
   /* BULK MAIN RECIPE UPLOADER HANDLERS */
   const dlMainRecipesBtn = document.getElementById('dlMainRecipesTemplateBtn');
