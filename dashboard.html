@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pure & Sure Organic Cafe - Kitchen & Staff Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -52,6 +54,7 @@
 </head>
 <body>
 
+    <!-- Header Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
         <div class="container-fluid px-4">
             <a class="navbar-brand" href="#"><i class="fa-solid fa-leaf text-success me-2"></i>Pure & Sure Kitchen Master</a>
@@ -64,6 +67,7 @@
 
     <div class="container-fluid">
         <div class="row">
+            <!-- Sidebar Navigation -->
             <div class="col-md-3 col-lg-2 sidebar p-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -81,6 +85,7 @@
                 </ul>
             </div>
 
+            <!-- Main Content Area -->
             <div class="col-md-9 col-lg-10 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
@@ -92,13 +97,14 @@
                     </button>
                 </div>
 
+                <!-- Stats Cards -->
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
                         <div class="card card-custom p-3 bg-white">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
                                     <span class="text-muted small">Saved Base Preps</span>
-                                    <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">0 Items</h4>
+                                    <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">49 Items</h4>
                                 </div>
                                 <div class="p-3 bg-light rounded-circle text-success"><i class="fa-solid fa-jar fa-xl"></i></div>
                             </div>
@@ -109,7 +115,7 @@
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
                                     <span class="text-muted small">Pending Mismatches</span>
-                                    <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">0 Items</h4>
+                                    <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">3 Warning Items</h4>
                                 </div>
                                 <div class="p-3 bg-light rounded-circle text-warning"><i class="fa-solid fa-triangle-exclamation fa-xl"></i></div>
                             </div>
@@ -128,6 +134,7 @@
                     </div>
                 </div>
 
+                <!-- Recipe List Preview -->
                 <div class="card card-custom p-4 bg-white">
                     <h5 class="fw-bold mb-3">Live Base Recipe List</h5>
                     <div class="table-responsive">
@@ -142,7 +149,7 @@
                                 </tr>
                             </thead>
                             <tbody id="dashboardPreviewBody">
-                                <tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>
+                                <!-- Populated dynamically -->
                             </tbody>
                         </table>
                     </div>
@@ -151,6 +158,7 @@
         </div>
     </div>
 
+    <!-- Base Recipes Modal -->
     <div class="modal fade" id="baseRecipeModal" tabindex="-1" aria-labelledby="baseRecipeModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-xl-custom">
             <div class="modal-content">
@@ -159,6 +167,8 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
+                    
+                    <!-- Bulk Upload Section -->
                     <div class="p-3 bg-light border rounded mb-4">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
                             <div>
@@ -174,21 +184,26 @@
                         </div>
                     </div>
 
+                    <!-- Main Recipe Editor Layout -->
                     <div class="row g-4">
+                        <!-- Left List -->
                         <div class="col-md-4 border-end">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="fw-bold mb-0">Saved Base Preps</h6>
                                 <button class="btn btn-outline-success btn-sm" onclick="createNewPrep()"><i class="fa-solid fa-plus me-1"></i>New</button>
                             </div>
                             <input type="text" class="form-control form-control-sm mb-3" id="searchPrepInput" placeholder="Search base prep..." onkeyup="filterPrepList()">
-                            <div class="list-group" id="savedPrepList" style="max-height: 480px; overflow-y: auto;"></div>
+                            <div class="list-group" id="savedPrepList" style="max-height: 480px; overflow-y: auto;">
+                                <!-- Dynamically populated list -->
+                            </div>
                         </div>
 
+                        <!-- Right Detail View -->
                         <div class="col-md-8">
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">PREP NAME</label>
-                                    <input type="text" class="form-control" id="prepNameInput">
+                                    <input type="text" class="form-control" id="prepNameInput" placeholder="e.g. Classic Hummus 730 g yield">
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label small fw-bold">BATCH YIELD</label>
@@ -223,7 +238,9 @@
                                             <th>Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="ingredientsTableBody"></tbody>
+                                    <tbody id="ingredientsTableBody">
+                                        <!-- Dynamically Populated Ingredients -->
+                                    </tbody>
                                 </table>
                             </div>
 
@@ -248,29 +265,17 @@
         </div>
     </div>
 
+    <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Master Application JS Script -->
     <script>
         let baseRecipesStore = {};
         let activePrepName = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Dashboard Initialized.');
-            fetchAndAutoLoadCSV();
         });
-
-        function fetchAndAutoLoadCSV() {
-            fetch('Base_Recipes_49_Red_Sheets.csv')
-                .then(response => {
-                    if (!response.ok) throw new Error('CSV not found');
-                    return response.text();
-                })
-                .then(csvText => {
-                    console.log('Auto-loaded Base_Recipes_49_Red_Sheets.csv from repo');
-                    parseBaseRecipesCSV(csvText);
-                })
-                .catch(err => console.log('Auto-load CSV note:', err.message));
-        }
 
         function handleFileUpload(event) {
             const file = event.target.files[0];
@@ -289,7 +294,6 @@
             if (lines.length < 2) return;
 
             baseRecipesStore = {};
-            let mismatchCount = 0;
 
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -309,10 +313,6 @@
                 const vendor = cols[8] || 'FACTORY';
 
                 if (!recipeName || !ingredientName) continue;
-
-                if (ingredientName.includes('⚠️')) {
-                    mismatchCount++;
-                }
 
                 if (!baseRecipesStore[recipeName]) {
                     baseRecipesStore[recipeName] = {
@@ -334,7 +334,6 @@
                 });
             }
 
-            document.getElementById('statMismatchCount').innerText = `${mismatchCount} Warning Items`;
             renderSavedPrepList();
             renderDashboardPreview();
             
@@ -421,12 +420,7 @@
             tbody.innerHTML = '';
 
             const keys = Object.keys(baseRecipesStore);
-            if (keys.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>';
-                return;
-            }
-
-            keys.forEach((key, idx) => {
+            keys.slice(0, 10).forEach((key, idx) => {
                 const r = baseRecipesStore[key];
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
