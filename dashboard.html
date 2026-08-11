@@ -82,10 +82,14 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: []
+  menu: [], retail: [], orders: [], ingredients: [], recipes: {}
 };
 
-let session = { staff:null, soundOn:true, kitchenTab:'orders', editingDish:null, editingRetail:null, showAddStaff:false, cafeSearch:'', retailSearch:'' };
+let session = { 
+  staff:null, soundOn:true, kitchenTab:'orders', editingDish:null, editingRetail:null, 
+  showAddStaff:false, cafeSearch:'', retailSearch:'', activeRecipeDishId: null,
+  activeRecipeRows: []
+};
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
   return new Promise((resolve, reject) => {
@@ -98,7 +102,6 @@ function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0
       img.onload = () => {
         let width = img.width;
         let height = img.height;
-
         if (width > height) {
           if (width > maxWidth) {
             height = Math.round((height * maxWidth) / width);
@@ -110,15 +113,12 @@ function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0
             height = maxHeight;
           }
         }
-
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedBase64);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = (err) => reject(err);
     };
@@ -138,7 +138,6 @@ function playLoudAlarm() {
   if (!session.soundOn || !session.staff) return;
   unlockAudio();
   if (!actx) return;
-
   const now = actx.currentTime;
   [0, 0.25, 0.5, 0.75].forEach(delay => {
     const o = actx.createOscillator();
@@ -154,7 +153,7 @@ function playLoudAlarm() {
   });
 }
 
-function money(n) { return '₹' + Number(n).toFixed(2); }
+function money(n) { return '₹' + Number(n || 0).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
   const host = document.getElementById('toastHost'); if (!host) return;
@@ -189,28 +188,6 @@ function calculateOrderTotal(order) {
   const cafeSub = (order.items || []).filter(i => i.kind === 'cafe' || (!i.kind && order.type === 'cafe')).reduce((a, b) => a + (b.price * b.qty), 0);
   const retailSub = (order.items || []).filter(i => i.kind === 'retail' || (!i.kind && order.type === 'retail')).reduce((a, b) => a + (b.price * b.qty), 0);
   return cafeSub + (cafeSub * 0.05) + retailSub;
-}
-
-function downloadCafeTemplate() {
-  const sampleData = [
-    { type: 'cafe', name: 'Ragi Masala Dosa', category: 'Breakfast', price: 160, desc: 'Stone-ground ragi batter with potato masala', badges: '100% Organic, Gluten-Free', cal: 280, protein: 8, carbs: 42, fat: 6 },
-    { type: 'cafe', name: 'Turmeric Ginger Latte', category: 'Beverages', price: 140, desc: 'Organic turmeric with warm A2 milk', badges: '100% Organic, Vegan', cal: 150, protein: 4, carbs: 18, fat: 5 }
-  ];
-  const ws = XLSX.utils.json_to_sheet(sampleData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Cafe Menu Template");
-  XLSX.writeFile(wb, "Cafe_Dishes_Template.xlsx");
-}
-
-function downloadRetailTemplate() {
-  const sampleData = [
-    { type: 'retail', name: 'Wild Forest Honey', category: 'Honey & Sweets', price: 350, size: '250g', desc: 'Raw unprocessed forest honey', badges: '100% Organic' },
-    { type: 'retail', name: 'Wood Pressed Mustard Oil', category: 'Oils & Ghee', price: 290, size: '500ml', desc: 'Cold-pressed native mustard oil', badges: '100% Organic' }
-  ];
-  const ws = XLSX.utils.json_to_sheet(sampleData);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Retail Products Template");
-  XLSX.writeFile(wb, "Retail_Products_Template.xlsx");
 }
 
 function render() {
@@ -278,6 +255,7 @@ function kitchenShell() {
         ${kTab('history','Order History','history','')}
         ${kTab('retail','Retail Requests','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
         ${kTab('inventory','Inventory','package','')}
+        ${kTab('costing','Recipe Costing','calculator','')}
         ${kTab('bulk','Bulk Import','file-spreadsheet','')}
         ${kTab('qr','QR Table Manager','qr-code','')}
         ${kTab('brand','Brand Settings','image','')}
@@ -289,6 +267,7 @@ function kitchenShell() {
       ${session.kitchenTab === 'history' ? historyPanel() : ''}
       ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
       ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
+      ${session.kitchenTab === 'costing' ? recipeCostingPanel() : ''}
       ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
       ${session.kitchenTab === 'qr' ? qrPanel() : ''}
       ${session.kitchenTab === 'brand' ? brandPanel() : ''}
@@ -392,10 +371,229 @@ function historyPanel() {
   </div>`;
 }
 
+/* RECIPE COSTING SHEET & MARGIN CALCULATOR MODULE */
+function recipeCostingPanel() {
+  const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
+  const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
+
+  let rawTotalCost = 0;
+  if (activeRecipe) {
+    rawTotalCost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + (Number(ing.qty || 0) * Number(ing.unitPrice || 0)), 0);
+  }
+  
+  const wastageCost = rawTotalCost * ((activeRecipe?.wastagePercent || 10) / 100);
+  const totalProductionCost = rawTotalCost + wastageCost;
+  const costPerPortion = activeRecipe?.portions ? (totalProductionCost / activeRecipe.portions) : 0;
+
+  const sellingPrice = selectedDish ? Number(selectedDish.price || 0) : 0;
+  const profitMargin = sellingPrice - costPerPortion;
+  const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
+  const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
+
+  return `
+  <div class="space-y-6">
+    <div class="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h3 class="font-display text-lg text-brand-900">Recipe Costing Sheet &amp; Food Cost Calculator</h3>
+        <p class="text-xs text-brand-400">Track raw ingredient costs, recipe portions, overhead allowance, and target profit margins.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="manageIngredientsBtn" class="text-xs font-bold bg-brand-50 text-brand-800 border border-brand-200 px-4 py-2.5 rounded-full flex items-center gap-1.5 hover:bg-brand-100 transition">
+          <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i> Manage Raw Material Master
+        </button>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-5">
+      <div class="lg:col-span-2 bg-white rounded-2xl card-shadow p-5 space-y-4">
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wide text-brand-700 block mb-1">Select Cafe Menu Dish</label>
+          <select id="costingDishSelect" class="w-full bg-brand-50 border border-brand-100 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-brand-900 focus:outline-none">
+            <option value="">-- Choose a dish from menu --</option>
+            ${DB.menu.map(m => `<option value="${m.id}" ${session.activeRecipeDishId === m.id ? 'selected' : ''}>${m.name} (${money(m.price)})</option>`).join('')}
+          </select>
+        </div>
+
+        ${selectedDish ? `
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-brand-50/50 p-3.5 rounded-xl border border-brand-100">
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-wide text-brand-500 block">Portions Yielded</label>
+              <input id="recipePortions" type="number" min="1" value="${activeRecipe?.portions || 1}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-brand-900 bg-white">
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase tracking-wide text-brand-500 block">Wastage / Overhead (%)</label>
+              <input id="recipeWastage" type="number" min="0" value="${activeRecipe?.wastagePercent || 10}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-brand-900 bg-white">
+            </div>
+            <div class="col-span-2 sm:col-span-1">
+              <label class="text-[10px] font-bold uppercase tracking-wide text-brand-500 block">Current Menu Price</label>
+              <div class="text-sm font-bold text-brand-900 mt-1.5">${money(sellingPrice)}</div>
+            </div>
+          </div>
+
+          <div class="border-t border-brand-50 pt-3">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-bold uppercase tracking-wide text-brand-800">Recipe Ingredients Breakdown</span>
+              <button id="addIngredientRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-brand-600 transition">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Ingredient Line
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-brand-50 text-brand-700 uppercase font-bold text-[10px]">
+                  <tr>
+                    <th class="p-2">Raw Ingredient Item</th>
+                    <th class="p-2 w-24">Qty</th>
+                    <th class="p-2 w-24">Unit</th>
+                    <th class="p-2 w-28 text-right">Unit Rate</th>
+                    <th class="p-2 w-28 text-right">Total Cost</th>
+                    <th class="p-2 w-10 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="recipeRowsTable" class="divide-y divide-brand-50">
+                  ${(activeRecipe?.ingredients || []).map((ing, idx) => `
+                    <tr>
+                      <td class="p-2">
+                        <input class="ing-name w-full border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}" value="${ing.name || ''}" placeholder="e.g. Organic A2 Milk">
+                      </td>
+                      <td class="p-2">
+                        <input type="number" step="0.01" class="ing-qty w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
+                      </td>
+                      <td class="p-2">
+                        <select class="ing-unit w-full border border-brand-100 rounded-lg px-1.5 py-1 text-xs" data-idx="${idx}">
+                          <option ${ing.unit === 'g' ? 'selected' : ''}>g</option>
+                          <option ${ing.unit === 'ml' ? 'selected' : ''}>ml</option>
+                          <option ${ing.unit === 'kg' ? 'selected' : ''}>kg</option>
+                          <option ${ing.unit === 'litre' ? 'selected' : ''}>litre</option>
+                          <option ${ing.unit === 'pcs' ? 'selected' : ''}>pcs</option>
+                        </select>
+                      </td>
+                      <td class="p-2 text-right">
+                        <input type="number" step="0.01" class="ing-price w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-right" data-idx="${idx}" value="${ing.unitPrice || 0}">
+                      </td>
+                      <td class="p-2 text-right font-bold text-brand-900">
+                        ${money(Number(ing.qty || 0) * Number(ing.unitPrice || 0))}
+                      </td>
+                      <td class="p-2 text-center">
+                        <button class="remove-ing-row text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
+                      </td>
+                    </tr>
+                  `).join('') || `<tr><td colspan="6" class="text-center py-6 text-brand-400">No ingredients added yet. Click "Add Ingredient Line" to build this recipe.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <button id="saveRecipeBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-xs hover:bg-brand-600 transition">Save Recipe &amp; Update Food Costing</button>
+        ` : `<div class="text-xs text-brand-400 text-center py-12">Select a dish above to open its recipe sheet.</div>`}
+      </div>
+
+      <!-- Cost & Profit Margin Analysis Card -->
+      <div class="bg-white rounded-2xl card-shadow p-5 space-y-4">
+        <div class="text-xs font-bold uppercase tracking-wide text-brand-700 border-b border-brand-50 pb-2 flex items-center justify-between">
+          <span>Costing Summary</span>
+          <i data-lucide="trending-up" class="w-4 h-4 text-gold-600"></i>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div class="flex justify-between text-brand-600"><span>Menu Price (Selling Price)</span><span class="font-bold text-brand-900">${money(sellingPrice)}</span></div>
+          <div class="flex justify-between text-brand-600"><span>Raw Materials Cost</span><span class="font-bold text-brand-800">${money(rawTotalCost)}</span></div>
+          <div class="flex justify-between text-brand-600"><span>Overhead Allowance (${activeRecipe?.wastagePercent || 10}%)</span><span class="font-bold text-amber-600">${money(wastageCost)}</span></div>
+          <div class="flex justify-between text-brand-600 border-t border-brand-50 pt-2"><span>Total Batch Cost (${activeRecipe?.portions || 1} portions)</span><span class="font-bold text-red-600">${money(totalProductionCost)}</span></div>
+
+          <div class="bg-cream rounded-xl p-3 space-y-2 border border-brand-100">
+            <div class="flex justify-between font-bold text-sm text-brand-900">
+              <span>Cost Per Portion:</span>
+              <span class="text-red-700">${money(costPerPortion)}</span>
+            </div>
+            <div class="flex justify-between font-bold text-sm text-brand-900">
+              <span>Profit Margin / Dish:</span>
+              <span class="${profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}">${money(profitMargin)}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1 text-center">
+            <div class="bg-brand-50 p-2.5 rounded-xl border border-brand-100">
+              <div class="text-[9px] font-bold text-brand-500 uppercase tracking-wide">Food Cost %</div>
+              <div class="text-base font-bold ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'} mt-0.5">${foodCostPercent.toFixed(1)}%</div>
+            </div>
+            <div class="bg-gold-50 p-2.5 rounded-xl border border-gold-200">
+              <div class="text-[9px] font-bold text-gold-700 uppercase tracking-wide">Gross Margin %</div>
+              <div class="text-base font-bold text-gold-800 mt-0.5">${grossMarginPercent.toFixed(1)}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function inventoryPanel() {
+  const cafeQuery = (session.cafeSearch || '').toLowerCase().trim();
+  const retailQuery = (session.retailSearch || '').toLowerCase().trim();
+
+  const filteredCafe = DB.menu.filter(item => 
+    item.name.toLowerCase().includes(cafeQuery) || 
+    (item.category && item.category.toLowerCase().includes(cafeQuery))
+  );
+
+  const filteredRetail = DB.retail.filter(item => 
+    item.name.toLowerCase().includes(retailQuery) || 
+    (item.category && item.category.toLowerCase().includes(retailQuery))
+  );
+
+  return `
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-display text-lg">Cafe Menu</h3>
+        <button id="addDishBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Dish</button>
+      </div>
+
+      <div class="relative mb-3">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+        <input id="dashCafeSearch" value="${session.cafeSearch || ''}" placeholder="Search cafe dishes or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+      </div>
+
+      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+        ${filteredCafe.map(inventoryRow.bind(null, 'menu')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching cafe dishes found.</div>`}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-display text-lg">Retail Store</h3>
+        <button id="addRetailBtn" class="text-xs font-bold bg-gold text-white px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Product</button>
+      </div>
+
+      <div class="relative mb-3">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+        <input id="dashRetailSearch" value="${session.retailSearch || ''}" placeholder="Search retail products or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+      </div>
+
+      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+        ${filteredRetail.map(inventoryRow.bind(null, 'retail')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching retail products found.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function inventoryRow(kind, item) {
+  return `
+  <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-2.5">
+    <img src="${item.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-semibold truncate">${item.name}</div>
+      <div class="text-[11px] text-brand-400">${item.category} · ${money(item.price)}</div>
+    </div>
+    <button class="stock-toggle shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full ${item.stock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}" data-kind="${kind}" data-id="${item.id}">${item.stock ? 'In Stock' : 'Out of Stock'}</button>
+    <button class="edit-item shrink-0 w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+    <button class="delete-item shrink-0 w-7 h-7 rounded-full bg-red-50 text-red-500 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+  </div>`;
+}
+
 function bulkPanel() {
   return `
   <div class="max-w-2xl mx-auto space-y-6">
-    <!-- Excel Upload Card -->
     <div class="bg-white rounded-2xl card-shadow p-6">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-10 h-10 rounded-full bg-gold-100 flex items-center justify-center text-gold-700"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>
@@ -428,7 +626,6 @@ function bulkPanel() {
       <button id="processExcelBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-sm hover:bg-brand-600 transition">Process &amp; Upload Items to Live App</button>
     </div>
 
-    <!-- Bulk Photos Upload Card -->
     <div class="bg-white rounded-2xl card-shadow p-6">
       <div class="flex items-center gap-3 mb-4">
         <div class="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700"><i data-lucide="images" class="w-5 h-5"></i></div>
@@ -466,74 +663,6 @@ function retailBoard(orders) {
       ${o.notes ? `<div class="text-[11px] bg-cream text-brand-600 rounded-lg px-2 py-1 mt-2">${o.notes}</div>` : ''}
       <button class="advance-order w-full mt-3 bg-gold text-white text-[11px] font-bold py-2 rounded-full" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>
     </div>`).join('') || `<div class="col-span-3 text-center py-10 text-brand-400 text-sm">No retail requests yet.</div>`}
-  </div>`;
-}
-
-function inventoryPanel() {
-  const cafeQuery = (session.cafeSearch || '').toLowerCase().trim();
-  const retailQuery = (session.retailSearch || '').toLowerCase().trim();
-
-  const filteredCafe = DB.menu.filter(item => 
-    item.name.toLowerCase().includes(cafeQuery) || 
-    (item.category && item.category.toLowerCase().includes(cafeQuery))
-  );
-
-  const filteredRetail = DB.retail.filter(item => 
-    item.name.toLowerCase().includes(retailQuery) || 
-    (item.category && item.category.toLowerCase().includes(retailQuery))
-  );
-
-  return `
-  <div class="grid lg:grid-cols-2 gap-5">
-    <!-- Cafe Menu Panel -->
-    <div class="bg-white rounded-2xl card-shadow p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-display text-lg">Cafe Menu</h3>
-        <button id="addDishBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Dish</button>
-      </div>
-
-      <!-- Cafe Live Search -->
-      <div class="relative mb-3">
-        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-        <input id="dashCafeSearch" value="${session.cafeSearch || ''}" placeholder="Search cafe dishes or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
-      </div>
-
-      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        ${filteredCafe.map(inventoryRow.bind(null, 'menu')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching cafe dishes found.</div>`}
-      </div>
-    </div>
-
-    <!-- Retail Store Panel -->
-    <div class="bg-white rounded-2xl card-shadow p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-display text-lg">Retail Store</h3>
-        <button id="addRetailBtn" class="text-xs font-bold bg-gold text-white px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Product</button>
-      </div>
-
-      <!-- Retail Live Search -->
-      <div class="relative mb-3">
-        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-        <input id="dashRetailSearch" value="${session.retailSearch || ''}" placeholder="Search retail products or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
-      </div>
-
-      <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        ${filteredRetail.map(inventoryRow.bind(null, 'retail')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching retail products found.</div>`}
-      </div>
-    </div>
-  </div>`;
-}
-
-function inventoryRow(kind, item) {
-  return `
-  <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-2.5">
-    <img src="${item.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
-    <div class="flex-1 min-w-0">
-      <div class="text-sm font-semibold truncate">${item.name}</div>
-      <div class="text-[11px] text-brand-400">${item.category} · ${money(item.price)}</div>
-    </div>
-    <button class="stock-toggle shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-full ${item.stock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}" data-kind="${kind}" data-id="${item.id}">${item.stock ? 'In Stock' : 'Out of Stock'}</button>
-    <button class="edit-item shrink-0 w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-    <button class="delete-item shrink-0 w-7 h-7 rounded-full bg-red-50 text-red-500 flex items-center justify-center" data-kind="${kind}" data-id="${item.id}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
   </div>`;
 }
 
@@ -701,6 +830,106 @@ function wireKitchen() {
   const dashRetail = document.getElementById('dashRetailSearch');
   if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
 
+  /* Recipe Costing Wire Handlers */
+  const costingDishSelect = document.getElementById('costingDishSelect');
+  if (costingDishSelect) {
+    costingDishSelect.onchange = (e) => {
+      session.activeRecipeDishId = e.target.value;
+      render();
+    };
+  }
+
+  const recipePortionsInput = document.getElementById('recipePortions');
+  if (recipePortionsInput) {
+    recipePortionsInput.onchange = (e) => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].portions = Number(e.target.value) || 1;
+        render();
+      }
+    };
+  }
+
+  const recipeWastageInput = document.getElementById('recipeWastage');
+  if (recipeWastageInput) {
+    recipeWastageInput.onchange = (e) => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].wastagePercent = Number(e.target.value) || 0;
+        render();
+      }
+    };
+  }
+
+  const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
+  if (addIngredientRowBtn) {
+    addIngredientRowBtn.onclick = () => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, unit: 'g', unitPrice: 0 });
+        render();
+      }
+    };
+  }
+
+  document.querySelectorAll('.remove-ing-row').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients.splice(idx, 1);
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-name').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = e.target.value;
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-qty').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].qty = Number(e.target.value) || 0;
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-unit').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = e.target.value;
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-price').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = Number(e.target.value) || 0;
+        render();
+      }
+    };
+  });
+
+  const saveRecipeBtn = document.getElementById('saveRecipeBtn');
+  if (saveRecipeBtn) {
+    saveRecipeBtn.onclick = async () => {
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
+        toast('Recipe cost breakdown saved to cloud!', 'check-circle');
+      }
+    };
+  }
+
   document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
     const o = DB.orders.find(x => x.id === b.dataset.id);
     if (o) {
@@ -738,12 +967,6 @@ function wireKitchen() {
   const addDish = document.getElementById('addDishBtn'); if (addDish) addDish.onclick = () => { session.editingDish = 'new'; render(); };
   const addRetail = document.getElementById('addRetailBtn'); if (addRetail) addRetail.onclick = () => { session.editingRetail = 'new'; render(); };
 
-  const dlCafeBtn = document.getElementById('dlCafeTemplateBtn');
-  if (dlCafeBtn) dlCafeBtn.onclick = () => downloadCafeTemplate();
-
-  const dlRetailBtn = document.getElementById('dlRetailTemplateBtn');
-  if (dlRetailBtn) dlRetailBtn.onclick = () => downloadRetailTemplate();
-
   const saveDish = document.getElementById('saveDishBtn');
   if (saveDish) saveDish.onclick = async () => {
     const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
@@ -771,7 +994,6 @@ function wireKitchen() {
     await db.ref('menu/' + payload.id).set(payload);
     session.editingDish = null; render(); toast('Dish saved cloud-wide!');
   };
-  const cancelDish = document.getElementById('cancelDishBtn'); if (cancelDish) cancelDish.onclick = () => { session.editingDish = null; render(); };
 
   const saveRetail = document.getElementById('saveRetailBtn');
   if (saveRetail) saveRetail.onclick = async () => {
@@ -800,160 +1022,6 @@ function wireKitchen() {
     await db.ref('retail/' + payload.id).set(payload);
     session.editingRetail = null; render(); toast('Product saved cloud-wide!');
   };
-  const cancelRetail = document.getElementById('cancelRetailBtn'); if (cancelRetail) cancelRetail.onclick = () => { session.editingRetail = null; render(); };
-
-  const processBtn = document.getElementById('processExcelBtn');
-  if (processBtn) {
-    processBtn.onclick = () => {
-      const fileInput = document.getElementById('excelFileInput');
-      if (!fileInput || !fileInput.files[0]) {
-        toast('Please select an Excel or CSV file first.', 'alert-triangle');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const json = XLSX.utils.sheet_to_json(worksheet);
-
-          if (!json.length) {
-            toast('The selected Excel sheet is empty.', 'alert-triangle');
-            return;
-          }
-
-          let cafeCount = 0;
-          let retailCount = 0;
-
-          for (const row of json) {
-            const kind = (row.type || 'cafe').toString().toLowerCase().trim();
-            const badges = row.badges ? row.badges.toString().split(',').map(b => b.trim()) : ['100% Organic'];
-
-            if (kind === 'cafe') {
-              const id = uid('m');
-              await db.ref('menu/' + id).set({
-                id,
-                name: (row.name || 'Untitled Dish').toString().trim(),
-                category: (row.category || 'Millet Bowls').toString().trim(),
-                price: Number(row.price) || 0,
-                desc: (row.desc || '').toString().trim(),
-                img: (row.img || '').toString().trim(),
-                badges,
-                stock: true,
-                nutrition: {
-                  cal: Number(row.cal) || 0,
-                  protein: Number(row.protein) || 0,
-                  carbs: Number(row.carbs) || 0,
-                  fat: Number(row.fat) || 0
-                }
-              });
-              cafeCount++;
-            } else {
-              const id = uid('r');
-              await db.ref('retail/' + id).set({
-                id,
-                name: (row.name || 'Untitled Product').toString().trim(),
-                category: (row.category || 'Oils & Ghee').toString().trim(),
-                price: Number(row.price) || 0,
-                size: (row.size || '').toString().trim(),
-                desc: (row.desc || '').toString().trim(),
-                img: (row.img || '').toString().trim(),
-                badges,
-                stock: true
-              });
-              retailCount++;
-            }
-          }
-
-          toast(`Bulk upload complete! Added ${cafeCount} Cafe dishes & ${retailCount} Retail items.`, 'check-circle');
-        } catch (err) {
-          toast('Error parsing Excel file. Check format.', 'alert-triangle');
-        }
-      };
-      reader.readAsArrayBuffer(fileInput.files[0]);
-    };
-  }
-
-  /* Bulk Image Upload Auto-Matcher with Compression */
-  const processImagesBtn = document.getElementById('processBulkImagesBtn');
-  if (processImagesBtn) {
-    processImagesBtn.onclick = async () => {
-      const fileInput = document.getElementById('bulkImagesInput');
-      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-        toast('Please select image files to upload.', 'alert-triangle');
-        return;
-      }
-
-      toast(`Processing & compressing ${fileInput.files.length} photos...`, 'image');
-
-      let matchedCount = 0;
-      for (const file of fileInput.files) {
-        const cleanName = file.name.substring(0, file.name.lastIndexOf('.')).toLowerCase().trim();
-        const cafeItem = DB.menu.find(m => m.name.toLowerCase().trim() === cleanName);
-        const retailItem = DB.retail.find(r => r.name.toLowerCase().trim() === cleanName);
-
-        if (cafeItem || retailItem) {
-          try {
-            const imgBase64 = await compressAndGetBase64(file);
-            const target = cafeItem || retailItem;
-            const path = cafeItem ? 'menu' : 'retail';
-
-            await db.ref(`${path}/${target.id}`).update({ img: imgBase64 });
-            matchedCount++;
-          } catch(err) {
-            console.error("Photo compress error:", err);
-          }
-        }
-      }
-
-      if (matchedCount > 0) {
-        toast(`Bulk photos complete! Updated ${matchedCount} items.`, 'check-circle');
-      } else {
-        toast('No matching dish or product names found for selected files.', 'alert-triangle');
-      }
-    };
-  }
-
-  const printBtn = document.getElementById('printAllBtn'); if (printBtn) printBtn.onclick = () => window.print();
-
-  const saveBrand = document.getElementById('saveBrandBtn');
-  if (saveBrand) saveBrand.onclick = async () => {
-    DB.settings.restaurantName = document.getElementById('brandName').value.trim() || DB.settings.restaurantName;
-    DB.settings.tagline = document.getElementById('brandTagline').value.trim();
-    
-    const fileInput = document.getElementById('brandLogoFile');
-    if (fileInput && fileInput.files[0]) {
-      DB.settings.logoUrl = await compressAndGetBase64(fileInput.files[0]);
-    }
-
-    await db.ref('settings').set(DB.settings);
-    render(); toast('Brand settings saved cloud-wide!', 'image');
-  };
-
-  const resetLogo = document.getElementById('resetLogoBtn');
-  if (resetLogo) resetLogo.onclick = async () => {
-    DB.settings.logoUrl = DEFAULT_LOGO;
-    await db.ref('settings').set(DB.settings);
-    render(); toast('Logo reset.');
-  };
-
-  const addStaffBtn = document.getElementById('addStaffBtn'); if (addStaffBtn) addStaffBtn.onclick = () => { session.showAddStaff = true; render(); };
-  const saveStaffBtn = document.getElementById('saveStaffBtn');
-  if (saveStaffBtn) saveStaffBtn.onclick = async () => {
-    const u = document.getElementById('newStaffUser').value.trim();
-    const p = document.getElementById('newStaffPass').value;
-    const r = document.getElementById('newStaffRole').value;
-    if (!u || !p) { toast('Username and password required.', 'alert-triangle'); return; }
-    if (DB.staff.some(s => s.username === u)) { toast('Username already exists.', 'alert-triangle'); return; }
-    
-    const newStaff = { id: uid('u'), username: u, password: p, role: r };
-    DB.staff.push(newStaff);
-    await db.ref('staff/' + newStaff.id).set(newStaff);
-    session.showAddStaff = false; render(); toast('Staff created.', 'user-plus');
-  };
 }
 
 db.ref('menu').on('value', snap => {
@@ -974,17 +1042,16 @@ db.ref('orders').on('value', snap => {
   render();
 });
 
+db.ref('recipes').on('value', snap => {
+  const data = snap.val();
+  DB.recipes = data || {};
+  render();
+});
+
 db.ref('settings').on('value', snap => {
   const data = snap.val();
   if (data) { DB.settings = data; render(); }
 });
-
-setInterval(() => {
-  const pendingOrders = DB.orders.filter(o => o.status === 'received');
-  if (pendingOrders.length > 0 && session.staff && session.soundOn) {
-    playLoudAlarm();
-  }
-}, 5000);
 
 (function boot() {
   document.addEventListener('touchstart', unlockAudio, { once: true });
