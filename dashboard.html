@@ -35,7 +35,8 @@
         colors: {
           brand: { DEFAULT:'#105955', 50:'#f0f6f5', 100:'#dbeae8', 200:'#b3d3cf', 300:'#82b6af', 400:'#4f948c', 500:'#2c7a72', 600:'#1a6a63', 700:'#105955', 800:'#0d4744', 900:'#0a3836', 950:'#052120' },
           gold: { DEFAULT:'#D4A359', 50:'#fbf6ee', 100:'#f5e8d2', 200:'#ebd0a4', 300:'#deb26f', 400:'#D4A359', 500:'#c68f3f', 600:'#a97432', 700:'#8a5b2a' },
-          cream:'#F9F8F3'
+          cream:'#F9F8F3',
+          sheetHeader:'#ECE4D8'
         },
         fontFamily: {
           display:['Fraunces','ui-serif','Georgia','serif'],
@@ -202,18 +203,30 @@ function calculateOrderTotal(order) {
   return cafeSub + (cafeSub * 0.05) + retailSub;
 }
 
+function calculateIngCost(ing) {
+  const qty = Number(ing.qty || 0);
+  const grams = Number(ing.gramsMl || qty);
+  const rate = Number(ing.unitPrice || 0);
+  const unit = (ing.unit || 'GRM').toUpperCase();
+
+  if (unit === 'GRM' || unit === 'ML' || unit === 'G') {
+    return (grams / 1000) * rate;
+  }
+  return qty * rate;
+}
+
 function calculateBaseRecipeCostPerUnit(base) {
   if (!base || !base.ingredients) return 0;
-  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + (Number(ing.qty || 0) * Number(ing.unitPrice || 0)), 0);
+  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
   const yieldQty = Number(base.batchYield || 1);
   return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
 function downloadRawMaterialsTemplate() {
   const sampleData = [
-    { name: 'Organic A2 Milk', vendor: 'Milky Mist', unit: 'litre', unitPrice: 75 },
-    { name: 'Foxtail Millet', vendor: 'Phalada Organic Consumer Products', unit: 'kg', unitPrice: 120 },
-    { name: 'Organic Jaggery Powder', vendor: 'Pure & Sure Local', unit: 'kg', unitPrice: 85 }
+    { name: 'TOMATO', vendor: 'AD VEGETABLES', unit: 'GRM', unitPrice: 25 },
+    { name: 'Organic Cinnamon Bark-50', vendor: 'FACTORY', unit: 'GRM', unitPrice: 910 },
+    { name: 'Organic Cinnamon Powder', vendor: 'FACTORY', unit: 'GRM', unitPrice: 1400 }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -223,9 +236,8 @@ function downloadRawMaterialsTemplate() {
 
 function downloadBaseRecipesTemplate() {
   const sampleData = [
-    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'kg', ingredientName: 'Organic Tomato', qty: 4 },
-    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'kg', ingredientName: 'Wood Pressed Groundnut Oil', qty: 0.5 },
-    { recipeName: 'Dosa Batter Base', batchYield: 10, unit: 'kg', ingredientName: 'Foxtail Millet', qty: 6 }
+    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'KG', ingredientName: 'TOMATO', qty: 2400, unit: 'GRM', gramsMl: 2400, uom: 'GRM' },
+    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'KG', ingredientName: 'Organic Cinnamon Powder', qty: 2, unit: 'GRM', gramsMl: 2, uom: 'GRM' }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -235,9 +247,8 @@ function downloadBaseRecipesTemplate() {
 
 function downloadMainRecipesTemplate() {
   const sampleData = [
-    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Dosa Batter Base', qty: 0.180 },
-    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Tomato Chutney Base', qty: 0.050 },
-    { dishName: 'Turmeric Ginger Latte', portions: 1, wastagePercent: 5, ingredientName: 'Organic A2 Milk', qty: 0.200 }
+    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Tomato Chutney Base', qty: 50, unit: 'GRM', gramsMl: 50, uom: 'GRM' },
+    { dishName: 'Turmeric Ginger Latte', portions: 1, wastagePercent: 5, ingredientName: 'Organic A2 Milk', qty: 200, unit: 'ML', gramsMl: 200, uom: 'ML' }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -433,14 +444,14 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE */
+/* RECIPE COSTING MODULE WITH IMAGE TABLE FORMAT */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
 
   let rawTotalCost = 0;
   if (activeRecipe) {
-    rawTotalCost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + (Number(ing.qty || 0) * Number(ing.unitPrice || 0)), 0);
+    rawTotalCost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
   }
   
   const wastageCost = rawTotalCost * ((activeRecipe?.wastagePercent || 10) / 100);
@@ -472,7 +483,6 @@ function recipeCostingPanel() {
       </div>
     </div>
 
-    <!-- Bulk Upload Recipe Card -->
     <div class="bg-brand-50 p-4 rounded-2xl border border-brand-100 flex items-center justify-between flex-wrap gap-3">
       <div>
         <div class="text-xs font-bold text-brand-900 flex items-center gap-1.5">
@@ -521,52 +531,72 @@ function recipeCostingPanel() {
               </button>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs">
-                <thead class="bg-brand-50 text-brand-700 uppercase font-bold text-[10px]">
+            <!-- TABLE MATCHING IMAGE FORMAT -->
+            <div class="overflow-x-auto border border border-amber-200 rounded-lg shadow-sm">
+              <table class="w-full text-left text-xs bg-amber-50/30">
+                <thead class="bg-sheetHeader text-brand-900 font-bold text-[11px] uppercase tracking-wider border-b border-amber-200">
                   <tr>
-                    <th class="p-2">Item Type &amp; Name</th>
-                    <th class="p-2 w-24">Qty</th>
-                    <th class="p-2 w-24">Unit</th>
-                    <th class="p-2 w-28 text-right">Unit Rate</th>
-                    <th class="p-2 w-28 text-right">Total Cost</th>
-                    <th class="p-2 w-10 text-center">Action</th>
+                    <th class="p-2.5 w-8 text-center border-r border-amber-200">#</th>
+                    <th class="p-2.5 min-w-[180px] border-r border-amber-200">INGREDIENT DESCRIPTION</th>
+                    <th class="p-2.5 w-20 border-r border-amber-200 text-center">QTY</th>
+                    <th class="p-2.5 w-20 border-r border-amber-200">UNIT</th>
+                    <th class="p-2.5 w-24 border-r border-amber-200 text-center">GRAMS / ML</th>
+                    <th class="p-2.5 w-20 border-r border-amber-200">UOM</th>
+                    <th class="p-2.5 w-28 border-r border-amber-200">VENDOR</th>
+                    <th class="p-2.5 w-24 border-r border-amber-200 text-right">RATE / KG</th>
+                    <th class="p-2.5 w-24 text-right">COST</th>
+                    <th class="p-2.5 w-10 text-center no-print"></th>
                   </tr>
                 </thead>
-                <tbody id="recipeRowsTable" class="divide-y divide-brand-50">
+                <tbody id="recipeRowsTable" class="divide-y divide-amber-200">
                   ${(activeRecipe?.ingredients || []).map((ing, idx) => `
-                    <tr>
-                      <td class="p-2">
-                        <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs font-medium" data-idx="${idx}">
-                          <option value="">-- Select Material or Base Prep --</option>
+                    <tr class="hover:bg-amber-100/40 transition">
+                      <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx + 1}</td>
+                      <td class="p-2 border-r border-amber-200">
+                        <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}">
+                          <option value="">-- Choose Raw Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
-                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name}</option>`).join('')}
                           </optgroup>
                           <optgroup label="Base Recipes / Sauces">
-                            ${sortedBaseRecipes.map(br => {
-                              const costPerUnit = calculateBaseRecipeCostPerUnit(br);
-                              return `<option value="br_${br.name}" ${ing.name === br.name ? 'selected' : ''}>⭐ [BASE] ${br.name} (${money(costPerUnit)}/${br.unit})</option>`;
-                            }).join('')}
+                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${ing.name === br.name ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
                           </optgroup>
                         </select>
                       </td>
-                      <td class="p-2">
-                        <input type="number" step="0.01" class="ing-qty w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="number" step="0.01" class="ing-qty w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
                       </td>
-                      <td class="p-2">
-                        <input class="ing-unit w-full border border-brand-100 rounded-lg px-2 py-1 text-xs bg-brand-50" data-idx="${idx}" value="${ing.unit || 'kg'}" readonly>
+                      <td class="p-2 border-r border-amber-200">
+                        <select class="ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold" data-idx="${idx}">
+                          <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
+                          <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
+                          <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
+                          <option ${ing.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                          <option ${ing.unit === 'TSP' ? 'selected' : ''}>TSP</option>
+                          <option ${ing.unit === 'TBSP' ? 'selected' : ''}>TBSP</option>
+                          <option ${ing.unit === 'PCS' ? 'selected' : ''}>PCS</option>
+                        </select>
                       </td>
-                      <td class="p-2 text-right">
-                        <input type="number" step="0.01" class="ing-price w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-right" data-idx="${idx}" value="${ing.unitPrice || 0}">
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="number" step="0.01" class="ing-grams w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || ing.qty || 1}">
+                      </td>
+                      <td class="p-2 border-r border-amber-200 font-bold uppercase text-[11px] text-brand-700">
+                        ${ing.uom || ing.unit || 'GRM'}
+                      </td>
+                      <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 truncate">
+                        ${ing.vendor || 'FACTORY'}
+                      </td>
+                      <td class="p-2 border-r border-amber-200 text-right">
+                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${ing.unitPrice || 0}">
                       </td>
                       <td class="p-2 text-right font-bold text-brand-900">
-                        ${money(Number(ing.qty || 0) * Number(ing.unitPrice || 0))}
+                        ${money(calculateIngCost(ing))}
                       </td>
-                      <td class="p-2 text-center">
+                      <td class="p-2 text-center no-print">
                         <button class="remove-ing-row text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
                       </td>
                     </tr>
-                  `).join('') || `<tr><td colspan="6" class="text-center py-6 text-brand-400">No ingredients added yet. Click "Add Ingredient Line" to build this recipe.</td></tr>`}
+                  `).join('') || `<tr><td colspan="10" class="text-center py-6 text-brand-400">No ingredients added yet. Click "Add Ingredient Line" to build this recipe.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -616,13 +646,13 @@ function recipeCostingPanel() {
 
 function baseRecipesModal() {
   const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-  const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + (Number(i.qty || 0) * Number(i.unitPrice || 0)), 0) : 0;
+  const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0) : 0;
   const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-full sm:h-[95vh] sm:max-w-5xl sm:rounded-3xl p-6 flex flex-col overflow-hidden shadow-2xl">
+    <div class="modal-fade bg-white w-full h-full sm:h-[95vh] sm:max-w-6xl sm:rounded-3xl p-6 flex flex-col overflow-hidden shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4 shrink-0">
         <div>
           <h3 class="font-display text-xl text-brand-900">Base Recipes &amp; Batch Prep Master</h3>
@@ -631,7 +661,6 @@ function baseRecipesModal() {
         <button id="closeBaseRecipesBtn" class="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
-      <!-- Bulk Excel Upload for Base Recipes -->
       <div class="bg-gold-50 p-3.5 rounded-2xl border border-gold-200 mb-4 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
         <div class="font-bold text-brand-900 flex items-center gap-1.5">
           <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel Upload Base Recipes
@@ -643,8 +672,8 @@ function baseRecipesModal() {
         </div>
       </div>
 
-      <div class="grid md:grid-cols-3 gap-4 flex-1 overflow-y-auto min-h-0">
-        <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2 overflow-y-auto">
+      <div class="grid md:grid-cols-4 gap-4 flex-1 overflow-y-auto min-h-0">
+        <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2 overflow-y-auto md:col-span-1">
           <div class="flex items-center justify-between border-b border-brand-100 pb-2">
             <span class="text-xs font-bold text-brand-800">Saved Base Preps</span>
             <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New Prep</button>
@@ -661,7 +690,7 @@ function baseRecipesModal() {
           </div>
         </div>
 
-        <div class="md:col-span-2 space-y-3 overflow-y-auto pr-1">
+        <div class="md:col-span-3 space-y-3 overflow-y-auto pr-1">
           ${activeBase ? `
             <div class="grid grid-cols-3 gap-2 bg-cream p-3 rounded-xl border border-brand-100">
               <div class="col-span-3 sm:col-span-1">
@@ -675,34 +704,72 @@ function baseRecipesModal() {
               <div>
                 <label class="text-[10px] font-bold uppercase text-brand-600 block">Unit</label>
                 <select id="baseUnit" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
-                  <option ${activeBase.unit === 'kg' ? 'selected' : ''}>kg</option>
-                  <option ${activeBase.unit === 'litre' ? 'selected' : ''}>litre</option>
-                  <option ${activeBase.unit === 'pcs' ? 'selected' : ''}>pcs</option>
-                  <option ${activeBase.unit === 'g' ? 'selected' : ''}>g</option>
-                  <option ${activeBase.unit === 'ml' ? 'selected' : ''}>ml</option>
+                  <option ${activeBase.unit === 'KG' ? 'selected' : ''}>KG</option>
+                  <option ${activeBase.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                  <option ${activeBase.unit === 'PCS' ? 'selected' : ''}>PCS</option>
                 </select>
               </div>
             </div>
 
-            <div class="border border-brand-100 rounded-xl p-3 bg-white space-y-2">
-              <div class="flex justify-between items-center">
-                <span class="text-xs font-bold text-brand-800">Raw Ingredients in Batch</span>
-                <button id="addBaseIngRowBtn" class="text-[11px] font-bold text-brand-700 underline">+ Add Ingredient</button>
+            <div class="border border-amber-200 rounded-lg bg-amber-50/30 overflow-x-auto shadow-sm">
+              <div class="p-2.5 bg-sheetHeader flex justify-between items-center border-b border-amber-200">
+                <span class="text-xs font-bold text-brand-900 uppercase tracking-wide">RAW INGREDIENTS IN BATCH</span>
+                <button id="addBaseIngRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1 rounded-full">+ Add Ingredient</button>
               </div>
-              <div class="space-y-1.5">
-                ${(activeBase.ingredients || []).map((ing, idx) => `
-                  <div class="flex items-center gap-2 text-xs">
-                    <select class="base-ing-select flex-1 border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
-                      <option value="">-- Choose Raw Material --</option>
-                      ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
-                    </select>
-                    <input type="number" step="0.01" class="base-ing-qty w-16 border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
-                    <span class="w-10 text-[10px] font-bold text-brand-500">${ing.unit || 'kg'}</span>
-                    <span class="w-20 text-right font-bold">${money(Number(ing.qty || 0) * Number(ing.unitPrice || 0))}</span>
-                    <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                  </div>
-                `).join('') || `<div class="text-[11px] text-brand-400 text-center py-4">No raw materials added to this batch yet.</div>`}
-              </div>
+              
+              <table class="w-full text-left text-xs">
+                <thead class="bg-sheetHeader text-brand-900 font-bold text-[10px] uppercase border-b border-amber-200">
+                  <tr>
+                    <th class="p-2 text-center w-8 border-r border-amber-200">#</th>
+                    <th class="p-2 border-r border-amber-200">INGREDIENT DESCRIPTION</th>
+                    <th class="p-2 w-16 border-r border-amber-200 text-center">QTY</th>
+                    <th class="p-2 w-16 border-r border-amber-200">UNIT</th>
+                    <th class="p-2 w-20 border-r border-amber-200 text-center">GRAMS/ML</th>
+                    <th class="p-2 w-16 border-r border-amber-200">UOM</th>
+                    <th class="p-2 w-24 border-r border-amber-200">VENDOR</th>
+                    <th class="p-2 w-20 border-r border-amber-200 text-right">RATE</th>
+                    <th class="p-2 w-20 text-right">COST</th>
+                    <th class="p-2 w-8 text-center"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-amber-200">
+                  ${(activeBase.ingredients || []).map((ing, idx) => `
+                    <tr class="hover:bg-amber-100/40">
+                      <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
+                      <td class="p-2 border-r border-amber-200">
+                        <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}">
+                          <option value="">-- Choose Raw Material --</option>
+                          ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                        </select>
+                      </td>
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="number" step="0.01" class="base-ing-qty w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
+                      </td>
+                      <td class="p-2 border-r border-amber-200 font-bold uppercase text-[10px]">
+                        ${ing.unit || 'GRM'}
+                      </td>
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || ing.qty || 1}">
+                      </td>
+                      <td class="p-2 border-r border-amber-200 font-bold uppercase text-[10px]">
+                        ${ing.uom || ing.unit || 'GRM'}
+                      </td>
+                      <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 text-[11px] truncate">
+                        ${ing.vendor || 'FACTORY'}
+                      </td>
+                      <td class="p-2 border-r border-amber-200 text-right font-bold">
+                        ${money(ing.unitPrice)}
+                      </td>
+                      <td class="p-2 text-right font-bold text-brand-900">
+                        ${money(calculateIngCost(ing))}
+                      </td>
+                      <td class="p-2 text-center">
+                        <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
+                      </td>
+                    </tr>
+                  `).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No raw materials added to this batch yet.</td></tr>`}
+                </tbody>
+              </table>
             </div>
 
             <div class="flex items-center justify-between bg-gold-50 p-3 rounded-xl border border-gold-200 text-xs font-bold text-brand-900">
@@ -762,23 +829,23 @@ function rawMaterialsModal() {
         <div class="bg-brand-50 p-4 rounded-2xl border border-brand-100">
           <div class="text-xs font-bold text-brand-800 mb-2">Add Individual Raw Material Item</div>
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <input id="newRmName" placeholder="Ingredient Name (e.g. A2 Milk)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
-            <input id="newRmVendor" placeholder="Vendor Name (e.g. Milky Mist)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+            <input id="newRmName" placeholder="Ingredient Name (e.g. TOMATO)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+            <input id="newRmVendor" placeholder="Vendor Name (e.g. AD VEGETABLES)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
             <select id="newRmUnit" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
-              <option value="kg">kg</option>
-              <option value="litre">litre</option>
-              <option value="pcs">pcs</option>
-              <option value="g">g</option>
-              <option value="ml">ml</option>
+              <option value="GRM">GRM</option>
+              <option value="ML">ML</option>
+              <option value="KG">KG</option>
+              <option value="LITRE">LITRE</option>
+              <option value="PCS">PCS</option>
             </select>
-            <input id="newRmPrice" type="number" step="0.01" placeholder="Rate (₹ per unit)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+            <input id="newRmPrice" type="number" step="0.01" placeholder="Rate / KG (₹)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
           </div>
           <button id="addRmBtn" class="w-full mt-2.5 bg-brand text-cream font-bold py-2.5 rounded-xl text-xs hover:bg-brand-600 transition">Add Single Material</button>
         </div>
 
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400"></i>
-          <input id="dashRmSearch" value="${session.rmSearch || ''}" placeholder="Search raw materials by ingredient name OR vendor name (A-Z sorted)..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-10 pr-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+          <input id="dashRmSearch" value="${session.rmSearch || ''}" placeholder="Search raw materials by ingredient name OR vendor name..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-10 pr-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
         </div>
 
         <div class="overflow-x-auto border border-brand-100 rounded-2xl">
@@ -788,7 +855,7 @@ function rawMaterialsModal() {
                 <th class="p-3">Raw Material Name</th>
                 <th class="p-3">Vendor Name</th>
                 <th class="p-3 w-20">Unit</th>
-                <th class="p-3 w-32 text-right">Purchase Price (₹)</th>
+                <th class="p-3 w-32 text-right">Rate / KG (₹)</th>
                 <th class="p-3 w-16 text-center">Action</th>
               </tr>
             </thead>
@@ -796,9 +863,9 @@ function rawMaterialsModal() {
               ${filteredRm.map(rm => `
                 <tr>
                   <td class="p-3 font-bold text-brand-900">${rm.name}</td>
-                  <td class="p-3 text-brand-600 font-semibold">${rm.vendor || 'General Supplier'}</td>
-                  <td class="p-3 uppercase font-semibold text-brand-600">${rm.unit}</td>
-                  <td class="p-3 text-right font-bold text-brand-900">${money(rm.unitPrice)} / ${rm.unit}</td>
+                  <td class="p-3 text-brand-600 font-semibold">${rm.vendor || 'FACTORY'}</td>
+                  <td class="p-3 uppercase font-semibold text-brand-600">${rm.unit || 'GRM'}</td>
+                  <td class="p-3 text-right font-bold text-brand-900">${money(rm.unitPrice)}</td>
                   <td class="p-3 text-center">
                     <button class="delete-rm-btn text-red-500 hover:text-red-700" data-id="${rm.id}"><i data-lucide="trash-2" class="w-4 h-4 mx-auto"></i></button>
                   </td>
@@ -1154,8 +1221,7 @@ function wireKitchen() {
         try {
           const data = new Uint8Array(evt.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const json = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
           const grouped = {};
           json.forEach(row => {
@@ -1178,20 +1244,19 @@ function wireKitchen() {
             const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
 
             let unitPrice = 0;
-            let unit = 'kg';
+            let unit = (row.unit || 'GRM').toString().toUpperCase();
+            let vendor = rm ? rm.vendor : (br ? 'BASE PREP' : 'FACTORY');
 
-            if (rm) {
-              unitPrice = rm.unitPrice;
-              unit = rm.unit;
-            } else if (br) {
-              unitPrice = calculateBaseRecipeCostPerUnit(br);
-              unit = br.unit;
-            }
+            if (rm) unitPrice = rm.unitPrice;
+            else if (br) unitPrice = calculateBaseRecipeCostPerUnit(br);
 
             grouped[dishId].ingredients.push({
               name: ingName,
               qty: Number(row.qty) || 1,
+              gramsMl: Number(row.gramsMl || row.qty) || 1,
               unit: unit,
+              uom: unit,
+              vendor: vendor,
               unitPrice: unitPrice
             });
           });
@@ -1244,7 +1309,7 @@ function wireKitchen() {
                 id: baseId,
                 name: rName,
                 batchYield: Number(row.batchYield || row.yield) || 1,
-                unit: (row.unit || 'kg').toString().trim().toLowerCase(),
+                unit: (row.unit || 'KG').toString().trim().toUpperCase(),
                 ingredients: []
               };
             }
@@ -1255,7 +1320,10 @@ function wireKitchen() {
             grouped[baseId].ingredients.push({
               name: ingName,
               qty: Number(row.qty) || 1,
-              unit: rm ? rm.unit : 'kg',
+              gramsMl: Number(row.gramsMl || row.qty) || 1,
+              unit: (row.unit || 'GRM').toString().toUpperCase(),
+              uom: (row.uom || row.unit || 'GRM').toString().toUpperCase(),
+              vendor: rm ? rm.vendor : 'FACTORY',
               unitPrice: rm ? rm.unitPrice : 0
             });
           });
@@ -1309,8 +1377,7 @@ function wireKitchen() {
         try {
           const data = new Uint8Array(e.target.result);
           const workbook = XLSX.read(data, { type: 'array' });
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(worksheet);
 
           if (!json.length) {
@@ -1325,8 +1392,8 @@ function wireKitchen() {
               await db.ref('rawMaterials/' + id).set({
                 id,
                 name: row.name.toString().trim(),
-                vendor: (row.vendor || 'General Supplier').toString().trim(),
-                unit: (row.unit || 'kg').toString().trim().toLowerCase(),
+                vendor: (row.vendor || 'FACTORY').toString().trim(),
+                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
                 unitPrice: Number(row.unitPrice || row.price || 0)
               });
               addedCount++;
@@ -1346,7 +1413,7 @@ function wireKitchen() {
   if (addRmBtn) {
     addRmBtn.onclick = async () => {
       const name = document.getElementById('newRmName').value.trim();
-      const vendor = document.getElementById('newRmVendor').value.trim() || 'General Supplier';
+      const vendor = document.getElementById('newRmVendor').value.trim() || 'FACTORY';
       const unit = document.getElementById('newRmUnit').value;
       const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
 
@@ -1393,7 +1460,7 @@ function wireKitchen() {
         id: uid('br'),
         name: 'New Base Prep',
         batchYield: 1,
-        unit: 'kg',
+        unit: 'KG',
         ingredients: []
       };
       await db.ref('baseRecipes/' + newBase.id).set(newBase);
@@ -1442,7 +1509,7 @@ function wireKitchen() {
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase) {
         if (!activeBase.ingredients) activeBase.ingredients = [];
-        activeBase.ingredients.push({ name: '', qty: 1, unit: 'kg', unitPrice: 0 });
+        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0 });
         render();
       }
     };
@@ -1455,7 +1522,9 @@ function wireKitchen() {
       const selectedRm = DB.rawMaterials.find(r => r.name === e.target.value);
       if (activeBase && selectedRm) {
         activeBase.ingredients[idx].name = selectedRm.name;
-        activeBase.ingredients[idx].unit = selectedRm.unit;
+        activeBase.ingredients[idx].unit = selectedRm.unit || 'GRM';
+        activeBase.ingredients[idx].uom = selectedRm.unit || 'GRM';
+        activeBase.ingredients[idx].vendor = selectedRm.vendor || 'FACTORY';
         activeBase.ingredients[idx].unitPrice = selectedRm.unitPrice;
         render();
       }
@@ -1468,6 +1537,18 @@ function wireKitchen() {
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase && activeBase.ingredients[idx]) {
         activeBase.ingredients[idx].qty = Number(e.target.value) || 0;
+        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-grams').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
         render();
       }
     };
@@ -1520,7 +1601,7 @@ function wireKitchen() {
     addIngredientRowBtn.onclick = () => {
       if (session.activeRecipeDishId) {
         if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, unit: 'kg', unitPrice: 0 });
+        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0 });
         render();
       }
     };
@@ -1537,7 +1618,9 @@ function wireKitchen() {
           const rm = DB.rawMaterials.find(r => r.name === name);
           if (rm) {
             DB.recipes[session.activeRecipeDishId].ingredients[idx].name = rm.name;
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
             DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice;
           }
         } else if (val.startsWith('br_')) {
@@ -1545,10 +1628,23 @@ function wireKitchen() {
           const br = DB.baseRecipes.find(b => b.name === name);
           if (br) {
             DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = br.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'BASE PREP';
             DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
           }
         }
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-unit').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = e.target.value;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = e.target.value;
         render();
       }
     };
@@ -1568,7 +1664,19 @@ function wireKitchen() {
     input.onchange = (e) => {
       const idx = Number(input.dataset.idx);
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].qty = Number(e.target.value) || 0;
+        const qty = Number(e.target.value) || 0;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].qty = qty;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = qty;
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-grams').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = Number(e.target.value) || 0;
         render();
       }
     };
