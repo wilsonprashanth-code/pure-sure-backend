@@ -98,7 +98,7 @@
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
                                     <span class="text-muted small">Saved Base Preps</span>
-                                    <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">49 Items</h4>
+                                    <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">0 Items</h4>
                                 </div>
                                 <div class="p-3 bg-light rounded-circle text-success"><i class="fa-solid fa-jar fa-xl"></i></div>
                             </div>
@@ -109,7 +109,7 @@
                             <div class="d-flex align-items-center justify-content-between">
                                 <div>
                                     <span class="text-muted small">Pending Mismatches</span>
-                                    <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">3 Warning Items</h4>
+                                    <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">0 Items</h4>
                                 </div>
                                 <div class="p-3 bg-light rounded-circle text-warning"><i class="fa-solid fa-triangle-exclamation fa-xl"></i></div>
                             </div>
@@ -141,7 +141,9 @@
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="dashboardPreviewBody"></tbody>
+                            <tbody id="dashboardPreviewBody">
+                                <tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -254,7 +256,21 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             console.log('Dashboard Initialized.');
+            fetchAndAutoLoadCSV();
         });
+
+        function fetchAndAutoLoadCSV() {
+            fetch('Base_Recipes_49_Red_Sheets.csv')
+                .then(response => {
+                    if (!response.ok) throw new Error('CSV not found');
+                    return response.text();
+                })
+                .then(csvText => {
+                    console.log('Auto-loaded Base_Recipes_49_Red_Sheets.csv from repo');
+                    parseBaseRecipesCSV(csvText);
+                })
+                .catch(err => console.log('Auto-load CSV note:', err.message));
+        }
 
         function handleFileUpload(event) {
             const file = event.target.files[0];
@@ -273,6 +289,7 @@
             if (lines.length < 2) return;
 
             baseRecipesStore = {};
+            let mismatchCount = 0;
 
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -292,6 +309,10 @@
                 const vendor = cols[8] || 'FACTORY';
 
                 if (!recipeName || !ingredientName) continue;
+
+                if (ingredientName.includes('⚠️')) {
+                    mismatchCount++;
+                }
 
                 if (!baseRecipesStore[recipeName]) {
                     baseRecipesStore[recipeName] = {
@@ -313,6 +334,7 @@
                 });
             }
 
+            document.getElementById('statMismatchCount').innerText = `${mismatchCount} Warning Items`;
             renderSavedPrepList();
             renderDashboardPreview();
             
@@ -399,7 +421,12 @@
             tbody.innerHTML = '';
 
             const keys = Object.keys(baseRecipesStore);
-            keys.slice(0, 10).forEach((key, idx) => {
+            if (keys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>';
+                return;
+            }
+
+            keys.forEach((key, idx) => {
                 const r = baseRecipesStore[key];
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
