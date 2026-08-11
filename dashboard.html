@@ -1422,6 +1422,8 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            if (!ingName) return;
+
             const isBase = Boolean(row.isBase || row.type === 'base');
             const rm = getRawMaterialDetails(ingName);
             const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
@@ -1471,7 +1473,7 @@ function wireKitchen() {
     };
   }
 
-  /* BULK BASE RECIPE UPLOADER HANDLERS */
+  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED GROUPING LOGIC) */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
 
@@ -1510,6 +1512,8 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            if (!ingName) return;
+
             const isBase = Boolean(row.isBase || row.type === 'base');
             const rm = getRawMaterialDetails(ingName);
             const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
