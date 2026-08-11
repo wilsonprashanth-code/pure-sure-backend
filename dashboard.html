@@ -1473,7 +1473,7 @@ function wireKitchen() {
     };
   }
 
-  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED GROUPING LOGIC) */
+  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED ACCUMULATOR LOGIC) */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
 
@@ -1494,48 +1494,53 @@ function wireKitchen() {
           const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
           const grouped = {};
+          
           json.forEach(row => {
-            const rName = (row.recipeName || row.name || '').toString().trim();
+            const rName = (row.recipeName || row.name || row['Recipe Name'] || row['Recipe'] || '').toString().trim();
             if (!rName) return;
 
-            let existing = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === rName.toLowerCase());
-            const baseId = existing ? existing.id : (grouped[rName] ? grouped[rName].id : uid('br'));
+            const mapKey = rName.toLowerCase();
 
-            if (!grouped[baseId]) {
-              grouped[baseId] = {
-                id: baseId,
+            if (!grouped[mapKey]) {
+              let existing = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === mapKey);
+              
+              grouped[mapKey] = {
+                id: existing ? existing.id : uid('br'),
                 name: rName,
-                batchYield: Number(row.batchYield || row.yield) || 1,
-                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
+                batchYield: Number(row.batchYield || row.yield || row['Batch Yield'] || 1),
+                unit: (row.unit || row['Unit'] || 'GRM').toString().trim().toUpperCase(),
                 ingredients: []
               };
             }
 
-            const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            const ingName = (row.ingredientName || row.ingredient || row['Ingredient Name'] || row['Raw Material'] || '').toString().trim();
             if (!ingName) return;
 
             const isBase = Boolean(row.isBase || row.type === 'base');
             const rm = getRawMaterialDetails(ingName);
-            const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
+            const br = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === ingName.toLowerCase());
 
-            grouped[baseId].ingredients.push({
+            grouped[mapKey].ingredients.push({
               name: ingName,
-              qty: Number(row.qty) || 1,
-              gramsMl: Number(row.gramsMl || row.qty) || 1,
-              unit: (row.unit || 'GRM').toString().toUpperCase(),
-              uom: (row.uom || row.unit || 'GRM').toString().toUpperCase(),
+              qty: Number(row.qty || row['Qty'] || 1),
+              gramsMl: Number(row.gramsMl || row.qty || row['Qty'] || 1),
+              unit: (row.unit || row['Unit'] || 'GRM').toString().toUpperCase(),
+              uom: (row.uom || row.unit || row['Unit'] || 'GRM').toString().toUpperCase(),
               vendor: (isBase || br) ? 'LINKED BASE PREP' : (rm ? rm.vendor : 'FACTORY'),
               unitPrice: (isBase || br) ? (br ? calculateBaseRecipeCostPerUnit(br) : 0) : (rm ? rm.unitPrice : 0),
               type: (isBase || br) ? 'base' : 'raw'
             });
           });
 
-          for (const baseId in grouped) {
-            await db.ref('baseRecipes/' + baseId).set(grouped[baseId]);
+          await db.ref('baseRecipes').remove();
+
+          for (const key in grouped) {
+            await db.ref('baseRecipes/' + grouped[key].id).set(grouped[key]);
           }
 
-          toast(`Bulk base recipes updated for ${Object.keys(grouped).length} preps!`, 'check-circle');
+          toast(`Successfully grouped and uploaded ${Object.keys(grouped).length} base recipes!`, 'check-circle');
         } catch (err) {
+          console.error(err);
           toast('Error parsing base recipes Excel file.', 'alert-triangle');
         }
       };
