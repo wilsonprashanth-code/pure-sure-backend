@@ -115,11 +115,18 @@ function render() {
   wireCustomer(); lucide.createIcons();
 }
 
+function renderWithScrollPreserved(selector) {
+  const container = document.querySelector(selector);
+  const scrollLeft = container ? container.scrollLeft : 0;
+  render();
+  const newContainer = document.querySelector(selector);
+  if (newContainer) newContainer.scrollLeft = scrollLeft;
+}
+
 function customerShell() {
   const table = session.table;
   const userPhone = (session.custPhone || '').trim();
 
-  // ONLY match active orders placed by THIS exact phone number or current session order ID
   const activeOrder = (userPhone && userPhone.length === 10)
     ? [...DB.orders].reverse().find(o => o.table === table && o.customerPhone === userPhone && o.status !== 'served')
     : (session.activeOrderId ? DB.orders.find(o => o.id === session.activeOrderId && o.status !== 'served') : null);
@@ -190,7 +197,7 @@ function menuPanel() {
     <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-400"></i>
     <input id="searchInput" value="${session.search || ''}" placeholder="Search dishes…" class="w-full bg-white border border-brand-100 rounded-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300">
   </div>
-  <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
+  <div class="cafe-cat-container flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
     ${cats.map(c => `<button data-cat="${c}" class="cafe-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeCafeCat === c || (!session.activeCafeCat && c === 'All') ? 'bg-brand text-cream border-brand' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
   </div>
   <div class="grid grid-cols-1 gap-3.5 mt-1">
@@ -248,7 +255,7 @@ function retailPanel() {
     <i data-lucide="leaf" class="w-4 h-4 text-gold-400 shrink-0"></i>
     <span class="text-xs">Browse organic retail items — cold-pressed oils, A2 ghee &amp; spices (MRP Billed).</span>
   </div>
-  <div class="flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
+  <div class="retail-cat-container flex gap-2 overflow-x-auto scrollbar-none pb-3 -mx-4 px-4">
     ${cats.map(c => `<button data-rcat="${c}" class="retail-cat shrink-0 text-xs font-semibold px-3.5 py-1.5 rounded-full border transition ${session.activeRetailCat === c || (!session.activeRetailCat && c === 'All') ? 'bg-gold text-white border-gold' : 'bg-white text-brand-700 border-brand-100'}">${c}</button>`).join('')}
   </div>
   <div class="grid grid-cols-2 gap-3">
@@ -471,7 +478,6 @@ function crossSellModal() {
 function statusPanel(order) {
   const userPhone = (session.custPhone || '').trim();
 
-  // Strictly block showing ANY history unless a valid 10-digit phone number is entered by THIS customer
   const past = (userPhone && userPhone.length === 10)
     ? [...DB.orders].reverse().filter(o => o.table === session.table && o.customerPhone === userPhone)
     : [];
@@ -532,8 +538,15 @@ function wireCustomer() {
   const search = document.getElementById('searchInput');
   if (search) search.oninput = (e) => { session.search = e.target.value; renderKeepFocus('searchInput'); };
 
-  document.querySelectorAll('.cafe-cat').forEach(b => b.onclick = () => { session.activeCafeCat = b.dataset.cat; render(); });
-  document.querySelectorAll('.retail-cat').forEach(b => b.onclick = () => { session.activeRetailCat = b.dataset.rcat; render(); });
+  document.querySelectorAll('.cafe-cat').forEach(b => b.onclick = () => { 
+    session.activeCafeCat = b.dataset.cat; 
+    renderWithScrollPreserved('.cafe-cat-container'); 
+  });
+
+  document.querySelectorAll('.retail-cat').forEach(b => b.onclick = () => { 
+    session.activeRetailCat = b.dataset.rcat; 
+    renderWithScrollPreserved('.retail-cat-container'); 
+  });
 
   document.querySelectorAll('.nutri-toggle').forEach(b => b.onclick = () => {
     document.getElementById('nutri-' + b.dataset.id).classList.toggle('hidden');
