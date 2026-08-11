@@ -269,6 +269,42 @@ function calculateBaseRecipeCostPerUnit(base) {
   return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
+async function deductStockForDish(dishId, orderedPortions = 1) {
+  const recipe = DB.recipes[dishId];
+  if (!recipe || !recipe.ingredients) return;
+
+  const updates = {};
+
+  function processIngredient(ing, multiplier) {
+    if (ing.type === 'base' || ing.isBase) {
+      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (baseObj && baseObj.ingredients) {
+        const baseUsageGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const baseYieldGrams = Number(baseObj.batchYield || 1);
+        const batchFraction = baseYieldGrams > 0 ? (baseUsageGrams / baseYieldGrams) : 0;
+
+        baseObj.ingredients.forEach(subIng => {
+          processIngredient(subIng, batchFraction);
+        });
+      }
+    } else {
+      const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (rm) {
+        const requiredGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const currentStock = Number(rm.stockGrams || 100000);
+        const newStock = Math.max(0, currentStock - requiredGrams);
+        updates[`rawMaterials/${rm.id}/stockGrams`] = newStock;
+      }
+    }
+  }
+
+  recipe.ingredients.forEach(ing => processIngredient(ing, orderedPortions));
+
+  if (Object.keys(updates).length > 0) {
+    await db.ref().update(updates);
+  }
+}
+
 function downloadRawMaterialsTemplate() {
   const sampleData = [
     { name: 'TOMATO', vendor: 'AD VEGETABLES', unit: 'GRM', unitPrice: 25 },
@@ -582,7 +618,7 @@ function recipeCostingPanel() {
                 <thead class="bg-sheetHeader text-brand-900 font-bold text-[11px] uppercase tracking-wider border-b border-amber-200">
                   <tr>
                     <th class="p-2.5 w-8 text-center border-r border-amber-200">#</th>
-                    <th class="p-2.5 min-w-[180px] border-r border-amber-200">INGREDIENT DESCRIPTION</th>
+                    <th class="p-2.5 min-w-[220px] border-r border-amber-200">INGREDIENT DESCRIPTION</th>
                     <th class="p-2.5 w-20 border-r border-amber-200 text-center">QTY</th>
                     <th class="p-2.5 w-24 border-r border-amber-200">UNIT</th>
                     <th class="p-2.5 w-24 border-r border-amber-200 text-center">GRAMS / ML</th>
@@ -614,15 +650,17 @@ function recipeCostingPanel() {
                     return `
                     <tr class="hover:bg-amber-100/40 transition">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx + 1}</td>
-                      <td class="p-2 border-r border-amber-200">
+                      <td class="p-2 border-r border-amber-200 space-y-1">
+                        <div class="flex items-center gap-1 bg-brand-50 p-1 rounded border border-brand-100 mb-1">
+                          <button type="button" class="mode-toggle-raw flex-1 py-0.5 text-[9px] font-bold rounded ${!isBase ? 'bg-brand text-cream shadow' : 'text-brand-700 hover:bg-brand-100'}" data-idx="${idx}">Raw Material</button>
+                          <button type="button" class="mode-toggle-base flex-1 py-0.5 text-[9px] font-bold rounded ${isBase ? 'bg-gold text-white shadow' : 'text-gold-700 hover:bg-gold-100'}" data-idx="${idx}">⭐ Base Prep</button>
+                        </div>
                         <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}" tabindex="${(idx * 7) + 1}">
-                          <option value="">-- Choose Raw Material or Base Prep --</option>
-                          <optgroup label="Raw Materials">
-                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${!isBase && (ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
-                          </optgroup>
-                          <optgroup label="Base Recipes / Sauces (Linked Stock)">
-                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${isBase && (ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
-                          </optgroup>
+                          <option value="">-- Choose ${isBase ? 'Base Prep' : 'Raw Material'} --</option>
+                          ${isBase ? 
+                            sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('') :
+                            sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')
+                          }
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
@@ -789,7 +827,7 @@ function baseRecipesModal() {
                 <thead class="bg-sheetHeader text-brand-900 font-bold text-[10px] uppercase border-b border-amber-200">
                   <tr>
                     <th class="p-2 text-center w-8 border-r border-amber-200">#</th>
-                    <th class="p-2 border-r border-amber-200">INGREDIENT DESCRIPTION</th>
+                    <th class="p-2 border-r border-amber-200 min-w-[220px]">INGREDIENT DESCRIPTION</th>
                     <th class="p-2 w-16 border-r border-amber-200 text-center">QTY</th>
                     <th class="p-2 w-20 border-r border-amber-200">UNIT</th>
                     <th class="p-2 w-20 border-r border-amber-200 text-center">GRAMS/ML</th>
@@ -821,15 +859,17 @@ function baseRecipesModal() {
                     return `
                     <tr class="hover:bg-amber-100/40">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
-                      <td class="p-2 border-r border-amber-200">
+                      <td class="p-2 border-r border-amber-200 space-y-1">
+                        <div class="flex items-center gap-1 bg-brand-50 p-1 rounded border border-brand-100 mb-1">
+                          <button type="button" class="base-mode-toggle-raw flex-1 py-0.5 text-[9px] font-bold rounded ${!isBase ? 'bg-brand text-cream shadow' : 'text-brand-700 hover:bg-brand-100'}" data-idx="${idx}">Raw Material</button>
+                          <button type="button" class="base-mode-toggle-base flex-1 py-0.5 text-[9px] font-bold rounded ${isBase ? 'bg-gold text-white shadow' : 'text-gold-700 hover:bg-gold-100'}" data-idx="${idx}">⭐ Base Prep</button>
+                        </div>
                         <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}" tabindex="${(idx * 6) + 101}">
-                          <option value="">-- Choose Raw Material or Base Prep --</option>
-                          <optgroup label="Raw Materials">
-                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${!isBase && (ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
-                          </optgroup>
-                          <optgroup label="Base Recipes / Sauces (Sub-Preps)">
-                            ${sortedBaseRecipes.filter(b => b.id !== activeBase.id).map(br => `<option value="br_${br.name}" ${isBase && (ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
-                          </optgroup>
+                          <option value="">-- Choose ${isBase ? 'Base Prep' : 'Raw Material'} --</option>
+                          ${isBase ?
+                            sortedBaseRecipes.filter(b => b.id !== activeBase.id).map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('') :
+                            sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')
+                          }
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
@@ -865,7 +905,7 @@ function baseRecipesModal() {
                         <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
                       </td>
                     </tr>
-                  `;}).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No ingredients added to this batch yet.</td></tr>`}
+                  `;}).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No raw materials added to this batch yet.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -1672,6 +1712,33 @@ function wireKitchen() {
     };
   }
 
+  // BASE RECIPE TYPE TOGGLE HANDLERS
+  document.querySelectorAll('.base-mode-toggle-raw').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].type = 'raw';
+        activeBase.ingredients[idx].isBase = false;
+        activeBase.ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-mode-toggle-base').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].type = 'base';
+        activeBase.ingredients[idx].isBase = true;
+        activeBase.ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
   document.querySelectorAll('.base-ing-select').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
@@ -1781,7 +1848,31 @@ function wireKitchen() {
     };
   });
 
-  /* MAIN CAFE RECIPE HANDLERS WITH LINKED BASE RECIPES */
+  /* MAIN CAFE RECIPE TYPE TOGGLES */
+  document.querySelectorAll('.mode-toggle-raw').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = false;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.mode-toggle-base').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = true;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
   const costingDishSelect = document.getElementById('costingDishSelect');
   if (costingDishSelect) {
     costingDishSelect.onchange = (e) => {
