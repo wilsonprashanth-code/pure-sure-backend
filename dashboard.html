@@ -85,9 +85,8 @@ let DB = {
   menu: [], retail: [], orders: []
 };
 
-let session = { staff:null, soundOn:true, kitchenTab:'orders', editingDish:null, editingRetail:null, showAddStaff:false };
+let session = { staff:null, soundOn:true, kitchenTab:'orders', editingDish:null, editingRetail:null, showAddStaff:false, cafeSearch:'', retailSearch:'' };
 
-// Image Compression Helper Function (Resizes to max 600px width/height & compresses Base64 payload)
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
   return new Promise((resolve, reject) => {
     if (!file) return resolve('');
@@ -471,24 +470,54 @@ function retailBoard(orders) {
 }
 
 function inventoryPanel() {
+  const cafeQuery = (session.cafeSearch || '').toLowerCase().trim();
+  const retailQuery = (session.retailSearch || '').toLowerCase().trim();
+
+  const filteredCafe = DB.menu.filter(item => 
+    item.name.toLowerCase().includes(cafeQuery) || 
+    (item.category && item.category.toLowerCase().includes(cafeQuery))
+  );
+
+  const filteredRetail = DB.retail.filter(item => 
+    item.name.toLowerCase().includes(retailQuery) || 
+    (item.category && item.category.toLowerCase().includes(retailQuery))
+  );
+
   return `
   <div class="grid lg:grid-cols-2 gap-5">
+    <!-- Cafe Menu Panel -->
     <div class="bg-white rounded-2xl card-shadow p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-display text-lg">Cafe Menu</h3>
         <button id="addDishBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Dish</button>
       </div>
+
+      <!-- Cafe Live Search -->
+      <div class="relative mb-3">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+        <input id="dashCafeSearch" value="${session.cafeSearch || ''}" placeholder="Search cafe dishes or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+      </div>
+
       <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        ${DB.menu.map(inventoryRow.bind(null, 'menu')).join('')}
+        ${filteredCafe.map(inventoryRow.bind(null, 'menu')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching cafe dishes found.</div>`}
       </div>
     </div>
+
+    <!-- Retail Store Panel -->
     <div class="bg-white rounded-2xl card-shadow p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-display text-lg">Retail Store</h3>
         <button id="addRetailBtn" class="text-xs font-bold bg-gold text-white px-3.5 py-2 rounded-full flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Product</button>
       </div>
+
+      <!-- Retail Live Search -->
+      <div class="relative mb-3">
+        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+        <input id="dashRetailSearch" value="${session.retailSearch || ''}" placeholder="Search retail products or categories..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
+      </div>
+
       <div class="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        ${DB.retail.map(inventoryRow.bind(null, 'retail')).join('')}
+        ${filteredRetail.map(inventoryRow.bind(null, 'retail')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching retail products found.</div>`}
       </div>
     </div>
   </div>`;
@@ -650,10 +679,27 @@ function addStaffForm() {
   </div>`;
 }
 
+function renderKeepFocus(id) {
+  const el = document.activeElement; 
+  const pos = el && el.selectionStart; 
+  render();
+  const el2 = document.getElementById(id); 
+  if (el2) { 
+    el2.focus(); 
+    if (pos != null) el2.setSelectionRange(pos, pos); 
+  }
+}
+
 function wireKitchen() {
   document.getElementById('logoutBtn').onclick = () => { session.staff = null; render(); };
   document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
+
+  const dashCafe = document.getElementById('dashCafeSearch');
+  if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
+
+  const dashRetail = document.getElementById('dashRetailSearch');
+  if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
 
   document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
     const o = DB.orders.find(x => x.id === b.dataset.id);
