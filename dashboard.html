@@ -85,7 +85,6 @@ let DB = {
   menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}
 };
 
-// Retrieve saved staff login session from localStorage
 const savedStaff = localStorage.getItem('ps_staff');
 
 let session = { 
@@ -98,7 +97,8 @@ let session = {
   cafeSearch: '', 
   retailSearch: '', 
   activeRecipeDishId: null,
-  showRawMaterialsModal: false
+  showRawMaterialsModal: false,
+  showBulkIngredientsPanel: false
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -198,6 +198,19 @@ function calculateOrderTotal(order) {
   const cafeSub = (order.items || []).filter(i => i.kind === 'cafe' || (!i.kind && order.type === 'cafe')).reduce((a, b) => a + (b.price * b.qty), 0);
   const retailSub = (order.items || []).filter(i => i.kind === 'retail' || (!i.kind && order.type === 'retail')).reduce((a, b) => a + (b.price * b.qty), 0);
   return cafeSub + (cafeSub * 0.05) + retailSub;
+}
+
+function downloadRawMaterialsTemplate() {
+  const sampleData = [
+    { name: 'Organic A2 Milk', unit: 'litre', unitPrice: 75 },
+    { name: 'Foxtail Millet', unit: 'kg', unitPrice: 120 },
+    { name: 'Organic Jaggery Powder', unit: 'kg', unitPrice: 85 },
+    { name: 'Wood Pressed Groundnut Oil', unit: 'litre', unitPrice: 280 }
+  ];
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Raw Materials Template");
+  XLSX.writeFile(wb, "Raw_Materials_Template.xlsx");
 }
 
 function render() {
@@ -546,13 +559,30 @@ function rawMaterialsModal() {
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4">
         <div>
           <h3 class="font-display text-lg text-brand-900">Raw Material Master Database</h3>
-          <p class="text-xs text-brand-400">Add raw materials and bulk purchase rates to populate recipe costing sheets.</p>
+          <p class="text-xs text-brand-400">Add raw materials individually or upload an Excel sheet to bulk populate rates.</p>
         </div>
         <button id="closeRawMaterialsBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
 
+      <!-- Bulk Excel Upload Card for Ingredients -->
+      <div class="bg-gold-50 p-3.5 rounded-xl border border-gold-200 mb-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="text-xs font-bold text-brand-900 flex items-center gap-1.5">
+            <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel / CSV Upload Ingredients
+          </div>
+          <button id="dlRmTemplateBtn" class="text-[11px] font-bold text-gold-700 underline hover:text-gold-900">
+            Download Template
+          </button>
+        </div>
+        <div class="flex gap-2">
+          <input id="rmExcelInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-gold file:text-white hover:file:opacity-90">
+          <button id="processRmExcelBtn" class="bg-brand text-cream font-bold px-4 py-1.5 rounded-full text-xs shrink-0 hover:bg-brand-600 transition">Upload Excel</button>
+        </div>
+      </div>
+
+      <!-- Individual Add Ingredient Form -->
       <div class="bg-brand-50 p-3.5 rounded-xl border border-brand-100 mb-4">
-        <div class="text-xs font-bold text-brand-800 mb-2">Add New Raw Material Item</div>
+        <div class="text-xs font-bold text-brand-800 mb-2">Add Individual Raw Material Item</div>
         <div class="grid grid-cols-3 gap-2">
           <input id="newRmName" placeholder="Ingredient Name (e.g. A2 Milk)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
           <select id="newRmUnit" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
@@ -564,7 +594,7 @@ function rawMaterialsModal() {
           </select>
           <input id="newRmPrice" type="number" step="0.01" placeholder="Rate (₹ per unit)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
         </div>
-        <button id="addRmBtn" class="w-full mt-2.5 bg-brand text-cream font-bold py-2 rounded-lg text-xs hover:bg-brand-600 transition">Add to Master List</button>
+        <button id="addRmBtn" class="w-full mt-2.5 bg-brand text-cream font-bold py-2 rounded-lg text-xs hover:bg-brand-600 transition">Add Single Material</button>
       </div>
 
       <div class="flex-1 overflow-y-auto pr-1">
@@ -587,7 +617,7 @@ function rawMaterialsModal() {
                   <button class="delete-rm-btn text-red-500 hover:text-red-700" data-id="${rm.id}"><i data-lucide="trash-2" class="w-4 h-4 mx-auto"></i></button>
                 </td>
               </tr>
-            `).join('') || `<tr><td colspan="4" class="text-center py-8 text-brand-400">No raw materials in database yet. Add one above.</td></tr>`}
+            `).join('') || `<tr><td colspan="4" class="text-center py-8 text-brand-400">No raw materials in database yet. Add individually or upload via Excel above.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -916,6 +946,57 @@ function wireKitchen() {
     closeRmBtn.onclick = () => {
       session.showRawMaterialsModal = false;
       render();
+    };
+  }
+
+  const dlRmTemplateBtn = document.getElementById('dlRmTemplateBtn');
+  if (dlRmTemplateBtn) {
+    dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
+  }
+
+  const processRmExcelBtn = document.getElementById('processRmExcelBtn');
+  if (processRmExcelBtn) {
+    processRmExcelBtn.onclick = () => {
+      const fileInput = document.getElementById('rmExcelInput');
+      if (!fileInput || !fileInput.files[0]) {
+        toast('Please select an Excel or CSV file first.', 'alert-triangle');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet);
+
+          if (!json.length) {
+            toast('The selected file is empty.', 'alert-triangle');
+            return;
+          }
+
+          let addedCount = 0;
+          for (const row of json) {
+            if (row.name) {
+              const id = uid('rm');
+              await db.ref('rawMaterials/' + id).set({
+                id,
+                name: row.name.toString().trim(),
+                unit: (row.unit || 'kg').toString().trim().toLowerCase(),
+                unitPrice: Number(row.unitPrice || row.price || 0)
+              });
+              addedCount++;
+            }
+          }
+
+          toast(`Successfully added ${addedCount} raw materials!`, 'check-circle');
+        } catch (err) {
+          toast('Error reading Excel file. Check column headers.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
     };
   }
 
