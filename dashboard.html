@@ -203,7 +203,6 @@ function calculateOrderTotal(order) {
   return cafeSub + (cafeSub * 0.05) + retailSub;
 }
 
-// Master Raw Material Helper Lookup
 function getRawMaterialDetails(name) {
   if (!name) return { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
   const cleanName = name.toLowerCase().trim();
@@ -215,7 +214,6 @@ function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const grams = Number(ing.gramsMl || qty);
   
-  // Direct rate or fetch dynamically from Master Raw Materials
   let rate = Number(ing.unitPrice || 0);
   if (!rate && ing.name) {
     rate = getRawMaterialDetails(ing.name).unitPrice;
@@ -250,8 +248,8 @@ function downloadRawMaterialsTemplate() {
 
 function downloadBaseRecipesTemplate() {
   const sampleData = [
-    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'KG', ingredientName: 'TOMATO', qty: 2400, unit: 'GRM', gramsMl: 2400, uom: 'GRM' },
-    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'KG', ingredientName: 'Organic Cinnamon Powder', qty: 2, unit: 'GRM', gramsMl: 2, uom: 'GRM' }
+    { recipeName: 'HIGH PROTEIN PASTA SAUCE', batchYield: 3100, unit: 'GRM', ingredientName: 'TOMATO', qty: 1500, unit: 'GRM', gramsMl: 1500, uom: 'GRM' },
+    { recipeName: 'HIGH PROTEIN PASTA SAUCE', batchYield: 3100, unit: 'GRM', ingredientName: 'Organic Cinnamon Powder', qty: 5, unit: 'GRM', gramsMl: 5, uom: 'GRM' }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -261,8 +259,7 @@ function downloadBaseRecipesTemplate() {
 
 function downloadMainRecipesTemplate() {
   const sampleData = [
-    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Tomato Chutney Base', qty: 50, unit: 'GRM', gramsMl: 50, uom: 'GRM' },
-    { dishName: 'Turmeric Ginger Latte', portions: 1, wastagePercent: 5, ingredientName: 'Organic A2 Milk', qty: 200, unit: 'ML', gramsMl: 200, uom: 'ML' }
+    { dishName: 'High Protein Penne Pasta', portions: 1, wastagePercent: 10, ingredientName: 'HIGH PROTEIN PASTA SAUCE', qty: 250, unit: 'GRM', gramsMl: 250, uom: 'GRM' }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -458,7 +455,7 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE WITH DYNAMIC MASTER INGREDIENT MATCHING */
+/* RECIPE COSTING MODULE */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -714,7 +711,7 @@ function baseRecipesModal() {
             <div class="grid grid-cols-3 gap-2 bg-cream p-3 rounded-xl border border-brand-100">
               <div class="col-span-3 sm:col-span-1">
                 <label class="text-[10px] font-bold uppercase text-brand-600 block">Prep Name</label>
-                <input id="baseName" value="${activeBase.name}" placeholder="e.g. Tomato Sauce" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+                <input id="baseName" value="${activeBase.name}" placeholder="e.g. HIGH PROTEIN PASTA SAUCE" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
               </div>
               <div>
                 <label class="text-[10px] font-bold uppercase text-brand-600 block">Batch Yield</label>
@@ -723,6 +720,7 @@ function baseRecipesModal() {
               <div>
                 <label class="text-[10px] font-bold uppercase text-brand-600 block">Unit</label>
                 <select id="baseUnit" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+                  <option ${activeBase.unit === 'GRM' ? 'selected' : ''}>GRM</option>
                   <option ${activeBase.unit === 'KG' ? 'selected' : ''}>KG</option>
                   <option ${activeBase.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
                   <option ${activeBase.unit === 'PCS' ? 'selected' : ''}>PCS</option>
@@ -1272,7 +1270,7 @@ function wireKitchen() {
             let unit = (row.unit || 'GRM').toString().toUpperCase();
             let vendor = rm ? rm.vendor : (br ? 'BASE PREP' : 'FACTORY');
 
-            if (rm) unitPrice = rm.unitPrice;
+            if (rm.unitPrice) unitPrice = rm.unitPrice;
             else if (br) unitPrice = calculateBaseRecipeCostPerUnit(br);
 
             grouped[dishId].ingredients.push({
@@ -1299,7 +1297,7 @@ function wireKitchen() {
     };
   }
 
-  /* BULK BASE RECIPE UPLOADER HANDLERS */
+  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED GROUPING LOGIC) */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) {
     dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
@@ -1327,14 +1325,14 @@ function wireKitchen() {
             if (!rName) return;
 
             let existing = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === rName.toLowerCase());
-            const baseId = existing ? existing.id : uid('br');
+            const baseId = existing ? existing.id : (grouped[rName] ? grouped[rName].id : uid('br'));
 
             if (!grouped[baseId]) {
               grouped[baseId] = {
                 id: baseId,
                 name: rName,
                 batchYield: Number(row.batchYield || row.yield) || 1,
-                unit: (row.unit || 'KG').toString().trim().toUpperCase(),
+                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
                 ingredients: []
               };
             }
@@ -1485,7 +1483,7 @@ function wireKitchen() {
         id: uid('br'),
         name: 'New Base Prep',
         batchYield: 1,
-        unit: 'KG',
+        unit: 'GRM',
         ingredients: []
       };
       await db.ref('baseRecipes/' + newBase.id).set(newBase);
