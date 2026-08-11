@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pure & Sure Organic Cafe - Kitchen & Staff Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -31,6 +33,7 @@
             padding: 12px 20px;
             border-radius: 6px;
             margin-bottom: 4px;
+            cursor: pointer;
         }
         .sidebar .nav-link:hover, .sidebar .nav-link.active {
             color: white;
@@ -48,13 +51,20 @@
             background-color: #ffc107;
             color: #212529;
         }
+        .tab-content-section {
+            display: none;
+        }
+        .tab-content-section.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
 
+    <!-- Header Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
         <div class="container-fluid px-4">
-            <a class="navbar-brand" href="#"><i class="fa-solid fa-leaf text-success me-2"></i>Pure & Sure Kitchen Master</a>
+            <a class="navbar-brand" href="#"><i class="fa-solid fa-leaf text-success me-2"></i>Phalada Pure & Sure Organic Cafe & Store</a>
             <div class="d-flex align-items-center gap-3">
                 <span class="badge bg-success px-3 py-2">Branch: Jayanagar</span>
                 <button class="btn btn-outline-danger btn-sm" id="logoutBtn"><i class="fa-solid fa-sign-out me-1"></i>Logout</button>
@@ -64,127 +74,129 @@
 
     <div class="container-fluid">
         <div class="row">
+            <!-- Sidebar Navigation -->
             <div class="col-md-3 col-lg-2 sidebar p-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#" id="menuDashboard"><i class="fa-solid fa-chart-line me-2"></i>Dashboard</a>
+                        <a class="nav-link active" onclick="switchTab('dashboard')" id="navDashboard"><i class="fa-solid fa-chart-line me-2"></i>Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" id="menuBaseRecipes" data-bs-toggle="modal" data-bs-target="#baseRecipeModal"><i class="fa-solid fa-star me-2"></i>⭐ Base Recipes / Sauces</a>
+                        <a class="nav-link" onclick="switchTab('baseRecipes')" id="navBaseRecipes"><i class="fa-solid fa-star me-2"></i>⭐ Base Recipes / Sauces</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" id="menuInventory"><i class="fa-solid fa-boxes-stacked me-2"></i>Inventory Stock</a>
+                        <a class="nav-link" onclick="switchTab('cafeMenu')" id="navCafeMenu"><i class="fa-solid fa-utensils me-2"></i>Cafe Menu</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" id="menuCosting"><i class="fa-solid fa-calculator me-2"></i>Recipe Costing</a>
+                        <a class="nav-link" onclick="switchTab('retailMenu')" id="navRetailMenu"><i class="fa-solid fa-store me-2"></i>Retail Menu</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="switchTab('inventory')" id="navInventory"><i class="fa-solid fa-boxes-stacked me-2"></i>Inventory Stock</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="switchTab('costing')" id="navCosting"><i class="fa-solid fa-calculator me-2"></i>Recipe Costing</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="switchTab('bulkImport')" id="navBulkImport"><i class="fa-solid fa-file-import me-2"></i>Bulk Import</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="switchTab('qrManager')" id="navQrManager"><i class="fa-solid fa-qrcode me-2"></i>QR Table Manager</a>
                     </li>
                 </ul>
             </div>
 
+            <!-- Main Content Area -->
             <div class="col-md-9 col-lg-10 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div>
-                        <h3 class="fw-bold text-dark mb-1">Kitchen & Costing Overview</h3>
-                        <p class="text-muted mb-0">Track raw materials, batch prep items, and recipe margins in real time.</p>
+
+                <!-- TAB 1: DASHBOARD -->
+                <div id="tabDashboard" class="tab-content-section active">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h3 class="fw-bold text-dark mb-1">Kitchen & Costing Overview</h3>
+                            <p class="text-muted mb-0">Track raw materials, batch prep items, and recipe margins in real time.</p>
+                        </div>
+                        <button class="btn btn-success" onclick="switchTab('baseRecipes')">
+                            <i class="fa-solid fa-plus me-2"></i>Manage Base Recipes
+                        </button>
                     </div>
-                    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#baseRecipeModal">
-                        <i class="fa-solid fa-plus me-2"></i>Manage Base Recipes
-                    </button>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="card card-custom p-3 bg-white">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="text-muted small">Saved Base Preps</span>
+                                        <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">0 Items</h4>
+                                    </div>
+                                    <div class="p-3 bg-light rounded-circle text-success"><i class="fa-solid fa-jar fa-xl"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card card-custom p-3 bg-white">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="text-muted small">Pending Mismatches</span>
+                                        <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">0 Items</h4>
+                                    </div>
+                                    <div class="p-3 bg-light rounded-circle text-warning"><i class="fa-solid fa-triangle-exclamation fa-xl"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card card-custom p-3 bg-white">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="text-muted small">Active Vendors</span>
+                                        <h4 class="fw-bold mb-0 text-primary">6 Vendors</h4>
+                                    </div>
+                                    <div class="p-3 bg-light rounded-circle text-primary"><i class="fa-solid fa-truck-field fa-xl"></i></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card card-custom p-4 bg-white">
+                        <h5 class="fw-bold mb-3">Live Base Recipe List</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" id="dashboardPreviewTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Prep Name</th>
+                                        <th>Batch Yield</th>
+                                        <th>Ingredients Count</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboardPreviewBody">
+                                    <tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="row g-3 mb-4">
-                    <div class="col-md-4">
-                        <div class="card card-custom p-3 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small">Saved Base Preps</span>
-                                    <h4 class="fw-bold mb-0 text-success" id="statBasePrepCount">0 Items</h4>
-                                </div>
-                                <div class="p-3 bg-light rounded-circle text-success"><i class="fa-solid fa-jar fa-xl"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card card-custom p-3 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small">Pending Mismatches</span>
-                                    <h4 class="fw-bold mb-0 text-warning" id="statMismatchCount">0 Items</h4>
-                                </div>
-                                <div class="p-3 bg-light rounded-circle text-warning"><i class="fa-solid fa-triangle-exclamation fa-xl"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="card card-custom p-3 bg-white">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="text-muted small">Active Vendors</span>
-                                    <h4 class="fw-bold mb-0 text-primary">6 Vendors</h4>
-                                </div>
-                                <div class="p-3 bg-light rounded-circle text-primary"><i class="fa-solid fa-truck-field fa-xl"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card card-custom p-4 bg-white">
-                    <h5 class="fw-bold mb-3">Live Base Recipe List</h5>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle" id="dashboardPreviewTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Prep Name</th>
-                                    <th>Batch Yield</th>
-                                    <th>Ingredients Count</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboardPreviewBody">
-                                <tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="baseRecipeModal" tabindex="-1" aria-labelledby="baseRecipeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-xl-custom">
-            <div class="modal-content">
-                <div class="modal-header bg-dark text-white">
-                    <h5 class="modal-title fw-bold" id="baseRecipeModalLabel">Base Recipes & Batch Prep Master</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="p-3 bg-light border rounded mb-4">
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                            <div>
-                                <h6 class="fw-bold mb-1"><i class="fa-solid fa-file-csv text-success me-2"></i>Bulk CSV Upload Base Recipes</h6>
-                                <p class="text-muted small mb-0">Upload Base_Recipes_49_Red_Sheets.csv to update base prep ingredients across Firebase.</p>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="file" id="bulkCsvInput" accept=".csv" class="d-none" onchange="handleFileUpload(event)">
-                                <button class="btn btn-warning text-dark btn-sm fw-bold" onclick="document.getElementById('bulkCsvInput').click()">
-                                    <i class="fa-solid fa-upload me-1"></i>Upload CSV
-                                </button>
-                            </div>
-                        </div>
+                <!-- TAB 2: BASE RECIPES / SAUCES -->
+                <div id="tabBaseRecipes" class="tab-content-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h3 class="fw-bold text-dark mb-0">Base Recipes & Batch Prep Master</h3>
+                        <button class="btn btn-warning text-dark fw-bold btn-sm" onclick="document.getElementById('bulkCsvInput').click()">
+                            <i class="fa-solid fa-upload me-1"></i>Upload CSV
+                        </button>
+                        <input type="file" id="bulkCsvInput" accept=".csv" class="d-none" onchange="handleFileUpload(event)">
                     </div>
 
                     <div class="row g-4">
-                        <div class="col-md-4 border-end">
+                        <div class="col-md-4 border-end bg-white p-3 rounded shadow-sm">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="fw-bold mb-0">Saved Base Preps</h6>
                                 <button class="btn btn-outline-success btn-sm" onclick="createNewPrep()"><i class="fa-solid fa-plus me-1"></i>New</button>
                             </div>
                             <input type="text" class="form-control form-control-sm mb-3" id="searchPrepInput" placeholder="Search base prep..." onkeyup="filterPrepList()">
-                            <div class="list-group" id="savedPrepList" style="max-height: 480px; overflow-y: auto;"></div>
+                            <div class="list-group" id="savedPrepList" style="max-height: 500px; overflow-y: auto;"></div>
                         </div>
 
-                        <div class="col-md-8">
+                        <div class="col-md-8 bg-white p-4 rounded shadow-sm">
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">PREP NAME</label>
@@ -244,22 +256,107 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
+
+                <!-- TAB 3: CAFE MENU -->
+                <div id="tabCafeMenu" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">Cafe Menu Management</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">Manage cafe food items, beverages, and pricing formulas here.</p>
+                        <button class="btn btn-outline-success w-25">Add New Cafe Item</button>
+                    </div>
+                </div>
+
+                <!-- TAB 4: RETAIL MENU -->
+                <div id="tabRetailMenu" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">Retail Menu & Products</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">Manage packaged store goods, retail barcodes, and stock levels.</p>
+                        <button class="btn btn-outline-success w-25">Add Retail Product</button>
+                    </div>
+                </div>
+
+                <!-- TAB 5: INVENTORY STOCK -->
+                <div id="tabInventory" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">Inventory Stock Tracking</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">View live stock levels, inward items, and consumption reports.</p>
+                    </div>
+                </div>
+
+                <!-- TAB 6: RECIPE COSTING -->
+                <div id="tabCosting" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">Recipe Cost & P&L Calculator</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">Calculate food cost percentages, overhead allowances, and profit margins.</p>
+                    </div>
+                </div>
+
+                <!-- TAB 7: BULK IMPORT -->
+                <div id="tabBulkImport" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">Bulk Data Import & Templates</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">Download standard Excel templates and upload completed sheets in bulk.</p>
+                        <button class="btn btn-success btn-sm">Download Base Recipes CSV Template</button>
+                    </div>
+                </div>
+
+                <!-- TAB 8: QR TABLE MANAGER -->
+                <div id="tabQrManager" class="tab-content-section">
+                    <h3 class="fw-bold text-dark mb-3">QR Table Ordering Manager</h3>
+                    <div class="card card-custom p-4 bg-white">
+                        <p class="text-muted">Generate and print table QR codes for direct customer WhatsApp and digital ordering.</p>
+                        <button class="btn btn-dark w-25">Generate Table QR Codes</button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>
 
+    <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Application Script -->
     <script>
         let baseRecipesStore = {};
         let activePrepName = null;
 
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('Dashboard Initialized.');
+            console.log('Dashboard Initialized with all tabs.');
             fetchAndAutoLoadCSV();
         });
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.sidebar .nav-link').forEach(el => el.classList.remove('active'));
+
+            if (tabId === 'dashboard') {
+                document.getElementById('tabDashboard').classList.add('active');
+                document.getElementById('navDashboard').classList.add('active');
+            } else if (tabId === 'baseRecipes') {
+                document.getElementById('tabBaseRecipes').classList.add('active');
+                document.getElementById('navBaseRecipes').classList.add('active');
+            } else if (tabId === 'cafeMenu') {
+                document.getElementById('tabCafeMenu').classList.add('active');
+                document.getElementById('navCafeMenu').classList.add('active');
+            } else if (tabId === 'retailMenu') {
+                document.getElementById('tabRetailMenu').classList.add('active');
+                document.getElementById('navRetailMenu').classList.add('active');
+            } else if (tabId === 'inventory') {
+                document.getElementById('tabInventory').classList.add('active');
+                document.getElementById('navInventory').classList.add('active');
+            } else if (tabId === 'costing') {
+                document.getElementById('tabCosting').classList.add('active');
+                document.getElementById('navCosting').classList.add('active');
+            } else if (tabId === 'bulkImport') {
+                document.getElementById('tabBulkImport').classList.add('active');
+                document.getElementById('navBulkImport').classList.add('active');
+            } else if (tabId === 'qrManager') {
+                document.getElementById('tabQrManager').classList.add('active');
+                document.getElementById('navQrManager').classList.add('active');
+            }
+        }
 
         function fetchAndAutoLoadCSV() {
             fetch('Base_Recipes_49_Red_Sheets.csv')
@@ -268,7 +365,7 @@
                     return response.text();
                 })
                 .then(csvText => {
-                    console.log('Auto-loaded Base_Recipes_49_Red_Sheets.csv from repo');
+                    console.log('Auto-loaded Base_Recipes_49_Red_Sheets.csv');
                     parseBaseRecipesCSV(csvText);
                 })
                 .catch(err => console.log('Auto-load CSV note:', err.message));
@@ -300,7 +397,7 @@
                 const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim());
                 if (cols.length < 4) continue;
 
-                const recipeName = cols[0];
+                const rawRecipeName = cols[0];
                 const batchYield = parseFloat(cols[1]) || 1;
                 const unit = cols[2] || 'GRM';
                 const ingredientName = cols[3];
@@ -310,22 +407,24 @@
                 const uom = cols[7] || 'GRM';
                 const vendor = cols[8] || 'FACTORY';
 
-                if (!recipeName || !ingredientName) continue;
+                if (!rawRecipeName || !ingredientName) continue;
 
                 if (ingredientName.includes('⚠️')) {
                     mismatchCount++;
                 }
 
-                if (!baseRecipesStore[recipeName]) {
-                    baseRecipesStore[recipeName] = {
-                        prepName: recipeName,
+                const storeKey = rawRecipeName.trim();
+
+                if (!baseRecipesStore[storeKey]) {
+                    baseRecipesStore[storeKey] = {
+                        prepName: rawRecipeName.trim(),
                         batchYield: batchYield,
                         unit: unit,
                         ingredients: []
                     };
                 }
 
-                baseRecipesStore[recipeName].ingredients.push({
+                baseRecipesStore[storeKey].ingredients.push({
                     type: (vendor && vendor.toUpperCase() === 'PRE PREP') ? 'Base Prep' : 'Raw Material',
                     ingredientName: ingredientName,
                     qty: qty,
@@ -361,7 +460,7 @@
                 button.innerHTML = `
                     <div class="d-flex w-100 justify-content-between align-items-center">
                         <strong class="mb-1 text-truncate" style="max-width: 220px;">${recipe.prepName}</strong>
-                        <small class="badge bg-secondary">${recipe.ingredients.length} ing</small>
+                        <small class="badge bg-success">${recipe.ingredients.length} ing</small>
                     </div>
                     <small class="text-muted">${recipe.batchYield} ${recipe.unit}</small>
                 `;
@@ -437,7 +536,7 @@
 
             const keys = Object.keys(baseRecipesStore);
             if (keys.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded. Open Manage Base Recipes to upload CSV.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">No base recipes loaded.</td></tr>';
                 return;
             }
 
@@ -450,17 +549,13 @@
                     <td>${r.batchYield} ${r.unit}</td>
                     <td><span class="badge bg-success">${r.ingredients.length} Items</span></td>
                     <td>
-                        <button class="btn btn-sm btn-outline-success" onclick="openAndEdit('${r.prepName}')" data-bs-toggle="modal" data-bs-target="#baseRecipeModal">
+                        <button class="btn btn-sm btn-outline-success" onclick="switchTab('baseRecipes'); selectPrep('${r.prepName}');">
                             Edit
                         </button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
-        }
-
-        function openAndEdit(prepName) {
-            selectPrep(prepName);
         }
 
         function createNewPrep() {
