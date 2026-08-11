@@ -455,7 +455,7 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE */
+/* RECIPE COSTING MODULE WITH BULK DELETE MAIN DISH RECIPES */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -497,14 +497,15 @@ function recipeCostingPanel() {
     <div class="bg-brand-50 p-4 rounded-2xl border border-brand-100 flex items-center justify-between flex-wrap gap-3">
       <div>
         <div class="text-xs font-bold text-brand-900 flex items-center gap-1.5">
-          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-600"></i> Bulk Upload Main Dish Recipes via Excel
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-600"></i> Bulk Upload / Management Main Dish Recipes
         </div>
-        <p class="text-[11px] text-brand-500">Upload complete ingredient breakdowns for multiple cafe menu dishes in bulk.</p>
+        <p class="text-[11px] text-brand-500">Upload complete ingredient breakdowns for multiple cafe menu dishes in bulk or delete all recipes.</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <button id="dlMainRecipesTemplateBtn" class="text-xs font-bold text-brand-700 underline hover:text-brand-900">Download Template</button>
         <input id="mainRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
         <button id="triggerMainRecipeExcelBtn" class="bg-brand text-cream font-bold px-4 py-2 rounded-full text-xs hover:bg-brand-600 transition">Upload Excel</button>
+        <button id="bulkDeleteMainRecipesBtn" class="bg-red-100 text-red-700 font-bold px-3.5 py-2 rounded-full text-xs hover:bg-red-200 transition flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Bulk Delete All Dish Recipes</button>
       </div>
     </div>
 
@@ -684,17 +685,18 @@ function baseRecipesModal() {
         <div class="font-bold text-brand-900 flex items-center gap-1.5">
           <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel Upload Base Recipes
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <button id="dlBaseRecipesTemplateBtn" class="font-bold text-gold-700 underline">Download Template</button>
           <input id="baseRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
           <button id="triggerBaseRecipeExcelBtn" class="bg-gold text-white font-bold px-4 py-1.5 rounded-full text-xs hover:opacity-90 transition">Upload Excel</button>
+          <button id="bulkDeleteBaseRecipesBtn" class="bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-full text-xs hover:bg-red-200 transition flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Bulk Delete All Base Preps</button>
         </div>
       </div>
 
       <div class="grid md:grid-cols-4 gap-4 flex-1 overflow-y-auto min-h-0">
         <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2 overflow-y-auto md:col-span-1">
           <div class="flex items-center justify-between border-b border-brand-100 pb-2">
-            <span class="text-xs font-bold text-brand-800">Saved Base Preps</span>
+            <span class="text-xs font-bold text-brand-800">Saved Base Preps (${DB.baseRecipes.length})</span>
             <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New Prep</button>
           </div>
           <div class="space-y-1.5">
@@ -1300,6 +1302,20 @@ function wireKitchen() {
     };
   }
 
+  /* BULK DELETE ALL MAIN DISH RECIPES HANDLER */
+  const bulkDeleteMainRecipesBtn = document.getElementById('bulkDeleteMainRecipesBtn');
+  if (bulkDeleteMainRecipesBtn) {
+    bulkDeleteMainRecipesBtn.onclick = async () => {
+      if (confirm("WARNING: Are you sure you want to permanently delete ALL Main Dish Recipes from the database?")) {
+        if (confirm("This action CANNOT be undone. Proceed with deleting all recipes?")) {
+          await db.ref('recipes').remove();
+          render();
+          toast('All Main Dish Recipes have been bulk deleted.', 'trash-2');
+        }
+      }
+    };
+  }
+
   /* BULK BASE RECIPE UPLOADER HANDLERS */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) {
@@ -1364,6 +1380,21 @@ function wireKitchen() {
         }
       };
       reader.readAsArrayBuffer(file);
+    };
+  }
+
+  /* BULK DELETE ALL BASE RECIPES HANDLER */
+  const bulkDeleteBaseRecipesBtn = document.getElementById('bulkDeleteBaseRecipesBtn');
+  if (bulkDeleteBaseRecipesBtn) {
+    bulkDeleteBaseRecipesBtn.onclick = async () => {
+      if (confirm("WARNING: Are you sure you want to permanently delete ALL Base / Sub-Recipes?")) {
+        if (confirm("This action CANNOT be undone. Proceed with deleting all base preps?")) {
+          await db.ref('baseRecipes').remove();
+          session.editingBaseRecipeId = null;
+          render();
+          toast('All Base Recipes have been bulk deleted.', 'trash-2');
+        }
+      }
     };
   }
 
@@ -1517,7 +1548,7 @@ function wireKitchen() {
     };
   }
 
-  /* DELETE BASE RECIPE HANDLER */
+  /* DELETE SINGLE BASE RECIPE HANDLER */
   const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
   if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
     deleteBaseRecipeBtn.onclick = async () => {
@@ -1730,7 +1761,7 @@ function wireKitchen() {
     };
   }
 
-  /* DELETE MAIN RECIPE HANDLER */
+  /* DELETE SINGLE MAIN DISH RECIPE HANDLER */
   const deleteMainRecipeBtn = document.getElementById('deleteMainRecipeBtn');
   if (deleteMainRecipeBtn) {
     deleteMainRecipeBtn.onclick = async () => {
