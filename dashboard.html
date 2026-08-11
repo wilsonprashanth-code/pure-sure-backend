@@ -203,10 +203,24 @@ function calculateOrderTotal(order) {
   return cafeSub + (cafeSub * 0.05) + retailSub;
 }
 
+// Master Raw Material Helper Lookup
+function getRawMaterialDetails(name) {
+  if (!name) return { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
+  const cleanName = name.toLowerCase().trim();
+  const found = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === cleanName);
+  return found || { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
+}
+
 function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const grams = Number(ing.gramsMl || qty);
-  const rate = Number(ing.unitPrice || 0);
+  
+  // Direct rate or fetch dynamically from Master Raw Materials
+  let rate = Number(ing.unitPrice || 0);
+  if (!rate && ing.name) {
+    rate = getRawMaterialDetails(ing.name).unitPrice;
+  }
+  
   const unit = (ing.unit || 'GRM').toUpperCase();
 
   if (unit === 'GRM' || unit === 'ML' || unit === 'G') {
@@ -444,7 +458,7 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE WITH IMAGE TABLE FORMAT */
+/* RECIPE COSTING MODULE WITH DYNAMIC MASTER INGREDIENT MATCHING */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -531,8 +545,7 @@ function recipeCostingPanel() {
               </button>
             </div>
 
-            <!-- TABLE MATCHING IMAGE FORMAT -->
-            <div class="overflow-x-auto border border border-amber-200 rounded-lg shadow-sm">
+            <div class="overflow-x-auto border border-amber-200 rounded-lg shadow-sm">
               <table class="w-full text-left text-xs bg-amber-50/30">
                 <thead class="bg-sheetHeader text-brand-900 font-bold text-[11px] uppercase tracking-wider border-b border-amber-200">
                   <tr>
@@ -549,17 +562,23 @@ function recipeCostingPanel() {
                   </tr>
                 </thead>
                 <tbody id="recipeRowsTable" class="divide-y divide-amber-200">
-                  ${(activeRecipe?.ingredients || []).map((ing, idx) => `
+                  ${(activeRecipe?.ingredients || []).map((ing, idx) => {
+                    const masterDetails = getRawMaterialDetails(ing.name);
+                    const vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
+                    const unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    const uom = ing.uom || ing.unit || masterDetails.unit || 'GRM';
+
+                    return `
                     <tr class="hover:bg-amber-100/40 transition">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx + 1}</td>
                       <td class="p-2 border-r border-amber-200">
                         <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}">
                           <option value="">-- Choose Raw Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
-                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
                           </optgroup>
                           <optgroup label="Base Recipes / Sauces">
-                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${ing.name === br.name ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
+                            ${sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
                           </optgroup>
                         </select>
                       </td>
@@ -581,22 +600,22 @@ function recipeCostingPanel() {
                         <input type="number" step="0.01" class="ing-grams w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || ing.qty || 1}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-bold uppercase text-[11px] text-brand-700">
-                        ${ing.uom || ing.unit || 'GRM'}
+                        ${uom}
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 truncate">
-                        ${ing.vendor || 'FACTORY'}
+                        ${vendor}
                       </td>
                       <td class="p-2 border-r border-amber-200 text-right">
-                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${ing.unitPrice || 0}">
+                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}">
                       </td>
                       <td class="p-2 text-right font-bold text-brand-900">
-                        ${money(calculateIngCost(ing))}
+                        ${money(calculateIngCost({ ...ing, unitPrice }))}
                       </td>
                       <td class="p-2 text-center no-print">
                         <button class="remove-ing-row text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
                       </td>
                     </tr>
-                  `).join('') || `<tr><td colspan="10" class="text-center py-6 text-brand-400">No ingredients added yet. Click "Add Ingredient Line" to build this recipe.</td></tr>`}
+                  `;}).join('') || `<tr><td colspan="10" class="text-center py-6 text-brand-400">No ingredients added yet. Click "Add Ingredient Line" to build this recipe.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -733,13 +752,19 @@ function baseRecipesModal() {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-amber-200">
-                  ${(activeBase.ingredients || []).map((ing, idx) => `
+                  ${(activeBase.ingredients || []).map((ing, idx) => {
+                    const masterDetails = getRawMaterialDetails(ing.name);
+                    const vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
+                    const unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    const uom = ing.uom || ing.unit || masterDetails.unit || 'GRM';
+
+                    return `
                     <tr class="hover:bg-amber-100/40">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
                       <td class="p-2 border-r border-amber-200">
                         <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}">
                           <option value="">-- Choose Raw Material --</option>
-                          ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                          ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
@@ -752,22 +777,22 @@ function baseRecipesModal() {
                         <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || ing.qty || 1}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-bold uppercase text-[10px]">
-                        ${ing.uom || ing.unit || 'GRM'}
+                        ${uom}
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 text-[11px] truncate">
-                        ${ing.vendor || 'FACTORY'}
+                        ${vendor}
                       </td>
                       <td class="p-2 border-r border-amber-200 text-right font-bold">
-                        ${money(ing.unitPrice)}
+                        ${money(unitPrice)}
                       </td>
                       <td class="p-2 text-right font-bold text-brand-900">
-                        ${money(calculateIngCost(ing))}
+                        ${money(calculateIngCost({ ...ing, unitPrice }))}
                       </td>
                       <td class="p-2 text-center">
                         <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
                       </td>
                     </tr>
-                  `).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No raw materials added to this batch yet.</td></tr>`}
+                  `;}).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No raw materials added to this batch yet.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -1240,7 +1265,7 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
-            const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === ingName.toLowerCase());
+            const rm = getRawMaterialDetails(ingName);
             const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
 
             let unitPrice = 0;
@@ -1315,7 +1340,7 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
-            const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === ingName.toLowerCase());
+            const rm = getRawMaterialDetails(ingName);
 
             grouped[baseId].ingredients.push({
               name: ingName,
@@ -1519,13 +1544,13 @@ function wireKitchen() {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      const selectedRm = DB.rawMaterials.find(r => r.name === e.target.value);
-      if (activeBase && selectedRm) {
-        activeBase.ingredients[idx].name = selectedRm.name;
-        activeBase.ingredients[idx].unit = selectedRm.unit || 'GRM';
-        activeBase.ingredients[idx].uom = selectedRm.unit || 'GRM';
-        activeBase.ingredients[idx].vendor = selectedRm.vendor || 'FACTORY';
-        activeBase.ingredients[idx].unitPrice = selectedRm.unitPrice;
+      const rm = getRawMaterialDetails(e.target.value);
+      if (activeBase) {
+        activeBase.ingredients[idx].name = e.target.value;
+        activeBase.ingredients[idx].unit = rm.unit || 'GRM';
+        activeBase.ingredients[idx].uom = rm.unit || 'GRM';
+        activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
+        activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
         render();
       }
     };
@@ -1536,8 +1561,9 @@ function wireKitchen() {
       const idx = Number(input.dataset.idx);
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].qty = Number(e.target.value) || 0;
-        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
+        const qty = Number(e.target.value) || 0;
+        activeBase.ingredients[idx].qty = qty;
+        activeBase.ingredients[idx].gramsMl = qty;
         render();
       }
     };
@@ -1615,14 +1641,12 @@ function wireKitchen() {
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
         if (val.startsWith('rm_')) {
           const name = val.replace('rm_', '');
-          const rm = DB.rawMaterials.find(r => r.name === name);
-          if (rm) {
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = rm.name;
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice;
-          }
+          const rm = getRawMaterialDetails(name);
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].name = name;
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice || 0;
         } else if (val.startsWith('br_')) {
           const name = val.replace('br_', '');
           const br = DB.baseRecipes.find(b => b.name === name);
