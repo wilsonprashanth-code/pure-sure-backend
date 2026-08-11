@@ -1,4 +1,4 @@
-recipeName,batchYield,unit,ingredientName,qty,ingredientUnit,gramsMl,uom,vendor
+const data = recipeName,batchYield,unit,ingredientName,qty,ingredientUnit,gramsMl,uom,vendor
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,NATURES BEST CORN FLOUR 1KG,40.0,GM,40.0,GRM,SAI FOODS
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Organic Maida-1Kg,40.0,GM,40.0,GRM,FACTORY
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,WATER,80.0,GM,80.0,GRM,FACTORY
@@ -8,4 +8,4 @@ BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Natural Himalaya Pink Salt-500Gms 
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,CHEF SPECIAL OREGANO 100G,1.0,PincH,0.5,GRM,DMART
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Big Bell Red CHILLI FLAKES 1kg,2.0,GM,2.0,GRM,SAI FOODS
 BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Fresho bread crumb 1kg,50.0,GM,50.0,GRM,SAI FOODS
-BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Organic Byadagi Chilly Powder-100Gms,0.25,TSP,1.0,GRM,FACTORY
+BANG BANG CAULIFLOWER Batter 1 potion,1.0,PCS,Organic Byadagi Chilly Powder-100Gms,0.25,TSP,1.0,GRM,FACTORY;
