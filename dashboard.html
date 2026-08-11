@@ -725,6 +725,7 @@ function rawMaterialsModal() {
   const query = (session.rmSearch || '').toLowerCase().trim();
   const filteredRm = DB.rawMaterials
     .filter(rm => {
+      if (!query) return true;
       const nameMatch = (rm.name || '').toLowerCase().includes(query);
       const vendorMatch = (rm.vendor || '').toLowerCase().includes(query);
       return nameMatch || vendorMatch;
