@@ -210,7 +210,6 @@ function getRawMaterialDetails(name) {
   return found || { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
 }
 
-// AUTOMATIC CONVERSION & COST CALCULATION ENGINE
 function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const unit = (ing.unit || 'GRM').toUpperCase();
@@ -220,31 +219,23 @@ function calculateIngCost(ing) {
     rate = getRawMaterialDetails(ing.name).unitPrice;
   }
 
-  let computedGramsMl = qty;
+  let gramsMl = Number(ing.gramsMl || 0);
 
-  // Convert unit to base grams/ml according to selected kitchen unit
-  switch(unit) {
-    case 'KG':
-    case 'LITRE':
-      computedGramsMl = qty * 1000;
-      break;
-    case 'TSP':
-      computedGramsMl = qty * 5;
-      break;
-    case 'TBSP':
-      computedGramsMl = qty * 15;
-      break;
-    case 'GRM':
-    case 'ML':
-    case 'G':
-    case 'PCS':
-    default:
-      computedGramsMl = ing.gramsMl !== undefined ? Number(ing.gramsMl) : qty;
-      break;
+  if (!gramsMl) {
+    switch(unit) {
+      case 'KG':
+      case 'LITRE': gramsMl = qty * 1000; break;
+      case 'TSP': gramsMl = qty * 5; break;
+      case 'TBSP': gramsMl = qty * 15; break;
+      case 'GRM':
+      case 'ML':
+      case 'G':
+      case 'PCS':
+      default: gramsMl = qty; break;
+    }
   }
 
-  // Rate in master list is per KG / LITRE (1000g)
-  return (computedGramsMl / 1000) * rate;
+  return (gramsMl / 1000) * rate;
 }
 
 function getConvertedGramsMl(qty, unit) {
@@ -585,9 +576,9 @@ function recipeCostingPanel() {
                     <th class="p-2.5 w-8 text-center border-r border-amber-200">#</th>
                     <th class="p-2.5 min-w-[180px] border-r border-amber-200">INGREDIENT DESCRIPTION</th>
                     <th class="p-2.5 w-20 border-r border-amber-200 text-center">QTY</th>
-                    <th class="p-2.5 w-20 border-r border-amber-200">UNIT</th>
+                    <th class="p-2.5 w-24 border-r border-amber-200">UNIT</th>
                     <th class="p-2.5 w-24 border-r border-amber-200 text-center">GRAMS / ML</th>
-                    <th class="p-2.5 w-20 border-r border-amber-200">UOM</th>
+                    <th class="p-2.5 w-24 border-r border-amber-200">UOM</th>
                     <th class="p-2.5 w-28 border-r border-amber-200">VENDOR</th>
                     <th class="p-2.5 w-24 border-r border-amber-200 text-right">RATE / KG</th>
                     <th class="p-2.5 w-24 text-right">COST</th>
@@ -605,7 +596,7 @@ function recipeCostingPanel() {
                     <tr class="hover:bg-amber-100/40 transition">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx + 1}</td>
                       <td class="p-2 border-r border-amber-200">
-                        <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}">
+                        <select class="ing-master-select w-full border border-amber-200 bg-white rounded px-2 py-1 text-xs font-semibold focus:outline-none" data-idx="${idx}" tabindex="${(idx * 7) + 1}">
                           <option value="">-- Choose Raw Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
                             ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
@@ -616,10 +607,10 @@ function recipeCostingPanel() {
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="ing-qty w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
+                        <input type="number" step="0.01" class="ing-qty w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}" tabindex="${(idx * 7) + 2}">
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <select class="ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}">
+                        <select class="ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}" tabindex="${(idx * 7) + 3}">
                           <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
                           <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
                           <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
@@ -630,19 +621,19 @@ function recipeCostingPanel() {
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="ing-grams w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${computedGrams}">
+                        <input type="number" step="0.01" class="ing-grams w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || computedGrams}" tabindex="${(idx * 7) + 4}">
                       </td>
-                      <td class="p-2 border-r border-amber-200 font-bold uppercase text-[11px] text-brand-700">
-                        ${ing.unit || 'GRM'}
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="text" class="ing-uom w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}" tabindex="${(idx * 7) + 5}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 truncate">
                         ${vendor}
                       </td>
                       <td class="p-2 border-r border-amber-200 text-right">
-                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}">
+                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}" tabindex="${(idx * 7) + 6}">
                       </td>
-                      <td class="p-2 text-right font-bold text-brand-900">
-                        ${money(calculateIngCost({ ...ing, gramsMl: computedGrams, unitPrice }))}
+                      <td class="p-2 text-right font-bold text-brand-900 ing-cost-cell">
+                        ${money(calculateIngCost({ ...ing, gramsMl: ing.gramsMl || computedGrams, unitPrice }))}
                       </td>
                       <td class="p-2 text-center no-print">
                         <button class="remove-ing-row text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
@@ -668,29 +659,29 @@ function recipeCostingPanel() {
 
         <div class="space-y-3 text-xs">
           <div class="flex justify-between text-brand-600"><span>Menu Price (Selling Price)</span><span class="font-bold text-brand-900">${money(sellingPrice)}</span></div>
-          <div class="flex justify-between text-brand-600"><span>Raw Materials Cost</span><span class="font-bold text-brand-800">${money(rawTotalCost)}</span></div>
-          <div class="flex justify-between text-brand-600"><span>Overhead Allowance (${activeRecipe?.wastagePercent || 10}%)</span><span class="font-bold text-amber-600">${money(wastageCost)}</span></div>
-          <div class="flex justify-between text-brand-600 border-t border-brand-50 pt-2"><span>Total Batch Cost (${activeRecipe?.portions || 1} portions)</span><span class="font-bold text-red-600">${money(totalProductionCost)}</span></div>
+          <div class="flex justify-between text-brand-600"><span>Raw Materials Cost</span><span class="font-bold text-brand-800" id="summaryRawCost">${money(rawTotalCost)}</span></div>
+          <div class="flex justify-between text-brand-600"><span>Overhead Allowance (${activeRecipe?.wastagePercent || 10}%)</span><span class="font-bold text-amber-600" id="summaryWastageCost">${money(wastageCost)}</span></div>
+          <div class="flex justify-between text-brand-600 border-t border-brand-50 pt-2"><span>Total Batch Cost (${activeRecipe?.portions || 1} portions)</span><span class="font-bold text-red-600" id="summaryTotalCost">${money(totalProductionCost)}</span></div>
 
           <div class="bg-cream rounded-xl p-3 space-y-2 border border-brand-100">
             <div class="flex justify-between font-bold text-sm text-brand-900">
               <span>Cost Per Portion:</span>
-              <span class="text-red-700">${money(costPerPortion)}</span>
+              <span class="text-red-700" id="summaryCostPerPortion">${money(costPerPortion)}</span>
             </div>
             <div class="flex justify-between font-bold text-sm text-brand-900">
               <span>Profit Margin / Dish:</span>
-              <span class="${profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}">${money(profitMargin)}</span>
+              <span class="${profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}" id="summaryProfitMargin">${money(profitMargin)}</span>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2 pt-1 text-center">
             <div class="bg-brand-50 p-2.5 rounded-xl border border-brand-100">
               <div class="text-[9px] font-bold text-brand-500 uppercase tracking-wide">Food Cost %</div>
-              <div class="text-base font-bold ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'} mt-0.5">${foodCostPercent.toFixed(1)}%</div>
+              <div class="text-base font-bold ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'} mt-0.5" id="summaryFoodCostPct">${foodCostPercent.toFixed(1)}%</div>
             </div>
             <div class="bg-gold-50 p-2.5 rounded-xl border border-gold-200">
               <div class="text-[9px] font-bold text-gold-700 uppercase tracking-wide">Gross Margin %</div>
-              <div class="text-base font-bold text-gold-800 mt-0.5">${grossMarginPercent.toFixed(1)}%</div>
+              <div class="text-base font-bold text-gold-800 mt-0.5" id="summaryGrossMarginPct">${grossMarginPercent.toFixed(1)}%</div>
             </div>
           </div>
         </div>
@@ -782,7 +773,7 @@ function baseRecipesModal() {
                     <th class="p-2 w-16 border-r border-amber-200 text-center">QTY</th>
                     <th class="p-2 w-20 border-r border-amber-200">UNIT</th>
                     <th class="p-2 w-20 border-r border-amber-200 text-center">GRAMS/ML</th>
-                    <th class="p-2 w-16 border-r border-amber-200">UOM</th>
+                    <th class="p-2 w-20 border-r border-amber-200">UOM</th>
                     <th class="p-2 w-24 border-r border-amber-200">VENDOR</th>
                     <th class="p-2 w-20 border-r border-amber-200 text-right">RATE</th>
                     <th class="p-2 w-20 text-right">COST</th>
@@ -800,16 +791,16 @@ function baseRecipesModal() {
                     <tr class="hover:bg-amber-100/40">
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
                       <td class="p-2 border-r border-amber-200">
-                        <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}">
+                        <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}" tabindex="${(idx * 6) + 101}">
                           <option value="">-- Choose Raw Material --</option>
                           ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="base-ing-qty w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
+                        <input type="number" step="0.01" class="base-ing-qty w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}" tabindex="${(idx * 6) + 102}">
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <select class="base-ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}">
+                        <select class="base-ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}" tabindex="${(idx * 6) + 103}">
                           <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
                           <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
                           <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
@@ -820,10 +811,10 @@ function baseRecipesModal() {
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${computedGrams}">
+                        <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || computedGrams}" tabindex="${(idx * 6) + 104}">
                       </td>
-                      <td class="p-2 border-r border-amber-200 font-bold uppercase text-[10px] text-brand-700">
-                        ${ing.unit || 'GRM'}
+                      <td class="p-2 border-r border-amber-200">
+                        <input type="text" class="base-ing-uom w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}" tabindex="${(idx * 6) + 105}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 text-[11px] truncate">
                         ${vendor}
@@ -831,8 +822,8 @@ function baseRecipesModal() {
                       <td class="p-2 border-r border-amber-200 text-right font-bold">
                         ${money(unitPrice)}
                       </td>
-                      <td class="p-2 text-right font-bold text-brand-900">
-                        ${money(calculateIngCost({ ...ing, gramsMl: computedGrams, unitPrice }))}
+                      <td class="p-2 text-right font-bold text-brand-900 base-ing-cost-cell">
+                        ${money(calculateIngCost({ ...ing, gramsMl: ing.gramsMl || computedGrams, unitPrice }))}
                       </td>
                       <td class="p-2 text-center">
                         <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
@@ -844,8 +835,8 @@ function baseRecipesModal() {
             </div>
 
             <div class="flex items-center justify-between bg-gold-50 p-3 rounded-xl border border-gold-200 text-xs font-bold text-brand-900">
-              <span>Total Batch Cost: ${money(totalCost)}</span>
-              <span class="text-gold-800">Unit Rate: ${money(costPerUnit)} / ${activeBase.unit}</span>
+              <span>Total Batch Cost: <span id="baseSummaryTotalCost">${money(totalCost)}</span></span>
+              <span class="text-gold-800">Unit Rate: <span id="baseSummaryUnitRate">${money(costPerUnit)}</span> / ${activeBase.unit}</span>
             </div>
 
             <div class="flex gap-2">
@@ -1243,15 +1234,62 @@ function addStaffForm() {
   </div>`;
 }
 
-function renderKeepFocus(id) {
-  const el = document.activeElement; 
-  const pos = el && el.selectionStart; 
-  render();
-  const el2 = document.getElementById(id); 
-  if (el2) { 
-    el2.focus(); 
-    if (pos != null) el2.setSelectionRange(pos, pos); 
+function recalculateMainRecipeTotals() {
+  if (!session.activeRecipeDishId || !DB.recipes[session.activeRecipeDishId]) return;
+  const recipe = DB.recipes[session.activeRecipeDishId];
+  const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
+
+  const rawTotalCost = (recipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const wastageCost = rawTotalCost * ((recipe.wastagePercent || 10) / 100);
+  const totalProductionCost = rawTotalCost + wastageCost;
+  const costPerPortion = recipe.portions ? (totalProductionCost / recipe.portions) : 0;
+  const sellingPrice = selectedDish ? Number(selectedDish.price || 0) : 0;
+  const profitMargin = sellingPrice - costPerPortion;
+  const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
+  const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
+
+  // Direct DOM updates to prevent losing focus/cursor during typing
+  const summaryRaw = document.getElementById('summaryRawCost');
+  if (summaryRaw) summaryRaw.textContent = money(rawTotalCost);
+
+  const summaryWastage = document.getElementById('summaryWastageCost');
+  if (summaryWastage) summaryWastage.textContent = money(wastageCost);
+
+  const summaryTotal = document.getElementById('summaryTotalCost');
+  if (summaryTotal) summaryTotal.textContent = money(totalProductionCost);
+
+  const summaryPortion = document.getElementById('summaryCostPerPortion');
+  if (summaryPortion) summaryPortion.textContent = money(costPerPortion);
+
+  const summaryMargin = document.getElementById('summaryProfitMargin');
+  if (summaryMargin) {
+    summaryMargin.textContent = money(profitMargin);
+    summaryMargin.className = profitMargin >= 0 ? 'text-green-700 font-bold' : 'text-red-600 font-bold';
   }
+
+  const summaryFoodCost = document.getElementById('summaryFoodCostPct');
+  if (summaryFoodCost) {
+    summaryFoodCost.textContent = foodCostPercent.toFixed(1) + '%';
+    summaryFoodCost.className = `text-base font-bold ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'} mt-0.5`;
+  }
+
+  const summaryGrossMargin = document.getElementById('summaryGrossMarginPct');
+  if (summaryGrossMargin) summaryGrossMargin.textContent = grossMarginPercent.toFixed(1) + '%';
+}
+
+function recalculateBaseRecipeTotals() {
+  if (!session.editingBaseRecipeId) return;
+  const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+  if (!activeBase) return;
+
+  const totalCost = (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0);
+  const costPerUnit = activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
+
+  const baseTotalEl = document.getElementById('baseSummaryTotalCost');
+  if (baseTotalEl) baseTotalEl.textContent = money(totalCost);
+
+  const baseRateEl = document.getElementById('baseSummaryUnitRate');
+  if (baseRateEl) baseRateEl.textContent = money(costPerUnit);
 }
 
 function wireKitchen() {
@@ -1263,6 +1301,7 @@ function wireKitchen() {
   document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
 
+  /* NON-DESTRUCTIVE INPUT LISTENERS FOR SEARCH BARS */
   const dashCafe = document.getElementById('dashCafeSearch');
   if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
 
@@ -1274,9 +1313,7 @@ function wireKitchen() {
 
   /* BULK MAIN RECIPE UPLOADER HANDLERS */
   const dlMainRecipesBtn = document.getElementById('dlMainRecipesTemplateBtn');
-  if (dlMainRecipesBtn) {
-    dlMainRecipesBtn.onclick = () => downloadMainRecipesTemplate();
-  }
+  if (dlMainRecipesBtn) dlMainRecipesBtn.onclick = () => downloadMainRecipesTemplate();
 
   const triggerMainRecipeExcelBtn = document.getElementById('triggerMainRecipeExcelBtn');
   const mainRecipeExcelInput = document.getElementById('mainRecipeExcelInput');
@@ -1345,7 +1382,6 @@ function wireKitchen() {
     };
   }
 
-  /* BULK DELETE ALL MAIN DISH RECIPES HANDLER */
   const bulkDeleteMainRecipesBtn = document.getElementById('bulkDeleteMainRecipesBtn');
   if (bulkDeleteMainRecipesBtn) {
     bulkDeleteMainRecipesBtn.onclick = async () => {
@@ -1361,9 +1397,7 @@ function wireKitchen() {
 
   /* BULK BASE RECIPE UPLOADER HANDLERS */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
-  if (dlBaseRecipesBtn) {
-    dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
-  }
+  if (dlBaseRecipesBtn) dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
 
   const triggerBaseRecipeExcelBtn = document.getElementById('triggerBaseRecipeExcelBtn');
   const baseRecipeExcelInput = document.getElementById('baseRecipeExcelInput');
@@ -1426,7 +1460,6 @@ function wireKitchen() {
     };
   }
 
-  /* BULK DELETE ALL BASE RECIPES HANDLER */
   const bulkDeleteBaseRecipesBtn = document.getElementById('bulkDeleteBaseRecipesBtn');
   if (bulkDeleteBaseRecipesBtn) {
     bulkDeleteBaseRecipesBtn.onclick = async () => {
@@ -1443,25 +1476,13 @@ function wireKitchen() {
 
   /* RAW MATERIAL MASTER MODAL HANDLERS */
   const manageIngBtn = document.getElementById('manageIngredientsBtn');
-  if (manageIngBtn) {
-    manageIngBtn.onclick = () => {
-      session.showRawMaterialsModal = true;
-      render();
-    };
-  }
+  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
 
   const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
-  if (closeRmBtn) {
-    closeRmBtn.onclick = () => {
-      session.showRawMaterialsModal = false;
-      render();
-    };
-  }
+  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
 
   const dlRmTemplateBtn = document.getElementById('dlRmTemplateBtn');
-  if (dlRmTemplateBtn) {
-    dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
-  }
+  if (dlRmTemplateBtn) dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
 
   const processRmExcelBtn = document.getElementById('processRmExcelBtn');
   if (processRmExcelBtn) {
@@ -1546,12 +1567,7 @@ function wireKitchen() {
   }
 
   const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
-  if (closeBaseBtn) {
-    closeBaseBtn.onclick = () => {
-      session.showBaseRecipesModal = false;
-      render();
-    };
-  }
+  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
 
   const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
   if (createNewBaseBtn) {
@@ -1634,7 +1650,7 @@ function wireKitchen() {
     };
   });
 
-  // AUTOMATIC UNIT CONVERSION FOR BASE RECIPES
+  // NON-BLOCKING INLINE LISTENERS FOR BASE RECIPES
   document.querySelectorAll('.base-ing-unit').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
@@ -1649,26 +1665,51 @@ function wireKitchen() {
     };
   });
 
+  document.querySelectorAll('.base-ing-uom').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].uom = e.target.value.toUpperCase();
+      }
+    };
+  });
+
   document.querySelectorAll('.base-ing-qty').forEach(input => {
-    input.onchange = (e) => {
+    input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase && activeBase.ingredients[idx]) {
         const qty = Number(e.target.value) || 0;
         activeBase.ingredients[idx].qty = qty;
         activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(qty, activeBase.ingredients[idx].unit);
-        render();
+
+        const row = input.closest('tr');
+        if (row) {
+          const gramsInput = row.querySelector('.base-ing-grams');
+          if (gramsInput) gramsInput.value = activeBase.ingredients[idx].gramsMl;
+
+          const costCell = row.querySelector('.base-ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
+        }
+        recalculateBaseRecipeTotals();
       }
     };
   });
 
   document.querySelectorAll('.base-ing-grams').forEach(input => {
-    input.onchange = (e) => {
+    input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
       if (activeBase && activeBase.ingredients[idx]) {
         activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
-        render();
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.base-ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
+        }
+        recalculateBaseRecipeTotals();
       }
     };
   });
@@ -1684,7 +1725,7 @@ function wireKitchen() {
     };
   });
 
-  /* RECIPE COSTING HANDLERS */
+  /* MAIN CAFE RECIPE HANDLERS WITH CONTINUOUS TYPING */
   const costingDishSelect = document.getElementById('costingDishSelect');
   if (costingDishSelect) {
     costingDishSelect.onchange = (e) => {
@@ -1695,22 +1736,22 @@ function wireKitchen() {
 
   const recipePortionsInput = document.getElementById('recipePortions');
   if (recipePortionsInput) {
-    recipePortionsInput.onchange = (e) => {
+    recipePortionsInput.oninput = (e) => {
       if (session.activeRecipeDishId) {
         if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
         DB.recipes[session.activeRecipeDishId].portions = Number(e.target.value) || 1;
-        render();
+        recalculateMainRecipeTotals();
       }
     };
   }
 
   const recipeWastageInput = document.getElementById('recipeWastage');
   if (recipeWastageInput) {
-    recipeWastageInput.onchange = (e) => {
+    recipeWastageInput.oninput = (e) => {
       if (session.activeRecipeDishId) {
         if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
         DB.recipes[session.activeRecipeDishId].wastagePercent = Number(e.target.value) || 0;
-        render();
+        recalculateMainRecipeTotals();
       }
     };
   }
@@ -1758,7 +1799,6 @@ function wireKitchen() {
     };
   });
 
-  // AUTOMATIC UNIT CONVERSION FOR MAIN CAFE RECIPES
   document.querySelectorAll('.ing-unit').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
@@ -1768,6 +1808,15 @@ function wireKitchen() {
         DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = newUnit;
         DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, newUnit);
         render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-uom').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = e.target.value.toUpperCase();
       }
     };
   });
@@ -1782,34 +1831,65 @@ function wireKitchen() {
     };
   });
 
+  // UNINTERRUPTED REAL-TIME TYPING LISTENERS (DOM UPDATES WITHOUT DOM DESTRUCTION)
   document.querySelectorAll('.ing-qty').forEach(input => {
-    input.onchange = (e) => {
+    input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
         const qty = Number(e.target.value) || 0;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].qty = qty;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(qty, DB.recipes[session.activeRecipeDishId].ingredients[idx].unit);
-        render();
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.qty = qty;
+        ing.gramsMl = getConvertedGramsMl(qty, ing.unit);
+
+        const row = input.closest('tr');
+        if (row) {
+          const gramsInput = row.querySelector('.ing-grams');
+          if (gramsInput) gramsInput.value = ing.gramsMl;
+
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
       }
     };
   });
 
   document.querySelectorAll('.ing-grams').forEach(input => {
-    input.onchange = (e) => {
+    input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = Number(e.target.value) || 0;
-        render();
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.gramsMl = Number(e.target.value) || 0;
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
       }
     };
   });
 
   document.querySelectorAll('.ing-price').forEach(input => {
-    input.onchange = (e) => {
+    input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = Number(e.target.value) || 0;
-        render();
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.unitPrice = Number(e.target.value) || 0;
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
       }
     };
   });
