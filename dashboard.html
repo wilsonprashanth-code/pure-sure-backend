@@ -210,10 +210,10 @@ function calculateBaseRecipeCostPerUnit(base) {
 
 function downloadRawMaterialsTemplate() {
   const sampleData = [
-    { name: 'Organic A2 Milk', unit: 'litre', unitPrice: 75 },
-    { name: 'Foxtail Millet', unit: 'kg', unitPrice: 120 },
-    { name: 'Organic Jaggery Powder', unit: 'kg', unitPrice: 85 },
-    { name: 'Wood Pressed Groundnut Oil', unit: 'litre', unitPrice: 280 }
+    { name: 'Organic A2 Milk', vendor: 'Milky Mist', unit: 'litre', unitPrice: 75 },
+    { name: 'Foxtail Millet', vendor: 'Phalada Organic Consumer Products', unit: 'kg', unitPrice: 120 },
+    { name: 'Organic Jaggery Powder', vendor: 'Pure & Sure Local', unit: 'kg', unitPrice: 85 },
+    { name: 'Wood Pressed Groundnut Oil', vendor: 'Phalada Organic Consumer Products', unit: 'litre', unitPrice: 280 }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
@@ -498,7 +498,7 @@ function recipeCostingPanel() {
                         <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs font-medium" data-idx="${idx}">
                           <option value="">-- Select Material or Base Prep --</option>
                           <optgroup label="Raw Materials">
-                            ${DB.rawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                            ${DB.rawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
                           </optgroup>
                           <optgroup label="Base Recipes / Sauces">
                             ${DB.baseRecipes.map(br => {
@@ -589,7 +589,6 @@ function baseRecipesModal() {
       </div>
 
       <div class="grid md:grid-cols-3 gap-4 flex-1 overflow-y-auto">
-        <!-- List of Existing Base Recipes -->
         <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2">
           <div class="flex items-center justify-between border-b border-brand-100 pb-2">
             <span class="text-xs font-bold text-brand-800">Saved Base Preps</span>
@@ -607,7 +606,6 @@ function baseRecipesModal() {
           </div>
         </div>
 
-        <!-- Base Recipe Editor -->
         <div class="md:col-span-2 space-y-3">
           ${activeBase ? `
             <div class="grid grid-cols-3 gap-2 bg-cream p-3 rounded-xl border border-brand-100">
@@ -641,7 +639,7 @@ function baseRecipesModal() {
                   <div class="flex items-center gap-2 text-xs">
                     <select class="base-ing-select flex-1 border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
                       <option value="">-- Choose Raw Material --</option>
-                      ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                      ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} [${rm.vendor || 'General'}] (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
                     </select>
                     <input type="number" step="0.01" class="base-ing-qty w-16 border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
                     <span class="w-10 text-[10px] font-bold text-brand-500">${ing.unit || 'kg'}</span>
@@ -675,7 +673,7 @@ function rawMaterialsModal() {
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4">
         <div>
           <h3 class="font-display text-lg text-brand-900">Raw Material Master Database</h3>
-          <p class="text-xs text-brand-400">Add raw materials individually or upload an Excel sheet to bulk populate rates.</p>
+          <p class="text-xs text-brand-400">Add raw materials individually or upload an Excel sheet to bulk populate rates and vendor names.</p>
         </div>
         <button id="closeRawMaterialsBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
@@ -697,8 +695,9 @@ function rawMaterialsModal() {
 
       <div class="bg-brand-50 p-3.5 rounded-xl border border-brand-100 mb-4">
         <div class="text-xs font-bold text-brand-800 mb-2">Add Individual Raw Material Item</div>
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-4 gap-2">
           <input id="newRmName" placeholder="Ingredient Name (e.g. A2 Milk)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+          <input id="newRmVendor" placeholder="Vendor Name (e.g. Milky Mist)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
           <select id="newRmUnit" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
             <option value="kg">kg</option>
             <option value="litre">litre</option>
@@ -716,8 +715,9 @@ function rawMaterialsModal() {
           <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
             <tr>
               <th class="p-2.5">Raw Material Name</th>
-              <th class="p-2.5 w-24">Unit</th>
-              <th class="p-2.5 w-32 text-right">Purchase Price (₹)</th>
+              <th class="p-2.5">Vendor Name</th>
+              <th class="p-2.5 w-20">Unit</th>
+              <th class="p-2.5 w-28 text-right">Purchase Price (₹)</th>
               <th class="p-2.5 w-16 text-center">Action</th>
             </tr>
           </thead>
@@ -725,13 +725,14 @@ function rawMaterialsModal() {
             ${DB.rawMaterials.map(rm => `
               <tr>
                 <td class="p-2.5 font-bold text-brand-900">${rm.name}</td>
+                <td class="p-2.5 text-brand-600 font-semibold">${rm.vendor || 'General Supplier'}</td>
                 <td class="p-2.5 uppercase font-semibold text-brand-600">${rm.unit}</td>
                 <td class="p-2.5 text-right font-bold text-brand-900">${money(rm.unitPrice)} / ${rm.unit}</td>
                 <td class="p-2.5 text-center">
                   <button class="delete-rm-btn text-red-500 hover:text-red-700" data-id="${rm.id}"><i data-lucide="trash-2" class="w-4 h-4 mx-auto"></i></button>
                 </td>
               </tr>
-            `).join('') || `<tr><td colspan="4" class="text-center py-8 text-brand-400">No raw materials in database yet. Add individually or upload via Excel above.</td></tr>`}
+            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No raw materials in database yet. Add individually or upload via Excel above.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1098,6 +1099,7 @@ function wireKitchen() {
               await db.ref('rawMaterials/' + id).set({
                 id,
                 name: row.name.toString().trim(),
+                vendor: (row.vendor || 'General Supplier').toString().trim(),
                 unit: (row.unit || 'kg').toString().trim().toLowerCase(),
                 unitPrice: Number(row.unitPrice || row.price || 0)
               });
@@ -1118,12 +1120,13 @@ function wireKitchen() {
   if (addRmBtn) {
     addRmBtn.onclick = async () => {
       const name = document.getElementById('newRmName').value.trim();
+      const vendor = document.getElementById('newRmVendor').value.trim() || 'General Supplier';
       const unit = document.getElementById('newRmUnit').value;
       const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
 
       if (!name) { toast('Please enter a raw material name.', 'alert-triangle'); return; }
 
-      const newItem = { id: uid('rm'), name, unit, unitPrice };
+      const newItem = { id: uid('rm'), name, vendor, unit, unitPrice };
       await db.ref('rawMaterials/' + newItem.id).set(newItem);
       toast('Raw material added to master list!', 'check-circle');
     };
