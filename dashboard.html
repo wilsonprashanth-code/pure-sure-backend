@@ -617,7 +617,10 @@ function recipeCostingPanel() {
               </table>
             </div>
           </div>
-          <button id="saveRecipeBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-full text-xs hover:bg-brand-600 transition">Save Recipe &amp; Update Food Costing</button>
+          <div class="flex gap-2">
+            <button id="saveRecipeBtn" class="flex-1 bg-brand text-cream font-bold py-3 rounded-full text-xs hover:bg-brand-600 transition">Save Recipe &amp; Update Food Costing</button>
+            <button id="deleteMainRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-3 rounded-full text-xs hover:bg-red-100 transition flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Recipe Sheet</button>
+          </div>
         ` : `<div class="text-xs text-brand-400 text-center py-12">Select a dish above to open its recipe sheet.</div>`}
       </div>
 
@@ -802,7 +805,7 @@ function baseRecipesModal() {
 
             <div class="flex gap-2">
               <button id="saveBaseRecipeBtn" class="flex-1 bg-brand text-cream font-bold py-2.5 rounded-full text-xs hover:bg-brand-600 transition">Save Base Recipe</button>
-              <button id="deleteBaseRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-full text-xs hover:bg-red-100 transition">Delete</button>
+              <button id="deleteBaseRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-full text-xs hover:bg-red-100 transition flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete Base Recipe</button>
             </div>
           ` : `<div class="text-xs text-brand-400 text-center py-16 border-2 border-dashed border-brand-100 rounded-2xl">Select a base recipe on the left or click "+ New Prep" to create a new batch sauce/prep.</div>`}
         </div>
@@ -1297,7 +1300,7 @@ function wireKitchen() {
     };
   }
 
-  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED GROUPING LOGIC) */
+  /* BULK BASE RECIPE UPLOADER HANDLERS */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) {
     dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
@@ -1514,14 +1517,17 @@ function wireKitchen() {
     };
   }
 
+  /* DELETE BASE RECIPE HANDLER */
   const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
   if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
     deleteBaseRecipeBtn.onclick = async () => {
-      if (confirm('Delete this base recipe?')) {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      const name = activeBase ? activeBase.name : 'this base recipe';
+      if (confirm(`Are you sure you want to permanently delete "${name}"?`)) {
         await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
-        session.editingBaseRecipeId = null;
+        session.editingBaseRecipeId = DB.baseRecipes.length > 1 ? DB.baseRecipes.find(b => b.id !== session.editingBaseRecipeId).id : null;
         render();
-        toast('Base recipe removed.');
+        toast('Base recipe permanently deleted.', 'trash-2');
       }
     };
   }
@@ -1720,6 +1726,22 @@ function wireKitchen() {
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
         await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
         toast('Recipe cost breakdown saved cloud-wide!', 'check-circle');
+      }
+    };
+  }
+
+  /* DELETE MAIN RECIPE HANDLER */
+  const deleteMainRecipeBtn = document.getElementById('deleteMainRecipeBtn');
+  if (deleteMainRecipeBtn) {
+    deleteMainRecipeBtn.onclick = async () => {
+      if (session.activeRecipeDishId) {
+        const dish = DB.menu.find(m => m.id === session.activeRecipeDishId);
+        const name = dish ? dish.name : 'this recipe';
+        if (confirm(`Clear and delete the recipe sheet for "${name}"?`)) {
+          await db.ref('recipes/' + session.activeRecipeDishId).remove();
+          render();
+          toast('Recipe sheet cleared!', 'trash-2');
+        }
       }
     };
   }
