@@ -214,7 +214,6 @@ function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const unit = (ing.unit || 'GRM').toUpperCase();
 
-  // If item is a Base Recipe, calculate cost per unit from Base Master
   if (ing.type === 'base' || ing.isBase) {
     const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
     if (baseObj) {
@@ -268,43 +267,6 @@ function calculateBaseRecipeCostPerUnit(base) {
   const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
   const yieldQty = Number(base.batchYield || 1);
   return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
-}
-
-// RECURSIVE STOCK DEDUCTION ENGINE FOR BILLING INTEGRATION
-async function deductStockForDish(dishId, orderedPortions = 1) {
-  const recipe = DB.recipes[dishId];
-  if (!recipe || !recipe.ingredients) return;
-
-  const updates = {};
-
-  function processIngredient(ing, multiplier) {
-    if (ing.type === 'base' || ing.isBase) {
-      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
-      if (baseObj && baseObj.ingredients) {
-        const baseUsageGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
-        const baseYieldGrams = Number(baseObj.batchYield || 1);
-        const batchFraction = baseYieldGrams > 0 ? (baseUsageGrams / baseYieldGrams) : 0;
-
-        baseObj.ingredients.forEach(subIng => {
-          processIngredient(subIng, batchFraction);
-        });
-      }
-    } else {
-      const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
-      if (rm) {
-        const requiredGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
-        const currentStock = Number(rm.stockGrams || 100000); // Default placeholder
-        const newStock = Math.max(0, currentStock - requiredGrams);
-        updates[`rawMaterials/${rm.id}/stockGrams`] = newStock;
-      }
-    }
-  }
-
-  recipe.ingredients.forEach(ing => processIngredient(ing, orderedPortions));
-
-  if (Object.keys(updates).length > 0) {
-    await db.ref().update(updates);
-  }
 }
 
 function downloadRawMaterialsTemplate() {
@@ -528,7 +490,6 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING MODULE WITH LINKED BASE RECIPE SUPPORT */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -753,6 +714,7 @@ function baseRecipesModal() {
   const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0) : 0;
   const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 flex items-center justify-center p-0 sm:p-4">
@@ -819,7 +781,7 @@ function baseRecipesModal() {
 
             <div class="border border-amber-200 rounded-lg bg-amber-50/30 overflow-x-auto shadow-sm">
               <div class="p-2.5 bg-sheetHeader flex justify-between items-center border-b border-amber-200">
-                <span class="text-xs font-bold text-brand-900 uppercase tracking-wide">RAW INGREDIENTS IN BATCH</span>
+                <span class="text-xs font-bold text-brand-900 uppercase tracking-wide">RAW INGREDIENTS &amp; BASE PREPS IN BATCH</span>
                 <button id="addBaseIngRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1 rounded-full">+ Add Ingredient</button>
               </div>
               
@@ -840,9 +802,20 @@ function baseRecipesModal() {
                 </thead>
                 <tbody class="divide-y divide-amber-200">
                   ${(activeBase.ingredients || []).map((ing, idx) => {
-                    const masterDetails = getRawMaterialDetails(ing.name);
-                    const vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
-                    const unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    const isBase = ing.type === 'base' || ing.isBase;
+                    let vendor = 'FACTORY';
+                    let unitPrice = 0;
+
+                    if (isBase) {
+                      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+                      vendor = 'LINKED BASE PREP';
+                      unitPrice = baseObj ? calculateBaseRecipeCostPerUnit(baseObj) : 0;
+                    } else {
+                      const masterDetails = getRawMaterialDetails(ing.name);
+                      vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
+                      unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
+                    }
+
                     const computedGrams = getConvertedGramsMl(ing.qty, ing.unit);
 
                     return `
@@ -850,8 +823,13 @@ function baseRecipesModal() {
                       <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
                       <td class="p-2 border-r border-amber-200">
                         <select class="base-ing-select w-full border border-amber-200 rounded px-1.5 py-1 text-xs font-semibold bg-white" data-idx="${idx}" tabindex="${(idx * 6) + 101}">
-                          <option value="">-- Choose Raw Material --</option>
-                          ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                          <option value="">-- Choose Raw Material or Base Prep --</option>
+                          <optgroup label="Raw Materials">
+                            ${sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${!isBase && (ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')}
+                          </optgroup>
+                          <optgroup label="Base Recipes / Sauces (Sub-Preps)">
+                            ${sortedBaseRecipes.filter(b => b.id !== activeBase.id).map(br => `<option value="br_${br.name}" ${isBase && (ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ [BASE] ${br.name}</option>`).join('')}
+                          </optgroup>
                         </select>
                       </td>
                       <td class="p-2 border-r border-amber-200">
@@ -875,7 +853,7 @@ function baseRecipesModal() {
                         <input type="text" class="base-ing-uom w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}" tabindex="${(idx * 6) + 105}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 text-[11px] truncate">
-                        ${vendor}
+                        <span class="${isBase ? 'text-gold-700 font-bold' : ''}">${vendor}</span>
                       </td>
                       <td class="p-2 border-r border-amber-200 text-right font-bold">
                         ${money(unitPrice)}
@@ -887,7 +865,7 @@ function baseRecipesModal() {
                         <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
                       </td>
                     </tr>
-                  `;}).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No raw materials added to this batch yet.</td></tr>`}
+                  `;}).join('') || `<tr><td colspan="10" class="text-center py-4 text-brand-400">No ingredients added to this batch yet.</td></tr>`}
                 </tbody>
               </table>
             </div>
@@ -1492,7 +1470,9 @@ function wireKitchen() {
             }
 
             const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            const isBase = Boolean(row.isBase || row.type === 'base');
             const rm = getRawMaterialDetails(ingName);
+            const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
 
             grouped[baseId].ingredients.push({
               name: ingName,
@@ -1500,9 +1480,9 @@ function wireKitchen() {
               gramsMl: Number(row.gramsMl || row.qty) || 1,
               unit: (row.unit || 'GRM').toString().toUpperCase(),
               uom: (row.uom || row.unit || 'GRM').toString().toUpperCase(),
-              vendor: rm ? rm.vendor : 'FACTORY',
-              unitPrice: rm ? rm.unitPrice : 0,
-              type: 'raw'
+              vendor: (isBase || br) ? 'LINKED BASE PREP' : (rm ? rm.vendor : 'FACTORY'),
+              unitPrice: (isBase || br) ? (br ? calculateBaseRecipeCostPerUnit(br) : 0) : (rm ? rm.unitPrice : 0),
+              type: (isBase || br) ? 'base' : 'raw'
             });
           });
 
@@ -1695,16 +1675,33 @@ function wireKitchen() {
   document.querySelectorAll('.base-ing-select').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
+      const val = e.target.value;
       const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      const rm = getRawMaterialDetails(e.target.value);
+
       if (activeBase) {
-        activeBase.ingredients[idx].name = e.target.value;
-        activeBase.ingredients[idx].unit = rm.unit || 'GRM';
-        activeBase.ingredients[idx].uom = rm.unit || 'GRM';
-        activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
-        activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
-        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, activeBase.ingredients[idx].unit);
-        activeBase.ingredients[idx].type = 'raw';
+        if (val.startsWith('rm_')) {
+          const name = val.replace('rm_', '');
+          const rm = getRawMaterialDetails(name);
+          activeBase.ingredients[idx].name = name;
+          activeBase.ingredients[idx].unit = rm.unit || 'GRM';
+          activeBase.ingredients[idx].uom = rm.unit || 'GRM';
+          activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
+          activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
+          activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, rm.unit || 'GRM');
+          activeBase.ingredients[idx].type = 'raw';
+        } else if (val.startsWith('br_')) {
+          const name = val.replace('br_', '');
+          const br = DB.baseRecipes.find(b => b.name === name);
+          if (br) {
+            activeBase.ingredients[idx].name = br.name;
+            activeBase.ingredients[idx].unit = br.unit || 'GRM';
+            activeBase.ingredients[idx].uom = br.unit || 'GRM';
+            activeBase.ingredients[idx].vendor = 'LINKED BASE PREP';
+            activeBase.ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
+            activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, br.unit || 'GRM');
+            activeBase.ingredients[idx].type = 'base';
+          }
+        }
         render();
       }
     };
@@ -1979,7 +1976,6 @@ function wireKitchen() {
     };
   }
 
-  // ADVANCE ORDER WITH AUTOMATIC STOCK DEDUCTION
   document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
     const o = DB.orders.find(x => x.id === b.dataset.id);
     if (o) {
@@ -1987,7 +1983,6 @@ function wireKitchen() {
       const updates = { status: nextStatus };
       if (nextStatus === 'served') {
         updates.completedTs = Date.now();
-        // Deduct raw material stock for each cafe dish ordered
         for (const item of (o.items || [])) {
           if (item.id) {
             await deductStockForDish(item.id, item.qty || 1);
