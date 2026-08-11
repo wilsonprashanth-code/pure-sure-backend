@@ -82,13 +82,23 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], ingredients: [], recipes: {}
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}
 };
 
+// Retrieve saved staff login session from localStorage
+const savedStaff = localStorage.getItem('ps_staff');
+
 let session = { 
-  staff:null, soundOn:true, kitchenTab:'orders', editingDish:null, editingRetail:null, 
-  showAddStaff:false, cafeSearch:'', retailSearch:'', activeRecipeDishId: null,
-  activeRecipeRows: []
+  staff: savedStaff ? JSON.parse(savedStaff) : null, 
+  soundOn: true, 
+  kitchenTab: 'orders', 
+  editingDish: null, 
+  editingRetail: null, 
+  showAddStaff: false, 
+  cafeSearch: '', 
+  retailSearch: '', 
+  activeRecipeDishId: null,
+  showRawMaterialsModal: false
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -223,9 +233,14 @@ function wireLogin() {
     const found = DB.staff.find(s => s.username === u && s.password === p);
     const err = document.getElementById('loginError');
     if (found) {
-      session.staff = found; session.kitchenTab = 'orders'; render(); toast('Welcome back, ' + found.username, 'log-in');
+      session.staff = found;
+      localStorage.setItem('ps_staff', JSON.stringify(found));
+      session.kitchenTab = 'orders'; 
+      render(); 
+      toast('Welcome back, ' + found.username, 'log-in');
     } else {
-      err.textContent = 'Incorrect username or password.'; err.classList.remove('hidden');
+      err.textContent = 'Incorrect username or password.'; 
+      err.classList.remove('hidden');
     }
   };
 }
@@ -275,6 +290,7 @@ function kitchenShell() {
     </main>
     ${session.editingDish !== null ? dishEditorModal() : ''}
     ${session.editingRetail !== null ? retailEditorModal() : ''}
+    ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
   </div>`;
 }
 
@@ -371,7 +387,7 @@ function historyPanel() {
   </div>`;
 }
 
-/* RECIPE COSTING SHEET & MARGIN CALCULATOR MODULE */
+/* RECIPE COSTING MODULE */
 function recipeCostingPanel() {
   const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
   const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
@@ -398,8 +414,8 @@ function recipeCostingPanel() {
         <p class="text-xs text-brand-400">Track raw ingredient costs, recipe portions, overhead allowance, and target profit margins.</p>
       </div>
       <div class="flex items-center gap-2">
-        <button id="manageIngredientsBtn" class="text-xs font-bold bg-brand-50 text-brand-800 border border-brand-200 px-4 py-2.5 rounded-full flex items-center gap-1.5 hover:bg-brand-100 transition">
-          <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i> Manage Raw Material Master
+        <button id="manageIngredientsBtn" class="text-xs font-bold bg-brand text-cream px-4 py-2.5 rounded-full flex items-center gap-1.5 hover:bg-brand-600 transition">
+          <i data-lucide="layers" class="w-4 h-4"></i> Manage Raw Material Master (${DB.rawMaterials.length})
         </button>
       </div>
     </div>
@@ -454,19 +470,16 @@ function recipeCostingPanel() {
                   ${(activeRecipe?.ingredients || []).map((ing, idx) => `
                     <tr>
                       <td class="p-2">
-                        <input class="ing-name w-full border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}" value="${ing.name || ''}" placeholder="e.g. Organic A2 Milk">
+                        <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
+                          <option value="">-- Choose Raw Material --</option>
+                          ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                        </select>
                       </td>
                       <td class="p-2">
                         <input type="number" step="0.01" class="ing-qty w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
                       </td>
                       <td class="p-2">
-                        <select class="ing-unit w-full border border-brand-100 rounded-lg px-1.5 py-1 text-xs" data-idx="${idx}">
-                          <option ${ing.unit === 'g' ? 'selected' : ''}>g</option>
-                          <option ${ing.unit === 'ml' ? 'selected' : ''}>ml</option>
-                          <option ${ing.unit === 'kg' ? 'selected' : ''}>kg</option>
-                          <option ${ing.unit === 'litre' ? 'selected' : ''}>litre</option>
-                          <option ${ing.unit === 'pcs' ? 'selected' : ''}>pcs</option>
-                        </select>
+                        <input class="ing-unit w-full border border-brand-100 rounded-lg px-2 py-1 text-xs bg-brand-50" data-idx="${idx}" value="${ing.unit || 'kg'}" readonly>
                       </td>
                       <td class="p-2 text-right">
                         <input type="number" step="0.01" class="ing-price w-full border border-brand-100 rounded-lg px-2 py-1 text-xs text-right" data-idx="${idx}" value="${ing.unitPrice || 0}">
@@ -487,7 +500,6 @@ function recipeCostingPanel() {
         ` : `<div class="text-xs text-brand-400 text-center py-12">Select a dish above to open its recipe sheet.</div>`}
       </div>
 
-      <!-- Cost & Profit Margin Analysis Card -->
       <div class="bg-white rounded-2xl card-shadow p-5 space-y-4">
         <div class="text-xs font-bold uppercase tracking-wide text-brand-700 border-b border-brand-50 pb-2 flex items-center justify-between">
           <span>Costing Summary</span>
@@ -522,6 +534,62 @@ function recipeCostingPanel() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function rawMaterialsModal() {
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-2xl w-full p-6 my-8 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4">
+        <div>
+          <h3 class="font-display text-lg text-brand-900">Raw Material Master Database</h3>
+          <p class="text-xs text-brand-400">Add raw materials and bulk purchase rates to populate recipe costing sheets.</p>
+        </div>
+        <button id="closeRawMaterialsBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="bg-brand-50 p-3.5 rounded-xl border border-brand-100 mb-4">
+        <div class="text-xs font-bold text-brand-800 mb-2">Add New Raw Material Item</div>
+        <div class="grid grid-cols-3 gap-2">
+          <input id="newRmName" placeholder="Ingredient Name (e.g. A2 Milk)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+          <select id="newRmUnit" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+            <option value="kg">kg</option>
+            <option value="litre">litre</option>
+            <option value="pcs">pcs</option>
+            <option value="g">g</option>
+            <option value="ml">ml</option>
+          </select>
+          <input id="newRmPrice" type="number" step="0.01" placeholder="Rate (₹ per unit)" class="border border-brand-200 rounded-lg px-3 py-2 text-xs bg-white">
+        </div>
+        <button id="addRmBtn" class="w-full mt-2.5 bg-brand text-cream font-bold py-2 rounded-lg text-xs hover:bg-brand-600 transition">Add to Master List</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto pr-1">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
+            <tr>
+              <th class="p-2.5">Raw Material Name</th>
+              <th class="p-2.5 w-24">Unit</th>
+              <th class="p-2.5 w-32 text-right">Purchase Price (₹)</th>
+              <th class="p-2.5 w-16 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50">
+            ${DB.rawMaterials.map(rm => `
+              <tr>
+                <td class="p-2.5 font-bold text-brand-900">${rm.name}</td>
+                <td class="p-2.5 uppercase font-semibold text-brand-600">${rm.unit}</td>
+                <td class="p-2.5 text-right font-bold text-brand-900">${money(rm.unitPrice)} / ${rm.unit}</td>
+                <td class="p-2.5 text-center">
+                  <button class="delete-rm-btn text-red-500 hover:text-red-700" data-id="${rm.id}"><i data-lucide="trash-2" class="w-4 h-4 mx-auto"></i></button>
+                </td>
+              </tr>
+            `).join('') || `<tr><td colspan="4" class="text-center py-8 text-brand-400">No raw materials in database yet. Add one above.</td></tr>`}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>`;
@@ -820,7 +888,11 @@ function renderKeepFocus(id) {
 }
 
 function wireKitchen() {
-  document.getElementById('logoutBtn').onclick = () => { session.staff = null; render(); };
+  document.getElementById('logoutBtn').onclick = () => { 
+    localStorage.removeItem('ps_staff');
+    session.staff = null; 
+    render(); 
+  };
   document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
 
@@ -830,7 +902,47 @@ function wireKitchen() {
   const dashRetail = document.getElementById('dashRetailSearch');
   if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
 
-  /* Recipe Costing Wire Handlers */
+  /* RAW MATERIAL MASTER MODAL HANDLERS */
+  const manageIngBtn = document.getElementById('manageIngredientsBtn');
+  if (manageIngBtn) {
+    manageIngBtn.onclick = () => {
+      session.showRawMaterialsModal = true;
+      render();
+    };
+  }
+
+  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
+  if (closeRmBtn) {
+    closeRmBtn.onclick = () => {
+      session.showRawMaterialsModal = false;
+      render();
+    };
+  }
+
+  const addRmBtn = document.getElementById('addRmBtn');
+  if (addRmBtn) {
+    addRmBtn.onclick = async () => {
+      const name = document.getElementById('newRmName').value.trim();
+      const unit = document.getElementById('newRmUnit').value;
+      const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
+
+      if (!name) { toast('Please enter a raw material name.', 'alert-triangle'); return; }
+
+      const newItem = { id: uid('rm'), name, unit, unitPrice };
+      await db.ref('rawMaterials/' + newItem.id).set(newItem);
+      toast('Raw material added to master list!', 'check-circle');
+    };
+  }
+
+  document.querySelectorAll('.delete-rm-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      await db.ref('rawMaterials/' + id).remove();
+      toast('Raw material removed.');
+    };
+  });
+
+  /* RECIPE COSTING HANDLERS */
   const costingDishSelect = document.getElementById('costingDishSelect');
   if (costingDishSelect) {
     costingDishSelect.onchange = (e) => {
@@ -866,11 +978,24 @@ function wireKitchen() {
     addIngredientRowBtn.onclick = () => {
       if (session.activeRecipeDishId) {
         if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, unit: 'g', unitPrice: 0 });
+        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, unit: 'kg', unitPrice: 0 });
         render();
       }
     };
   }
+
+  document.querySelectorAll('.ing-master-select').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      const selectedRm = DB.rawMaterials.find(r => r.name === e.target.value);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId] && selectedRm) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = selectedRm.name;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = selectedRm.unit;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = selectedRm.unitPrice;
+        render();
+      }
+    };
+  });
 
   document.querySelectorAll('.remove-ing-row').forEach(btn => {
     btn.onclick = () => {
@@ -882,30 +1007,12 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.ing-name').forEach(input => {
-    input.onchange = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = e.target.value;
-      }
-    };
-  });
-
   document.querySelectorAll('.ing-qty').forEach(input => {
     input.onchange = (e) => {
       const idx = Number(input.dataset.idx);
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
         DB.recipes[session.activeRecipeDishId].ingredients[idx].qty = Number(e.target.value) || 0;
         render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-unit').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = e.target.value;
       }
     };
   });
@@ -925,7 +1032,7 @@ function wireKitchen() {
     saveRecipeBtn.onclick = async () => {
       if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
         await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
-        toast('Recipe cost breakdown saved to cloud!', 'check-circle');
+        toast('Recipe cost breakdown saved cloud-wide!', 'check-circle');
       }
     };
   }
@@ -1039,6 +1146,12 @@ db.ref('retail').on('value', snap => {
 db.ref('orders').on('value', snap => {
   const data = snap.val();
   DB.orders = data ? Object.values(data) : [];
+  render();
+});
+
+db.ref('rawMaterials').on('value', snap => {
+  const data = snap.val();
+  DB.rawMaterials = data ? Object.values(data) : [];
   render();
 });
 
