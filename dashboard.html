@@ -212,13 +212,36 @@ function downloadRawMaterialsTemplate() {
   const sampleData = [
     { name: 'Organic A2 Milk', vendor: 'Milky Mist', unit: 'litre', unitPrice: 75 },
     { name: 'Foxtail Millet', vendor: 'Phalada Organic Consumer Products', unit: 'kg', unitPrice: 120 },
-    { name: 'Organic Jaggery Powder', vendor: 'Pure & Sure Local', unit: 'kg', unitPrice: 85 },
-    { name: 'Wood Pressed Groundnut Oil', vendor: 'Phalada Organic Consumer Products', unit: 'litre', unitPrice: 280 }
+    { name: 'Organic Jaggery Powder', vendor: 'Pure & Sure Local', unit: 'kg', unitPrice: 85 }
   ];
   const ws = XLSX.utils.json_to_sheet(sampleData);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Raw Materials Template");
   XLSX.writeFile(wb, "Raw_Materials_Template.xlsx");
+}
+
+function downloadBaseRecipesTemplate() {
+  const sampleData = [
+    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'kg', ingredientName: 'Organic Tomato', qty: 4 },
+    { recipeName: 'Tomato Chutney Base', batchYield: 5, unit: 'kg', ingredientName: 'Wood Pressed Groundnut Oil', qty: 0.5 },
+    { recipeName: 'Dosa Batter Base', batchYield: 10, unit: 'kg', ingredientName: 'Foxtail Millet', qty: 6 }
+  ];
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Base Recipes Template");
+  XLSX.writeFile(wb, "Base_Recipes_Template.xlsx");
+}
+
+function downloadMainRecipesTemplate() {
+  const sampleData = [
+    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Dosa Batter Base', qty: 0.180 },
+    { dishName: 'Ragi Masala Dosa', portions: 1, wastagePercent: 10, ingredientName: 'Tomato Chutney Base', qty: 0.050 },
+    { dishName: 'Turmeric Ginger Latte', portions: 1, wastagePercent: 5, ingredientName: 'Organic A2 Milk', qty: 0.200 }
+  ];
+  const ws = XLSX.utils.json_to_sheet(sampleData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Main Recipes Template");
+  XLSX.writeFile(wb, "Main_Recipes_Template.xlsx");
 }
 
 function render() {
@@ -445,6 +468,21 @@ function recipeCostingPanel() {
       </div>
     </div>
 
+    <!-- Bulk Upload Recipe Card -->
+    <div class="bg-brand-50 p-4 rounded-2xl border border-brand-100 flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-xs font-bold text-brand-900 flex items-center gap-1.5">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-600"></i> Bulk Upload Main Dish Recipes via Excel
+        </div>
+        <p class="text-[11px] text-brand-500">Upload complete ingredient breakdowns for multiple cafe menu dishes in bulk.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="dlMainRecipesTemplateBtn" class="text-xs font-bold text-brand-700 underline hover:text-brand-900">Download Template</button>
+        <input id="mainRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
+        <button id="triggerMainRecipeExcelBtn" class="bg-brand text-cream font-bold px-4 py-2 rounded-full text-xs hover:bg-brand-600 transition">Upload Excel</button>
+      </div>
+    </div>
+
     <div class="grid lg:grid-cols-3 gap-5">
       <div class="lg:col-span-2 bg-white rounded-2xl card-shadow p-5 space-y-4">
         <div>
@@ -583,9 +621,21 @@ function baseRecipesModal() {
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4">
         <div>
           <h3 class="font-display text-lg text-brand-900">Base Recipes &amp; Batch Prep Master</h3>
-          <p class="text-xs text-brand-400">Create base sauces, gravies, and batters to reuse inside main menu recipes.</p>
+          <p class="text-xs text-brand-400">Create base sauces, gravies, and batters individually or via bulk Excel upload.</p>
         </div>
         <button id="closeBaseRecipesBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <!-- Bulk Excel Upload for Base Recipes -->
+      <div class="bg-gold-50 p-3 rounded-xl border border-gold-200 mb-4 flex items-center justify-between flex-wrap gap-2 text-xs">
+        <div class="font-bold text-brand-900 flex items-center gap-1.5">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel Upload Base Recipes
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="dlBaseRecipesTemplateBtn" class="font-bold text-gold-700 underline">Download Template</button>
+          <input id="baseRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
+          <button id="triggerBaseRecipeExcelBtn" class="bg-gold text-white font-bold px-3 py-1 rounded-full text-xs hover:opacity-90 transition">Upload Excel</button>
+        </div>
       </div>
 
       <div class="grid md:grid-cols-3 gap-4 flex-1 overflow-y-auto">
@@ -1046,6 +1096,145 @@ function wireKitchen() {
 
   const dashRetail = document.getElementById('dashRetailSearch');
   if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
+
+  /* BULK MAIN RECIPE UPLOADER HANDLERS */
+  const dlMainRecipesBtn = document.getElementById('dlMainRecipesTemplateBtn');
+  if (dlMainRecipesBtn) {
+    dlMainRecipesBtn.onclick = () => downloadMainRecipesTemplate();
+  }
+
+  const triggerMainRecipeExcelBtn = document.getElementById('triggerMainRecipeExcelBtn');
+  const mainRecipeExcelInput = document.getElementById('mainRecipeExcelInput');
+  if (triggerMainRecipeExcelBtn && mainRecipeExcelInput) {
+    triggerMainRecipeExcelBtn.onclick = () => mainRecipeExcelInput.click();
+    
+    mainRecipeExcelInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
+
+          const grouped = {};
+          json.forEach(row => {
+            const dName = (row.dishName || row.dish_name || '').toString().trim();
+            if (!dName) return;
+
+            const dish = DB.menu.find(m => m.name.toLowerCase().trim() === dName.toLowerCase());
+            const dishId = dish ? dish.id : uid('m_custom');
+
+            if (!grouped[dishId]) {
+              grouped[dishId] = {
+                portions: Number(row.portions) || 1,
+                wastagePercent: Number(row.wastagePercent || row.wastage) || 10,
+                ingredients: []
+              };
+            }
+
+            const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === ingName.toLowerCase());
+            const br = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === ingName.toLowerCase());
+
+            let unitPrice = 0;
+            let unit = 'kg';
+
+            if (rm) {
+              unitPrice = rm.unitPrice;
+              unit = rm.unit;
+            } else if (br) {
+              unitPrice = calculateBaseRecipeCostPerUnit(br);
+              unit = br.unit;
+            }
+
+            grouped[dishId].ingredients.push({
+              name: ingName,
+              qty: Number(row.qty) || 1,
+              unit: unit,
+              unitPrice: unitPrice
+            });
+          });
+
+          for (const dishId in grouped) {
+            await db.ref('recipes/' + dishId).set(grouped[dishId]);
+          }
+
+          toast(`Bulk main dish recipes updated for ${Object.keys(grouped).length} dishes!`, 'check-circle');
+        } catch (err) {
+          toast('Error parsing main recipes Excel file.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+  }
+
+  /* BULK BASE RECIPE UPLOADER HANDLERS */
+  const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
+  if (dlBaseRecipesBtn) {
+    dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
+  }
+
+  const triggerBaseRecipeExcelBtn = document.getElementById('triggerBaseRecipeExcelBtn');
+  const baseRecipeExcelInput = document.getElementById('baseRecipeExcelInput');
+  if (triggerBaseRecipeExcelBtn && baseRecipeExcelInput) {
+    triggerBaseRecipeExcelBtn.onclick = () => baseRecipeExcelInput.click();
+
+    baseRecipeExcelInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+          const grouped = {};
+          json.forEach(row => {
+            const rName = (row.recipeName || row.name || '').toString().trim();
+            if (!rName) return;
+
+            let existing = DB.baseRecipes.find(b => b.name.toLowerCase().trim() === rName.toLowerCase());
+            const baseId = existing ? existing.id : uid('br');
+
+            if (!grouped[baseId]) {
+              grouped[baseId] = {
+                id: baseId,
+                name: rName,
+                batchYield: Number(row.batchYield || row.yield) || 1,
+                unit: (row.unit || 'kg').toString().trim().toLowerCase(),
+                ingredients: []
+              };
+            }
+
+            const ingName = (row.ingredientName || row.ingredient || '').toString().trim();
+            const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === ingName.toLowerCase());
+
+            grouped[baseId].ingredients.push({
+              name: ingName,
+              qty: Number(row.qty) || 1,
+              unit: rm ? rm.unit : 'kg',
+              unitPrice: rm ? rm.unitPrice : 0
+            });
+          });
+
+          for (const baseId in grouped) {
+            await db.ref('baseRecipes/' + baseId).set(grouped[baseId]);
+          }
+
+          toast(`Bulk base recipes updated for ${Object.keys(grouped).length} preps!`, 'check-circle');
+        } catch (err) {
+          toast('Error parsing base recipes Excel file.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    };
+  }
 
   /* RAW MATERIAL MASTER MODAL HANDLERS */
   const manageIngBtn = document.getElementById('manageIngredientsBtn');
