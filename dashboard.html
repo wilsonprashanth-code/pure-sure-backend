@@ -82,7 +82,7 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: []
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -98,7 +98,8 @@ let session = {
   retailSearch: '', 
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
-  showBulkIngredientsPanel: false
+  showBaseRecipesModal: false,
+  editingBaseRecipeId: null
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -198,6 +199,13 @@ function calculateOrderTotal(order) {
   const cafeSub = (order.items || []).filter(i => i.kind === 'cafe' || (!i.kind && order.type === 'cafe')).reduce((a, b) => a + (b.price * b.qty), 0);
   const retailSub = (order.items || []).filter(i => i.kind === 'retail' || (!i.kind && order.type === 'retail')).reduce((a, b) => a + (b.price * b.qty), 0);
   return cafeSub + (cafeSub * 0.05) + retailSub;
+}
+
+function calculateBaseRecipeCostPerUnit(base) {
+  if (!base || !base.ingredients) return 0;
+  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + (Number(ing.qty || 0) * Number(ing.unitPrice || 0)), 0);
+  const yieldQty = Number(base.batchYield || 1);
+  return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
 function downloadRawMaterialsTemplate() {
@@ -304,6 +312,7 @@ function kitchenShell() {
     ${session.editingDish !== null ? dishEditorModal() : ''}
     ${session.editingRetail !== null ? retailEditorModal() : ''}
     ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
+    ${session.showBaseRecipesModal ? baseRecipesModal() : ''}
   </div>`;
 }
 
@@ -424,11 +433,14 @@ function recipeCostingPanel() {
     <div class="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between flex-wrap gap-3">
       <div>
         <h3 class="font-display text-lg text-brand-900">Recipe Costing Sheet &amp; Food Cost Calculator</h3>
-        <p class="text-xs text-brand-400">Track raw ingredient costs, recipe portions, overhead allowance, and target profit margins.</p>
+        <p class="text-xs text-brand-400">Track raw ingredient costs, base preps/sauces, recipe portions, overhead allowance, and target profit margins.</p>
       </div>
-      <div class="flex items-center gap-2">
-        <button id="manageIngredientsBtn" class="text-xs font-bold bg-brand text-cream px-4 py-2.5 rounded-full flex items-center gap-1.5 hover:bg-brand-600 transition">
-          <i data-lucide="layers" class="w-4 h-4"></i> Manage Raw Material Master (${DB.rawMaterials.length})
+      <div class="flex items-center gap-2 flex-wrap">
+        <button id="manageIngredientsBtn" class="text-xs font-bold bg-brand-50 text-brand-800 border border-brand-200 px-3.5 py-2 rounded-full flex items-center gap-1.5 hover:bg-brand-100 transition">
+          <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i> Raw Materials (${DB.rawMaterials.length})
+        </button>
+        <button id="manageBaseRecipesBtn" class="text-xs font-bold bg-gold text-white px-3.5 py-2 rounded-full flex items-center gap-1.5 hover:opacity-90 transition">
+          <i data-lucide="chef-hat" class="w-4 h-4"></i> Base Recipes / Sauces (${DB.baseRecipes.length})
         </button>
       </div>
     </div>
@@ -471,7 +483,7 @@ function recipeCostingPanel() {
               <table class="w-full text-left text-xs">
                 <thead class="bg-brand-50 text-brand-700 uppercase font-bold text-[10px]">
                   <tr>
-                    <th class="p-2">Raw Ingredient Item</th>
+                    <th class="p-2">Item Type &amp; Name</th>
                     <th class="p-2 w-24">Qty</th>
                     <th class="p-2 w-24">Unit</th>
                     <th class="p-2 w-28 text-right">Unit Rate</th>
@@ -483,9 +495,17 @@ function recipeCostingPanel() {
                   ${(activeRecipe?.ingredients || []).map((ing, idx) => `
                     <tr>
                       <td class="p-2">
-                        <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
-                          <option value="">-- Choose Raw Material --</option>
-                          ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                        <select class="ing-master-select w-full border border-brand-100 rounded-lg px-2 py-1 text-xs font-medium" data-idx="${idx}">
+                          <option value="">-- Select Material or Base Prep --</option>
+                          <optgroup label="Raw Materials">
+                            ${DB.rawMaterials.map(rm => `<option value="rm_${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                          </optgroup>
+                          <optgroup label="Base Recipes / Sauces">
+                            ${DB.baseRecipes.map(br => {
+                              const costPerUnit = calculateBaseRecipeCostPerUnit(br);
+                              return `<option value="br_${br.name}" ${ing.name === br.name ? 'selected' : ''}>⭐ [BASE] ${br.name} (${money(costPerUnit)}/${br.unit})</option>`;
+                            }).join('')}
+                          </optgroup>
                         </select>
                       </td>
                       <td class="p-2">
@@ -552,6 +572,102 @@ function recipeCostingPanel() {
   </div>`;
 }
 
+function baseRecipesModal() {
+  const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+  const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + (Number(i.qty || 0) * Number(i.unitPrice || 0)), 0) : 0;
+  const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-3xl w-full p-6 my-8 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-4">
+        <div>
+          <h3 class="font-display text-lg text-brand-900">Base Recipes &amp; Batch Prep Master</h3>
+          <p class="text-xs text-brand-400">Create base sauces, gravies, and batters to reuse inside main menu recipes.</p>
+        </div>
+        <button id="closeBaseRecipesBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4 flex-1 overflow-y-auto">
+        <!-- List of Existing Base Recipes -->
+        <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2">
+          <div class="flex items-center justify-between border-b border-brand-100 pb-2">
+            <span class="text-xs font-bold text-brand-800">Saved Base Preps</span>
+            <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New Prep</button>
+          </div>
+          <div class="space-y-1.5">
+            ${DB.baseRecipes.map(br => {
+              const cpu = calculateBaseRecipeCostPerUnit(br);
+              return `
+              <div class="base-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.editingBaseRecipeId === br.id ? 'bg-brand text-cream border-brand' : 'bg-white text-brand-900 border-brand-100'}" data-id="${br.id}">
+                <div class="font-bold">${br.name}</div>
+                <div class="text-[10px] opacity-80 mt-0.5">${br.batchYield} ${br.unit} · ${money(cpu)}/${br.unit}</div>
+              </div>`;
+            }).join('') || `<div class="text-[11px] text-brand-400 text-center py-6">No base preps created yet.</div>`}
+          </div>
+        </div>
+
+        <!-- Base Recipe Editor -->
+        <div class="md:col-span-2 space-y-3">
+          ${activeBase ? `
+            <div class="grid grid-cols-3 gap-2 bg-cream p-3 rounded-xl border border-brand-100">
+              <div class="col-span-3 sm:col-span-1">
+                <label class="text-[10px] font-bold uppercase text-brand-600 block">Prep Name</label>
+                <input id="baseName" value="${activeBase.name}" placeholder="e.g. Tomato Sauce" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold uppercase text-brand-600 block">Batch Yield</label>
+                <input id="baseYield" type="number" step="0.01" value="${activeBase.batchYield || 1}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold uppercase text-brand-600 block">Unit</label>
+                <select id="baseUnit" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+                  <option ${activeBase.unit === 'kg' ? 'selected' : ''}>kg</option>
+                  <option ${activeBase.unit === 'litre' ? 'selected' : ''}>litre</option>
+                  <option ${activeBase.unit === 'pcs' ? 'selected' : ''}>pcs</option>
+                  <option ${activeBase.unit === 'g' ? 'selected' : ''}>g</option>
+                  <option ${activeBase.unit === 'ml' ? 'selected' : ''}>ml</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="border border-brand-100 rounded-xl p-3 bg-white space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-brand-800">Raw Ingredients in Batch</span>
+                <button id="addBaseIngRowBtn" class="text-[11px] font-bold text-brand-700 underline">+ Add Ingredient</button>
+              </div>
+              <div class="space-y-1.5">
+                ${(activeBase.ingredients || []).map((ing, idx) => `
+                  <div class="flex items-center gap-2 text-xs">
+                    <select class="base-ing-select flex-1 border border-brand-100 rounded-lg px-2 py-1 text-xs" data-idx="${idx}">
+                      <option value="">-- Choose Raw Material --</option>
+                      ${DB.rawMaterials.map(rm => `<option value="${rm.name}" ${ing.name === rm.name ? 'selected' : ''}>${rm.name} (${money(rm.unitPrice)}/${rm.unit})</option>`).join('')}
+                    </select>
+                    <input type="number" step="0.01" class="base-ing-qty w-16 border border-brand-100 rounded-lg px-2 py-1 text-xs text-center" data-idx="${idx}" value="${ing.qty || 1}">
+                    <span class="w-10 text-[10px] font-bold text-brand-500">${ing.unit || 'kg'}</span>
+                    <span class="w-20 text-right font-bold">${money(Number(ing.qty || 0) * Number(ing.unitPrice || 0))}</span>
+                    <button class="remove-base-ing text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                  </div>
+                `).join('') || `<div class="text-[11px] text-brand-400 text-center py-4">No raw materials added to this batch yet.</div>`}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between bg-gold-50 p-3 rounded-xl border border-gold-200 text-xs font-bold text-brand-900">
+              <span>Total Batch Cost: ${money(totalCost)}</span>
+              <span class="text-gold-800">Unit Rate: ${money(costPerUnit)} / ${activeBase.unit}</span>
+            </div>
+
+            <div class="flex gap-2">
+              <button id="saveBaseRecipeBtn" class="flex-1 bg-brand text-cream font-bold py-2.5 rounded-full text-xs hover:bg-brand-600 transition">Save Base Recipe</button>
+              <button id="deleteBaseRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-full text-xs hover:bg-red-100 transition">Delete</button>
+            </div>
+          ` : `<div class="text-xs text-brand-400 text-center py-16 border-2 border-dashed border-brand-100 rounded-2xl">Select a base recipe on the left or click "+ New Prep" to create a new batch sauce/prep.</div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function rawMaterialsModal() {
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/60 flex items-center justify-center p-4">
@@ -564,7 +680,6 @@ function rawMaterialsModal() {
         <button id="closeRawMaterialsBtn" class="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-4 h-4"></i></button>
       </div>
 
-      <!-- Bulk Excel Upload Card for Ingredients -->
       <div class="bg-gold-50 p-3.5 rounded-xl border border-gold-200 mb-4 space-y-2">
         <div class="flex items-center justify-between">
           <div class="text-xs font-bold text-brand-900 flex items-center gap-1.5">
@@ -580,7 +695,6 @@ function rawMaterialsModal() {
         </div>
       </div>
 
-      <!-- Individual Add Ingredient Form -->
       <div class="bg-brand-50 p-3.5 rounded-xl border border-brand-100 mb-4">
         <div class="text-xs font-bold text-brand-800 mb-2">Add Individual Raw Material Item</div>
         <div class="grid grid-cols-3 gap-2">
@@ -1023,6 +1137,124 @@ function wireKitchen() {
     };
   });
 
+  /* BASE RECIPES MASTER HANDLERS */
+  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
+  if (manageBaseBtn) {
+    manageBaseBtn.onclick = () => {
+      session.showBaseRecipesModal = true;
+      if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
+        session.editingBaseRecipeId = DB.baseRecipes[0].id;
+      }
+      render();
+    };
+  }
+
+  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
+  if (closeBaseBtn) {
+    closeBaseBtn.onclick = () => {
+      session.showBaseRecipesModal = false;
+      render();
+    };
+  }
+
+  const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
+  if (createNewBaseBtn) {
+    createNewBaseBtn.onclick = async () => {
+      const newBase = {
+        id: uid('br'),
+        name: 'New Base Prep',
+        batchYield: 1,
+        unit: 'kg',
+        ingredients: []
+      };
+      await db.ref('baseRecipes/' + newBase.id).set(newBase);
+      session.editingBaseRecipeId = newBase.id;
+      render();
+    };
+  }
+
+  document.querySelectorAll('.base-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.editingBaseRecipeId = card.dataset.id;
+      render();
+    };
+  });
+
+  const saveBaseRecipeBtn = document.getElementById('saveBaseRecipeBtn');
+  if (saveBaseRecipeBtn && session.editingBaseRecipeId) {
+    saveBaseRecipeBtn.onclick = async () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.name = document.getElementById('baseName').value.trim();
+        activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
+        activeBase.unit = document.getElementById('baseUnit').value;
+
+        await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
+        toast('Base recipe saved!', 'check-circle');
+      }
+    };
+  }
+
+  const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
+  if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
+    deleteBaseRecipeBtn.onclick = async () => {
+      if (confirm('Delete this base recipe?')) {
+        await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
+        session.editingBaseRecipeId = null;
+        render();
+        toast('Base recipe removed.');
+      }
+    };
+  }
+
+  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
+  if (addBaseIngRowBtn && session.editingBaseRecipeId) {
+    addBaseIngRowBtn.onclick = () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        if (!activeBase.ingredients) activeBase.ingredients = [];
+        activeBase.ingredients.push({ name: '', qty: 1, unit: 'kg', unitPrice: 0 });
+        render();
+      }
+    };
+  }
+
+  document.querySelectorAll('.base-ing-select').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      const selectedRm = DB.rawMaterials.find(r => r.name === e.target.value);
+      if (activeBase && selectedRm) {
+        activeBase.ingredients[idx].name = selectedRm.name;
+        activeBase.ingredients[idx].unit = selectedRm.unit;
+        activeBase.ingredients[idx].unitPrice = selectedRm.unitPrice;
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-qty').forEach(input => {
+    input.onchange = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].qty = Number(e.target.value) || 0;
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.remove-base-ing').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.ingredients.splice(idx, 1);
+        render();
+      }
+    };
+  });
+
   /* RECIPE COSTING HANDLERS */
   const costingDishSelect = document.getElementById('costingDishSelect');
   if (costingDishSelect) {
@@ -1068,11 +1300,26 @@ function wireKitchen() {
   document.querySelectorAll('.ing-master-select').forEach(select => {
     select.onchange = (e) => {
       const idx = Number(select.dataset.idx);
-      const selectedRm = DB.rawMaterials.find(r => r.name === e.target.value);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId] && selectedRm) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = selectedRm.name;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = selectedRm.unit;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = selectedRm.unitPrice;
+      const val = e.target.value;
+      
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        if (val.startsWith('rm_')) {
+          const name = val.replace('rm_', '');
+          const rm = DB.rawMaterials.find(r => r.name === name);
+          if (rm) {
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = rm.name;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice;
+          }
+        } else if (val.startsWith('br_')) {
+          const name = val.replace('br_', '');
+          const br = DB.baseRecipes.find(b => b.name === name);
+          if (br) {
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
+          }
+        }
         render();
       }
     };
@@ -1233,6 +1480,12 @@ db.ref('orders').on('value', snap => {
 db.ref('rawMaterials').on('value', snap => {
   const data = snap.val();
   DB.rawMaterials = data ? Object.values(data) : [];
+  render();
+});
+
+db.ref('baseRecipes').on('value', snap => {
+  const data = snap.val();
+  DB.baseRecipes = data ? Object.values(data) : [];
   render();
 });
 
