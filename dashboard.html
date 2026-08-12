@@ -876,7 +876,7 @@ function baseRecipesModal() {
                         <input type="number" step="0.01" class="base-ing-qty w-16 border border-amber-200 bg-white rounded px-1.5 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}" tabindex="${(idx * 6) + 102}">
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <select class="base-ing-unit w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}" tabindex="${(idx * 6) + 103}">
+                        <select class="base-ing-unit w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs font-semibold cursor-pointer" data-idx="${idx}" tabindex="${(idx * 6) + 103}">
                           <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
                           <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
                           <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
