@@ -977,7 +977,7 @@ function baseRecipesModal() {
                         <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || computedGrams}">
                       </td>
                       <td class="p-2 border-r border-amber-200">
-                        <input type="text" class="base-ing-uom w-full border border-amber-200 bg-white rounded px-1 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}">
+                        <input type="text" class="base-ing-uom w-full border border-amber-200 bg-white rounded px-1.5 py-1 text-xs uppercase font-bold text-brand-800" data-idx="${idx}" value="${ing.uom || ing.unit || 'GRM'}">
                       </td>
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-800 text-[11px] truncate">
                         <span class="${isBase ? 'text-gold-700 font-bold' : ''}">${vendor}</span>
@@ -1492,16 +1492,14 @@ function wireKitchen() {
   /* LIVE SYNC: MASTER DISH NAME -> INVENTORY MENU */
   const masterDishNameInput = document.getElementById('masterDishNameInput');
   if (masterDishNameInput) {
-    masterDishNameInput.onchange = async (e) => {
+    masterDishNameInput.oninput = async (e) => {
       const dishId = masterDishNameInput.dataset.id;
       const newName = e.target.value.trim();
-      if (!dishId || !newName) return;
+      if (!dishId) return;
 
       await db.ref(`menu/${dishId}/name`).set(newName);
       const menuDish = DB.menu.find(m => m.id === dishId);
       if (menuDish) menuDish.name = newName;
-
-      toast('Dish name updated in Inventory!', 'check-circle');
     };
   }
 
@@ -2303,77 +2301,4 @@ function wireKitchen() {
       price: Number(document.getElementById('rPrice').value) || 0,
       size: document.getElementById('rSize').value.trim(),
       img: imgData,
-      desc: document.getElementById('rDesc').value.trim(),
-      badges: ['100% Organic'],
-      stock: true
-    };
-    if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
-
-    await db.ref('retail/' + payload.id).set(payload);
-    session.editingRetail = null; render(); toast('Product saved cloud-wide!');
-  };
-}
-
-function renderKeepFocus(inputId) {
-  const activeEl = document.getElementById(inputId);
-  const start = activeEl ? activeEl.selectionStart : null;
-  const end = activeEl ? activeEl.selectionEnd : null;
-
-  render();
-
-  const el = document.getElementById(inputId);
-  if (el) {
-    el.focus();
-    if (start !== null && end !== null) el.setSelectionRange(start, end);
-  }
-}
-
-db.ref('menu').on('value', snap => {
-  const data = snap.val();
-  DB.menu = data ? Object.values(data) : [];
-  if (session.editingDish === null) render();
-});
-
-db.ref('retail').on('value', snap => {
-  const data = snap.val();
-  DB.retail = data ? Object.values(data) : [];
-  if (session.editingRetail === null) render();
-});
-
-db.ref('orders').on('value', snap => {
-  const data = snap.val();
-  DB.orders = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('rawMaterials').on('value', snap => {
-  const data = snap.val();
-  DB.rawMaterials = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('baseRecipes').on('value', snap => {
-  const data = snap.val();
-  DB.baseRecipes = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('recipes').on('value', snap => {
-  const data = snap.val();
-  DB.recipes = data || {};
-  render();
-});
-
-db.ref('settings').on('value', snap => {
-  const data = snap.val();
-  if (data) { DB.settings = data; render(); }
-});
-
-(function boot() {
-  document.addEventListener('touchstart', unlockAudio, { once: true });
-  document.addEventListener('click', unlockAudio, { once: true });
-  render();
-})();
-</script>
-</body>
-</html>
+      desc: document.getElementById('rDesc').value.tr
