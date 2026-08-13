@@ -101,7 +101,9 @@ let session = {
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
-  editingBaseRecipeId: null
+  editingBaseRecipeId: null,
+  recipeFilterQuery: '',
+  ingredientUsageQuery: ''
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -547,6 +549,33 @@ function recipeCostingPanel() {
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
+  // Calculate Reverse Lookup Usage Results
+  let matchingUsage = [];
+  const ingQuery = (session.ingredientUsageQuery || '').toLowerCase().trim();
+  if (ingQuery.length >= 2) {
+    // 1. Search in Main Cafe Recipes
+    for (const dishId in DB.recipes) {
+      const rec = DB.recipes[dishId];
+      const dishObj = DB.menu.find(m => m.id === dishId);
+      const dishName = dishObj ? dishObj.name : `Dish (${dishId})`;
+      const usesItem = (rec.ingredients || []).some(i => (i.name || '').toLowerCase().includes(ingQuery));
+      if (usesItem) {
+        matchingUsage.push(`[MAIN DISH] ${dishName}`);
+      }
+    }
+    // 2. Search in Base Recipes
+    DB.baseRecipes.forEach(br => {
+      const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(ingQuery));
+      if (usesItem) {
+        matchingUsage.push(`[BASE PREP] ${br.name}`);
+      }
+    });
+  }
+
+  // Filter Menu Options by Letter Matching
+  const filterQuery = (session.recipeFilterQuery || '').toLowerCase().trim();
+  const filteredMenu = DB.menu.filter(m => (m.name || '').toLowerCase().includes(filterQuery));
+
   return `
   <div class="space-y-6">
     <div class="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between flex-wrap gap-3">
@@ -581,11 +610,31 @@ function recipeCostingPanel() {
 
     <div class="grid lg:grid-cols-3 gap-5">
       <div class="lg:col-span-2 bg-white rounded-2xl card-shadow p-5 space-y-4">
+        
+        <!-- INTEGRATED DUAL SEARCH TOOLBAR -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">🔍 Filter Dish Options by Letters</label>
+              <input id="liveLetterSearchInput" type="text" value="${session.recipeFilterQuery || ''}" placeholder="Type letters to filter recipe dropdown..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">🔍 Ingredient / Base Item Usage Lookup</label>
+              <input id="liveIngredientSearchInput" type="text" value="${session.ingredientUsageQuery || ''}" placeholder="Type ingredient name to find where it's used..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
+            </div>
+          </div>
+          ${ingQuery.length >= 2 ? `
+            <div class="text-xs text-slate-800 bg-white p-3 border border-slate-200 rounded-lg max-h-36 overflow-y-auto leading-relaxed">
+              ${matchingUsage.length === 0 ? `<b>No dishes or base preps found using "${ingQuery}".</b>` : `<b>Dishes & Base Preps using "${ingQuery}" (${matchingUsage.length}):</b><br>` + matchingUsage.map(d => `• ${d}`).join('<br>')}
+            </div>
+          ` : ''}
+        </div>
+
         <div>
           <label class="text-xs font-bold uppercase tracking-wide text-brand-700 block mb-1">Select Cafe Menu Dish</label>
           <select id="costingDishSelect" class="w-full bg-brand-50 border border-brand-100 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-brand-900 focus:outline-none">
             <option value="">-- Choose a dish from menu --</option>
-            ${DB.menu.map(m => `<option value="${m.id}" ${session.activeRecipeDishId === m.id ? 'selected' : ''}>${m.name} (${money(m.price)})</option>`).join('')}
+            ${filteredMenu.map(m => `<option value="${m.id}" ${session.activeRecipeDishId === m.id ? 'selected' : ''}>${m.name} (${money(m.price)})</option>`).join('')}
           </select>
         </div>
 
@@ -1385,6 +1434,23 @@ function wireKitchen() {
   const dashRm = document.getElementById('dashRmSearch');
   if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
 
+  /* SEARCH & REVERSE LOOKUP INPUT HANDLERS */
+  const liveLetterInput = document.getElementById('liveLetterSearchInput');
+  if (liveLetterInput) {
+    liveLetterInput.oninput = (e) => {
+      session.recipeFilterQuery = e.target.value;
+      renderKeepFocus('liveLetterSearchInput');
+    };
+  }
+
+  const liveIngInput = document.getElementById('liveIngredientSearchInput');
+  if (liveIngInput) {
+    liveIngInput.oninput = (e) => {
+      session.ingredientUsageQuery = e.target.value;
+      renderKeepFocus('liveIngredientSearchInput');
+    };
+  }
+
   /* BULK MAIN RECIPE UPLOADER HANDLERS */
   const dlMainRecipesBtn = document.getElementById('dlMainRecipesTemplateBtn');
   if (dlMainRecipesBtn) dlMainRecipesBtn.onclick = () => downloadMainRecipesTemplate();
@@ -1473,7 +1539,7 @@ function wireKitchen() {
     };
   }
 
-  /* BULK BASE RECIPE UPLOADER HANDLERS (FIXED GROUPING LOGIC) */
+  /* BULK BASE RECIPE UPLOADER HANDLERS */
   const dlBaseRecipesBtn = document.getElementById('dlBaseRecipesTemplateBtn');
   if (dlBaseRecipesBtn) dlBaseRecipesBtn.onclick = () => downloadBaseRecipesTemplate();
 
@@ -2170,6 +2236,20 @@ function wireKitchen() {
   };
 }
 
+function renderKeepFocus(inputId) {
+  const activeEl = document.getElementById(inputId);
+  const start = activeEl ? activeEl.selectionStart : null;
+  const end = activeEl ? activeEl.selectionEnd : null;
+
+  render();
+
+  const el = document.getElementById(inputId);
+  if (el) {
+    el.focus();
+    if (start !== null && end !== null) el.setSelectionRange(start, end);
+  }
+}
+
 db.ref('menu').on('value', snap => {
   const data = snap.val();
   DB.menu = data ? Object.values(data) : [];
@@ -2217,232 +2297,5 @@ db.ref('settings').on('value', snap => {
   render();
 })();
 </script>
-<!-- Search Script Goes Right Here -->
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-            let dishSelect = document.getElementById('recipeDishSelect') || document.querySelector('select');
-            if (!dishSelect || document.getElementById('safeSearchWrapper')) return;
-
-            let container = dishSelect.parentElement;
-            let wrapper = document.createElement('div');
-            wrapper.id = 'safeSearchWrapper';
-            wrapper.className = 'bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4 space-y-3';
-            wrapper.innerHTML = `
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">🔍 Search Main & Base Recipe by Letters</label>
-                    <input id="liveLetterSearch" type="text" placeholder="Type letters to filter recipes & base items..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">🔍 Ingredient / Base Recipe Usage Lookup</label>
-                    <input id="liveIngredientSearch" type="text" placeholder="Type ingredient or base prep to see where it's used..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                    <div id="liveUsageResults" class="text-xs text-slate-700 bg-white p-3 border border-slate-200 rounded-lg mt-2 max-h-36 overflow-y-auto hidden leading-relaxed"></div>
-                </div>
-            `;
-            
-            container.insertBefore(wrapper, dishSelect);
-
-            let letterInput = document.getElementById('liveLetterSearch');
-            let originalOptions = Array.from(dishSelect.options);
-            if (letterInput) {
-                letterInput.oninput = function() {
-                    let query = letterInput.value.toLowerCase().trim();
-                    dishSelect.innerHTML = '';
-                    let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
-                    if (matches.length === 0) {
-                        let opt = document.createElement('option');
-                        opt.text = '-- No matching recipe found --';
-                        dishSelect.add(opt);
-                    } else {
-                        matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
-                    }
-                };
-            }
-
-            let ingInput = document.getElementById('liveIngredientSearch');
-            let resultsBox = document.getElementById('liveUsageResults');
-            if (ingInput && resultsBox) {
-                ingInput.oninput = function() {
-                    let query = ingInput.value.toLowerCase().trim();
-                    if (query.length < 2) {
-                        resultsBox.style.display = 'none';
-                        resultsBox.innerHTML = '';
-                        return;
-                    }
-
-                    let allData = [];
-                    try {
-                        let mainData = JSON.parse(localStorage.getItem('main_dish_recipes') || '[]');
-                        let baseData = JSON.parse(localStorage.getItem('base_recipes') || '[]');
-                        allData = [...mainData, ...baseData];
-                    } catch(e) {}
-
-                    let matchingDishes = [...new Set(allData
-                        .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
-                        .map(r => r.dishName))];
-
-                    resultsBox.style.display = 'block';
-                    if (matchingDishes.length === 0) {
-                        resultsBox.innerHTML = '<b>No dishes or base preps found using this item.</b>';
-                    } else {
-                        resultsBox.innerHTML = `<b>Dishes / Base Preps using "${query}" (${matchingDishes.length}):</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
-                    }
-                };
-            }
-        }, 600);
-    });
-    </script>
-    <script>
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        // Find the dropdown anywhere on the page
-        let dishSelect = document.querySelector('select');
-        if (!dishSelect || document.getElementById('safeSearchWrapper')) return;
-
-        let container = dishSelect.parentElement;
-        let wrapper = document.createElement('div');
-        wrapper.id = 'safeSearchWrapper';
-        wrapper.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px;';
-        wrapper.innerHTML = `
-            <div style="font-weight: bold; font-size: 13px; color: #1e293b; margin-bottom: 8px;">🔍 Live Recipe & Ingredient Search</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
-                <input id="liveLetterSearch" type="text" placeholder="Type letters to filter recipes/base items..." style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%;">
-                <input id="liveIngredientSearch" type="text" placeholder="Find dishes using ingredient/base prep..." style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%;">
-            </div>
-            <div id="liveUsageResults" style="font-size: 12px; color: #334155; background: #fff; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; display: none; max-height: 150px; overflow-y: auto;"></div>
-        `;
-        
-        container.insertBefore(wrapper, dishSelect);
-
-        // Letter-matching filter for recipes/base items
-        let letterInput = document.getElementById('liveLetterSearch');
-        let originalOptions = Array.from(dishSelect.options);
-        if (letterInput) {
-            letterInput.oninput = function() {
-                let query = letterInput.value.toLowerCase().trim();
-                dishSelect.innerHTML = '';
-                let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
-                if (matches.length === 0) {
-                    let opt = document.createElement('option');
-                    opt.text = '-- No matching item found --';
-                    dishSelect.add(opt);
-                } else {
-                    matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
-                }
-            };
-        }
-
-        // Ingredient / Base recipe reverse usage lookup
-        let ingInput = document.getElementById('liveIngredientSearch');
-        let resultsBox = document.getElementById('liveUsageResults');
-        if (ingInput && resultsBox) {
-            ingInput.oninput = function() {
-                let query = ingInput.value.toLowerCase().trim();
-                if (query.length < 2) {
-                    resultsBox.style.display = 'none';
-                    resultsBox.innerHTML = '';
-                    return;
-                }
-
-                let allData = [];
-                try {
-                    let mainData = JSON.parse(localStorage.getItem('main_dish_recipes') || '[]');
-                    let baseData = JSON.parse(localStorage.getItem('base_recipes') || '[]');
-                    allData = [...mainData, ...baseData];
-                } catch(e) {}
-
-                let matchingDishes = [...new Set(allData
-                    .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
-                    .map(r => r.dishName))];
-
-                resultsBox.style.display = 'block';
-                if (matchingDishes.length === 0) {
-                    resultsBox.innerHTML = '<b>No dishes or base preps found using this item.</b>';
-                } else {
-                    resultsBox.innerHTML = `<b>Dishes / Base Preps using "${query}" (${matchingDishes.length}):</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
-                }
-            };
-        }
-    }, 400);
-});
-</script>
 </body>
 </html>
-</body>
-</html>
-<script>
-window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        let dishSelect = document.querySelector('select');
-        if (!dishSelect || document.getElementById('safeSearchWrapper')) return;
-
-        let container = dishSelect.parentElement;
-        let wrapper = document.createElement('div');
-        wrapper.id = 'safeSearchWrapper';
-        wrapper.className = 'bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4 space-y-3';
-        wrapper.innerHTML = `
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">🔍 Search Main & Base Recipe by Letters</label>
-                <input id="liveLetterSearch" type="text" placeholder="Type letters to filter recipes & base items..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">🔍 Ingredient / Base Recipe Usage Lookup</label>
-                <input id="liveIngredientSearch" type="text" placeholder="Type ingredient or base prep to see where it's used..." class="w-full p-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                <div id="liveUsageResults" class="text-xs text-slate-700 bg-white p-3 border border-slate-200 rounded-lg mt-2 max-h-36 overflow-y-auto hidden leading-relaxed"></div>
-            </div>
-        `;
-        
-        container.insertBefore(wrapper, dishSelect);
-
-        // Letter matching filter for dropdown
-        let letterInput = document.getElementById('liveLetterSearch');
-        let originalOptions = Array.from(dishSelect.options);
-        if (letterInput) {
-            letterInput.oninput = function() {
-                let query = letterInput.value.toLowerCase().trim();
-                dishSelect.innerHTML = '';
-                let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
-                if (matches.length === 0) {
-                    let opt = document.createElement('option');
-                    opt.text = '-- No matching recipe found --';
-                    dishSelect.add(opt);
-                } else {
-                    matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
-                }
-            };
-        }
-
-        // Ingredient / Base recipe reverse lookup
-        let ingInput = document.getElementById('liveIngredientSearch');
-        let resultsBox = document.getElementById('liveUsageResults');
-        if (ingInput && resultsBox) {
-            ingInput.oninput = function() {
-                let query = ingInput.value.toLowerCase().trim();
-                if (query.length < 2) {
-                    resultsBox.style.display = 'none';
-                    resultsBox.innerHTML = '';
-                    return;
-                }
-
-                let allData = [];
-                try {
-                    let mainData = JSON.parse(localStorage.getItem('main_dish_recipes') || '[]');
-                    let baseData = JSON.parse(localStorage.getItem('base_recipes') || '[]');
-                    allData = [...mainData, ...baseData];
-                } catch(e) {}
-
-                let matchingDishes = [...new Set(allData
-                    .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
-                    .map(r => r.dishName))];
-
-                resultsBox.style.display = 'block';
-                if (matchingDishes.length === 0) {
-                    resultsBox.innerHTML = '<b>No dishes or base preps found using this item.</b>';
-                } else {
-                    resultsBox.innerHTML = `<b>Dishes / Base Preps using "${query}" (${matchingDishes.length}):</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
-                }
-            };
-        }
-    }, 500);
-});
-</script>
