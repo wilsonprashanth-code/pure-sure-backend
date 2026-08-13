@@ -571,14 +571,12 @@ function mainRecipesModal() {
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
-  // Filter Menu Options by Letter Matching
   const recipeFilterQuery = (session.recipeFilterQuery || '').toLowerCase().trim();
   const filteredMenu = DB.menu.filter(m => {
     if (!recipeFilterQuery) return true;
     return (m.name || '').toLowerCase().includes(recipeFilterQuery);
   });
 
-  // Ingredient Usage Lookup
   let matchingUsage = [];
   const ingQuery = (session.ingredientUsageQuery || '').toLowerCase().trim();
   if (ingQuery.length >= 2) {
@@ -619,7 +617,6 @@ function mainRecipesModal() {
       </div>
 
       <div class="grid md:grid-cols-4 gap-4 flex-1 overflow-y-auto min-h-0">
-        <!-- Side Panel: Filter & Menu List -->
         <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-3 overflow-y-auto md:col-span-1">
           <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200">
             <div>
@@ -649,7 +646,6 @@ function mainRecipesModal() {
           </div>
         </div>
 
-        <!-- Main Recipe Editor & Summary Workspace -->
         <div class="md:col-span-3 space-y-4 overflow-y-auto pr-1">
           ${selectedDish ? `
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-cream p-3.5 rounded-xl border border-brand-100 items-center">
@@ -760,7 +756,6 @@ function mainRecipesModal() {
               </table>
             </div>
 
-            <!-- Summary Card -->
             <div class="bg-brand-50 p-4 rounded-xl border border-brand-100 grid sm:grid-cols-2 gap-4 text-xs">
               <div class="space-y-1.5">
                 <div class="flex justify-between text-brand-600"><span>Menu Price:</span><span class="font-bold text-brand-900">${money(sellingPrice)}</span></div>
