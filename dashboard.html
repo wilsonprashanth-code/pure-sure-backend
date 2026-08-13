@@ -103,7 +103,9 @@ let session = {
   showBaseRecipesModal: false,
   editingBaseRecipeId: null,
   recipeFilterQuery: '',
-  ingredientUsageQuery: ''
+  ingredientUsageQuery: '',
+  baseRecipeFilterQuery: '',
+  baseIngredientUsageQuery: ''
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -147,25 +149,6 @@ function unlockAudio() {
     if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
     if (actx.state === 'suspended') actx.resume();
   } catch(e) {}
-}
-
-function playLoudAlarm() {
-  if (!session.soundOn || !session.staff) return;
-  unlockAudio();
-  if (!actx) return;
-  const now = actx.currentTime;
-  [0, 0.25, 0.5, 0.75].forEach(delay => {
-    const o = actx.createOscillator();
-    const g = actx.createGain();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(delay % 0.5 === 0 ? 950 : 1250, now + delay);
-    g.gain.setValueAtTime(0.5, now + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.2);
-    o.connect(g);
-    g.connect(actx.destination);
-    o.start(now + delay);
-    o.stop(now + delay + 0.2);
-  });
 }
 
 function money(n) { return '₹' + Number(n || 0).toFixed(2); }
@@ -553,7 +536,6 @@ function recipeCostingPanel() {
   let matchingUsage = [];
   const ingQuery = (session.ingredientUsageQuery || '').toLowerCase().trim();
   if (ingQuery.length >= 2) {
-    // 1. Search in Main Cafe Recipes
     for (const dishId in DB.recipes) {
       const rec = DB.recipes[dishId];
       const dishObj = DB.menu.find(m => m.id === dishId);
@@ -563,7 +545,6 @@ function recipeCostingPanel() {
         matchingUsage.push(`[MAIN DISH] ${dishName}`);
       }
     }
-    // 2. Search in Base Recipes
     DB.baseRecipes.forEach(br => {
       const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(ingQuery));
       if (usesItem) {
@@ -572,9 +553,12 @@ function recipeCostingPanel() {
     });
   }
 
-  // Filter Menu Options by Letter Matching
+  // Filter Menu Options by Letter Matching (Safely defaults to all if query is empty)
   const filterQuery = (session.recipeFilterQuery || '').toLowerCase().trim();
-  const filteredMenu = DB.menu.filter(m => (m.name || '').toLowerCase().includes(filterQuery));
+  const filteredMenu = DB.menu.filter(m => {
+    if (!filterQuery) return true;
+    return (m.name || '').toLowerCase().includes(filterQuery);
+  });
 
   return `
   <div class="space-y-6">
@@ -611,7 +595,7 @@ function recipeCostingPanel() {
     <div class="grid lg:grid-cols-3 gap-5">
       <div class="lg:col-span-2 bg-white rounded-2xl card-shadow p-5 space-y-4">
         
-        <!-- INTEGRATED DUAL SEARCH TOOLBAR -->
+        <!-- DUAL SEARCH TOOLBAR -->
         <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
           <div class="grid sm:grid-cols-2 gap-3">
             <div>
@@ -633,7 +617,7 @@ function recipeCostingPanel() {
         <div>
           <label class="text-xs font-bold uppercase tracking-wide text-brand-700 block mb-1">Select Cafe Menu Dish</label>
           <select id="costingDishSelect" class="w-full bg-brand-50 border border-brand-100 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-brand-900 focus:outline-none">
-            <option value="">-- Choose a dish from menu --</option>
+            <option value="">-- Choose a dish from menu (${filteredMenu.length} available) --</option>
             ${filteredMenu.map(m => `<option value="${m.id}" ${session.activeRecipeDishId === m.id ? 'selected' : ''}>${m.name} (${money(m.price)})</option>`).join('')}
           </select>
         </div>
@@ -803,6 +787,33 @@ function baseRecipesModal() {
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
+  // Base Recipe Letter Filter & Usage Lookup Logic
+  const baseFilterQuery = (session.baseRecipeFilterQuery || '').toLowerCase().trim();
+  const filteredBaseRecipes = DB.baseRecipes.filter(br => {
+    if (!baseFilterQuery) return true;
+    return (br.name || '').toLowerCase().includes(baseFilterQuery);
+  });
+
+  let matchingBaseUsage = [];
+  const baseIngQuery = (session.baseIngredientUsageQuery || '').toLowerCase().trim();
+  if (baseIngQuery.length >= 2) {
+    DB.baseRecipes.forEach(br => {
+      const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
+      if (usesItem) {
+        matchingBaseUsage.push(`[BASE PREP] ${br.name}`);
+      }
+    });
+    for (const dishId in DB.recipes) {
+      const rec = DB.recipes[dishId];
+      const dishObj = DB.menu.find(m => m.id === dishId);
+      const dishName = dishObj ? dishObj.name : `Dish (${dishId})`;
+      const usesItem = (rec.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
+      if (usesItem) {
+        matchingBaseUsage.push(`[MAIN DISH] ${dishName}`);
+      }
+    }
+  }
+
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 flex items-center justify-center p-0 sm:p-4">
     <div class="modal-fade bg-white w-full h-full sm:h-[95vh] sm:max-w-6xl sm:rounded-3xl p-6 flex flex-col overflow-hidden shadow-2xl">
@@ -827,20 +838,38 @@ function baseRecipesModal() {
       </div>
 
       <div class="grid md:grid-cols-4 gap-4 flex-1 overflow-y-auto min-h-0">
-        <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-2 overflow-y-auto md:col-span-1">
+        <div class="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 space-y-3 overflow-y-auto md:col-span-1">
+          
+          <!-- Base Recipe Dual Search Toolbar -->
+          <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Filter Base Preps</label>
+              <input id="baseLetterSearchInput" type="text" value="${session.baseRecipeFilterQuery || ''}" placeholder="Type letters..." class="w-full p-1.5 border border-slate-300 rounded text-xs bg-white focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Usage Lookup</label>
+              <input id="baseIngredientSearchInput" type="text" value="${session.baseIngredientUsageQuery || ''}" placeholder="Find where used..." class="w-full p-1.5 border border-slate-300 rounded text-xs bg-white focus:outline-none">
+            </div>
+            ${baseIngQuery.length >= 2 ? `
+              <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded max-h-28 overflow-y-auto leading-relaxed">
+                ${matchingBaseUsage.length === 0 ? `<b>No usage found for "${baseIngQuery}".</b>` : `<b>Used in (${matchingBaseUsage.length}):</b><br>` + matchingBaseUsage.map(d => `• ${d}`).join('<br>')}
+              </div>
+            ` : ''}
+          </div>
+
           <div class="flex items-center justify-between border-b border-brand-100 pb-2">
-            <span class="text-xs font-bold text-brand-800">Saved Base Preps (${DB.baseRecipes.length})</span>
+            <span class="text-xs font-bold text-brand-800">Saved Preps (${filteredBaseRecipes.length})</span>
             <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New Prep</button>
           </div>
           <div class="space-y-1.5">
-            ${DB.baseRecipes.map(br => {
+            ${filteredBaseRecipes.map(br => {
               const cpu = calculateBaseRecipeCostPerUnit(br);
               return `
               <div class="base-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.editingBaseRecipeId === br.id ? 'bg-brand text-cream border-brand' : 'bg-white text-brand-900 border-brand-100'}" data-id="${br.id}">
                 <div class="font-bold">${br.name}</div>
                 <div class="text-[10px] opacity-80 mt-0.5">${br.batchYield} ${br.unit} · ${money(cpu)}/${br.unit}</div>
               </div>`;
-            }).join('') || `<div class="text-[11px] text-brand-400 text-center py-6">No base preps created yet.</div>`}
+            }).join('') || `<div class="text-[11px] text-brand-400 text-center py-6">No matching base preps found.</div>`}
           </div>
         </div>
 
@@ -1448,6 +1477,22 @@ function wireKitchen() {
     liveIngInput.oninput = (e) => {
       session.ingredientUsageQuery = e.target.value;
       renderKeepFocus('liveIngredientSearchInput');
+    };
+  }
+
+  const baseLetterInput = document.getElementById('baseLetterSearchInput');
+  if (baseLetterInput) {
+    baseLetterInput.oninput = (e) => {
+      session.baseRecipeFilterQuery = e.target.value;
+      renderKeepFocus('baseLetterSearchInput');
+    };
+  }
+
+  const baseIngInput = document.getElementById('baseIngredientSearchInput');
+  if (baseIngInput) {
+    baseIngInput.oninput = (e) => {
+      session.baseIngredientUsageQuery = e.target.value;
+      renderKeepFocus('baseIngredientSearchInput');
     };
   }
 
