@@ -650,8 +650,8 @@ function mainRecipesModal() {
           ${selectedDish ? `
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-cream p-3.5 rounded-xl border border-brand-100 items-center">
               <div>
-                <label class="text-[10px] font-bold uppercase text-brand-600 block">Selected Dish</label>
-                <div class="text-sm font-bold text-brand-900 mt-1">${selectedDish.name}</div>
+                <label class="text-[10px] font-bold uppercase text-brand-600 block">Edit Dish Name (Syncs with Inventory)</label>
+                <input id="masterDishNameInput" type="text" value="${selectedDish.name}" data-id="${selectedDish.id}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-brand-900 bg-white">
               </div>
               <div>
                 <label class="text-[10px] font-bold uppercase text-brand-600 block">Portions Yielded</label>
@@ -1488,6 +1488,22 @@ function wireKitchen() {
       render();
     };
   });
+
+  /* LIVE SYNC: MASTER DISH NAME -> INVENTORY MENU */
+  const masterDishNameInput = document.getElementById('masterDishNameInput');
+  if (masterDishNameInput) {
+    masterDishNameInput.onchange = async (e) => {
+      const dishId = masterDishNameInput.dataset.id;
+      const newName = e.target.value.trim();
+      if (!dishId || !newName) return;
+
+      await db.ref(`menu/${dishId}/name`).set(newName);
+      const menuDish = DB.menu.find(m => m.id === dishId);
+      if (menuDish) menuDish.name = newName;
+
+      toast('Dish name updated in Inventory!', 'check-circle');
+    };
+  }
 
   /* SEARCH & REVERSE LOOKUP INPUT HANDLERS */
   const liveLetterInput = document.getElementById('liveLetterSearchInput');
