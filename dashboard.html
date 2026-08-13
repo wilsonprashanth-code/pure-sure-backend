@@ -77,3 +77,75 @@
     </script>
 </body>
 </html>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        let dishSelect = document.getElementById('recipeDishSelect') || document.querySelector('select');
+        if (!dishSelect || document.getElementById('safeSearchWorkspace')) return;
+
+        let parentContainer = dishSelect.parentElement;
+        let searchWorkspace = document.createElement('div');
+        searchWorkspace.id = 'safeSearchWorkspace';
+        searchWorkspace.style.cssText = 'margin-bottom: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;';
+        searchWorkspace.innerHTML = `
+            <div style="font-weight: 600; font-size: 13px; color: #334155; margin-bottom: 8px;">🔍 Recipe & Ingredient Search</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input id="dynamicLetterSearch" type="text" placeholder="Type letters to filter recipes/base items..." style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff;">
+                <input id="dynamicIngredientSearch" type="text" placeholder="Find dishes using ingredient/base prep..." style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff;">
+            </div>
+            <div id="dynamicUsageResults" style="font-size: 12px; color: #334155; max-height: 140px; overflow-y: auto; background: #fff; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; display: none; line-height: 1.5;"></div>
+        `;
+        
+        parentContainer.insertBefore(searchWorkspace, dishSelect);
+
+        let letterInput = document.getElementById('dynamicLetterSearch');
+        let originalOptions = Array.from(dishSelect.options);
+        if (letterInput) {
+            letterInput.oninput = function() {
+                let query = letterInput.value.toLowerCase().trim();
+                dishSelect.innerHTML = '';
+                let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
+                if (matches.length === 0) {
+                    let opt = document.createElement('option');
+                    opt.text = '-- No matching item found --';
+                    dishSelect.add(opt);
+                } else {
+                    matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
+                }
+            };
+        }
+
+        let ingInput = document.getElementById('dynamicIngredientSearch');
+        let resultsBox = document.getElementById('dynamicUsageResults');
+        if (ingInput && resultsBox) {
+            ingInput.oninput = function() {
+                let query = ingInput.value.toLowerCase().trim();
+                if (query.length < 2) {
+                    resultsBox.style.display = 'none';
+                    resultsBox.innerHTML = '';
+                    return;
+                }
+
+                let allMappings = [];
+                try {
+                    let mainData = JSON.parse(localStorage.getItem('main_dish_recipes') || '[]');
+                    let baseData = JSON.parse(localStorage.getItem('base_recipes') || '[]');
+                    let combined = JSON.parse(localStorage.getItem('all_recipe_mappings') || '[]');
+                    allMappings = [...mainData, ...baseData, ...combined];
+                } catch(e) {}
+
+                let matchingDishes = [...new Set(allMappings
+                    .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
+                    .map(r => r.dishName))];
+
+                resultsBox.style.display = 'block';
+                if (matchingDishes.length === 0) {
+                    resultsBox.innerHTML = '<b>No dishes or base preps found using this item.</b>';
+                } else {
+                    resultsBox.innerHTML = `<b>Dishes / Base Preps using ("${query}") - Total: ${matchingDishes.length}</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
+                }
+            };
+        }
+    }, 500);
+});
+</script>
