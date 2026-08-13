@@ -214,3 +214,73 @@
     </script>
 </body>
 </html>
+<script>
+// Safe non-destructive search and reverse lookup injection
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        let dishSelect = document.getElementById('recipeDishSelect') || document.querySelector('select');
+        if (!dishSelect || document.getElementById('advancedSearchContainer')) return;
+
+        let container = dishSelect.parentElement;
+        let searchWrapper = document.createElement('div');
+        searchWrapper.id = 'advancedSearchContainer';
+        searchWrapper.style.cssText = 'margin-bottom: 12px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-family: inherit;';
+        
+        searchWrapper.innerHTML = `
+            <div style="margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #334155;">🔍 Recipe & Ingredient Finder</div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input id="recipeNameSearch" type="text" placeholder="Search recipe by letters..." style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff;">
+                <input id="ingredientUsageSearch" type="text" placeholder="Find which dishes use ingredient..." style="flex: 1; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; background: #fff;">
+            </div>
+            <div id="ingredientUsageResults" style="font-size: 12px; color: #334155; max-height: 140px; overflow-y: auto; background: #fff; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; display: none; line-height: 1.5;"></div>
+        `;
+        
+        container.insertBefore(searchWrapper, dishSelect);
+
+        // Letter-matching filter for your existing dropdown
+        let nameSearch = document.getElementById('recipeNameSearch');
+        let originalOptions = Array.from(dishSelect.options);
+        if (nameSearch) {
+            nameSearch.oninput = function() {
+                let query = nameSearch.value.toLowerCase().trim();
+                dishSelect.innerHTML = '';
+                let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
+                if (matches.length === 0) {
+                    let opt = document.createElement('option');
+                    opt.text = '-- No matching recipe found --';
+                    dishSelect.add(opt);
+                } else {
+                    matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
+                }
+            };
+        }
+
+        // Ingredient reverse lookup utilizing localStorage mappings
+        let ingSearch = document.getElementById('ingredientUsageSearch');
+        let resultsBox = document.getElementById('ingredientUsageResults');
+        let allMappings = JSON.parse(localStorage.getItem('all_recipe_mappings') || localStorage.getItem('main_dish_recipes') || '[]');
+
+        if (ingSearch && resultsBox) {
+            ingSearch.oninput = function() {
+                let query = ingSearch.value.toLowerCase().trim();
+                if (query.length < 2) {
+                    resultsBox.style.display = 'none';
+                    resultsBox.innerHTML = '';
+                    return;
+                }
+
+                let matchingDishes = [...new Set(allMappings
+                    .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
+                    .map(r => r.dishName))];
+
+                resultsBox.style.display = 'block';
+                if (matchingDishes.length === 0) {
+                    resultsBox.innerHTML = '<b>No dishes found using this ingredient.</b>';
+                } else {
+                    resultsBox.innerHTML = `<b>Dishes using "${query}" (${matchingDishes.length}):</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
+                }
+            };
+        }
+    }, 800);
+});
+</script>
