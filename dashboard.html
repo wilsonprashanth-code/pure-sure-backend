@@ -2292,6 +2292,80 @@ db.ref('settings').on('value', snap => {
         }, 600);
     });
     </script>
+    <script>
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        // Find the dropdown anywhere on the page
+        let dishSelect = document.querySelector('select');
+        if (!dishSelect || document.getElementById('safeSearchWrapper')) return;
+
+        let container = dishSelect.parentElement;
+        let wrapper = document.createElement('div');
+        wrapper.id = 'safeSearchWrapper';
+        wrapper.style.cssText = 'background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px;';
+        wrapper.innerHTML = `
+            <div style="font-weight: bold; font-size: 13px; color: #1e293b; margin-bottom: 8px;">🔍 Live Recipe & Ingredient Search</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+                <input id="liveLetterSearch" type="text" placeholder="Type letters to filter recipes/base items..." style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%;">
+                <input id="liveIngredientSearch" type="text" placeholder="Find dishes using ingredient/base prep..." style="padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%;">
+            </div>
+            <div id="liveUsageResults" style="font-size: 12px; color: #334155; background: #fff; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; display: none; max-height: 150px; overflow-y: auto;"></div>
+        `;
+        
+        container.insertBefore(wrapper, dishSelect);
+
+        // Letter-matching filter for recipes/base items
+        let letterInput = document.getElementById('liveLetterSearch');
+        let originalOptions = Array.from(dishSelect.options);
+        if (letterInput) {
+            letterInput.oninput = function() {
+                let query = letterInput.value.toLowerCase().trim();
+                dishSelect.innerHTML = '';
+                let matches = originalOptions.filter(opt => opt.text.toLowerCase().includes(query));
+                if (matches.length === 0) {
+                    let opt = document.createElement('option');
+                    opt.text = '-- No matching item found --';
+                    dishSelect.add(opt);
+                } else {
+                    matches.forEach(opt => dishSelect.add(opt.cloneNode(true)));
+                }
+            };
+        }
+
+        // Ingredient / Base recipe reverse usage lookup
+        let ingInput = document.getElementById('liveIngredientSearch');
+        let resultsBox = document.getElementById('liveUsageResults');
+        if (ingInput && resultsBox) {
+            ingInput.oninput = function() {
+                let query = ingInput.value.toLowerCase().trim();
+                if (query.length < 2) {
+                    resultsBox.style.display = 'none';
+                    resultsBox.innerHTML = '';
+                    return;
+                }
+
+                let allData = [];
+                try {
+                    let mainData = JSON.parse(localStorage.getItem('main_dish_recipes') || '[]');
+                    let baseData = JSON.parse(localStorage.getItem('base_recipes') || '[]');
+                    allData = [...mainData, ...baseData];
+                } catch(e) {}
+
+                let matchingDishes = [...new Set(allData
+                    .filter(r => (r.ingredientName || '').toLowerCase().includes(query))
+                    .map(r => r.dishName))];
+
+                resultsBox.style.display = 'block';
+                if (matchingDishes.length === 0) {
+                    resultsBox.innerHTML = '<b>No dishes or base preps found using this item.</b>';
+                } else {
+                    resultsBox.innerHTML = `<b>Dishes / Base Preps using "${query}" (${matchingDishes.length}):</b><br>` + matchingDishes.map(d => `• ${d}`).join('<br>');
+                }
+            };
+        }
+    }, 400);
+});
+</script>
 </body>
 </html>
 </body>
