@@ -83,7 +83,7 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: []
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: []
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -102,11 +102,21 @@ let session = {
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
   showMainRecipesModal: false,
+  showBillingModal: false,
+  showWastageModal: false,
   editingBaseRecipeId: null,
   recipeFilterQuery: '',
   ingredientUsageQuery: '',
   baseRecipeFilterQuery: '',
-  baseIngredientUsageQuery: ''
+  baseIngredientUsageQuery: '',
+  recipeSortMode: 'alpha',
+  baseRecipeSortMode: 'alpha',
+  billingCart: [],
+  billingType: 'manual', // 'manual' or 'qr'
+  billingTable: '1',
+  billingCustomerName: '',
+  billingCustomerPhone: '',
+  billingPaymentMode: 'UPI' // UPI, Cash, Swiggy, Zomato, Card
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -152,25 +162,6 @@ function unlockAudio() {
   } catch(e) {}
 }
 
-function playLoudAlarm() {
-  if (!session.soundOn || !session.staff) return;
-  unlockAudio();
-  if (!actx) return;
-  const now = actx.currentTime;
-  [0, 0.25, 0.5, 0.75].forEach(delay => {
-    const o = actx.createOscillator();
-    const g = actx.createGain();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(delay % 0.5 === 0 ? 950 : 1250, now + delay);
-    g.gain.setValueAtTime(0.5, now + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.2);
-    o.connect(g);
-    g.connect(actx.destination);
-    o.start(now + delay);
-    o.stop(now + delay + 0.2);
-  });
-}
-
 function money(n) { return '₹' + Number(n || 0).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
@@ -203,9 +194,9 @@ function formatTime(ts) {
 }
 
 function calculateOrderTotal(order) {
-  const cafeSub = (order.items || []).filter(i => i.kind === 'cafe' || (!i.kind && order.type === 'cafe')).reduce((a, b) => a + (b.price * b.qty), 0);
-  const retailSub = (order.items || []).filter(i => i.kind === 'retail' || (!i.kind && order.type === 'retail')).reduce((a, b) => a + (b.price * b.qty), 0);
-  return cafeSub + (cafeSub * 0.05) + retailSub;
+  const items = order.items || [];
+  const sub = items.reduce((a, b) => a + (b.price * b.qty), 0);
+  return sub + (sub * 0.05); // 5% tax or service charge
 }
 
 function getRawMaterialDetails(name) {
@@ -274,13 +265,25 @@ function calculateBaseRecipeCostPerUnit(base) {
   return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
-async function deductStockForDish(dishId, orderedPortions = 1) {
+function getDishFoodCostPercent(dish) {
+  const recipe = DB.recipes[dish.id];
+  if (!recipe || !recipe.ingredients) return 0;
+  const rawTotal = (recipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const wastage = rawTotal * ((recipe.wastagePercent || 10) / 100);
+  const totalCost = rawTotal + wastage;
+  const portionCost = recipe.portions ? (totalCost / recipe.portions) : 0;
+  const price = Number(dish.price || 0);
+  return price > 0 ? (portionCost / price) * 100 : 0;
+}
+
+// Bill of Materials (BOM) Cascading Deduction Engine
+async function processBOMDeduction(dishId, orderedPortions = 1) {
   const recipe = DB.recipes[dishId];
   if (!recipe || !recipe.ingredients) return;
 
   const updates = {};
 
-  function processIngredient(ing, multiplier) {
+  function cascadeIngredient(ing, multiplier) {
     if (ing.type === 'base' || ing.isBase) {
       const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
       if (baseObj && baseObj.ingredients) {
@@ -289,21 +292,21 @@ async function deductStockForDish(dishId, orderedPortions = 1) {
         const batchFraction = baseYieldGrams > 0 ? (baseUsageGrams / baseYieldGrams) : 0;
 
         baseObj.ingredients.forEach(subIng => {
-          processIngredient(subIng, batchFraction);
+          cascadeIngredient(subIng, batchFraction);
         });
       }
     } else {
       const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
       if (rm) {
         const requiredGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
-        const currentStock = Number(rm.stockGrams || 100000);
+        const currentStock = Number(rm.stockGrams ?? 100000);
         const newStock = Math.max(0, currentStock - requiredGrams);
         updates[`rawMaterials/${rm.id}/stockGrams`] = newStock;
       }
     }
   }
 
-  recipe.ingredients.forEach(ing => processIngredient(ing, orderedPortions));
+  recipe.ingredients.forEach(ing => cascadeIngredient(ing, orderedPortions));
 
   if (Object.keys(updates).length > 0) {
     await db.ref().update(updates);
@@ -396,30 +399,33 @@ function kitchenShell() {
   const retailOrders = [...DB.orders].filter(o => o.type === 'retail').sort((a,b) => a.ts - b.ts);
 
   return `
-  <div class="min-h-screen bg-brand-50 pb-12 sm:pb-6">
+  <div class="min-h-screen bg-brand-50 pb-16 sm:pb-6">
     <header class="sticky top-0 z-30 bg-brand-900 text-cream shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2.5 min-w-0">
           <img src="${DB.settings.logoUrl}" class="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-full bg-white/10 p-1 shrink-0">
           <div class="truncate">
             <div class="font-display text-sm sm:text-base font-bold leading-tight truncate">${DB.settings.restaurantName}</div>
-            <div class="text-[9px] sm:text-[10px] text-cream/60 uppercase tracking-wide truncate">Kitchen &amp; Console</div>
+            <div class="text-[9px] sm:text-[10px] text-cream/60 uppercase tracking-wide truncate">Kitchen &amp; POS Console</div>
           </div>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button id="soundToggle" class="flex items-center gap-1 text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-full ${session.soundOn ? 'bg-green-500/20 text-green-300' : 'bg-white/10 text-cream/70'}">
-            <i data-lucide="${session.soundOn ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i>
-            <span class="hidden xs:inline">${session.soundOn ? 'Sound On' : 'Muted'}</span>
+          <button id="openBillingModalBtn" class="bg-gold text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:opacity-90 active:scale-98">
+            <i data-lucide="receipt" class="w-3.5 h-3.5"></i> POS Billing
+          </button>
+          <button id="openWastageModalBtn" class="bg-amber-600 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:opacity-90 active:scale-98">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Wastage
           </button>
           <button id="logoutBtn" class="text-[11px] sm:text-xs font-semibold bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 rounded-full flex items-center gap-1"><i data-lucide="log-out" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Logout</span></button>
         </div>
       </div>
       <nav class="max-w-7xl mx-auto px-2 sm:px-5 flex gap-1 overflow-x-auto scrollbar-none border-t border-brand-800/60 pb-0.5">
         ${kTab('orders','Active Orders','clipboard-list', orders.filter(o=>o.status!=='served').length)}
-        ${kTab('history','History','history','')}
+        ${kTab('history','History & Reports','history','')}
         ${kTab('retail','Retail Req.','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
         ${kTab('inventory','Inventory','package','')}
-        ${kTab('costing','Costing','calculator','')}
+        ${kTab('costing','Costing & BOM','calculator','')}
+        ${kTab('menueng','Menu Engineering','pie-chart','')}
         ${kTab('bulk','Bulk Import','file-spreadsheet','')}
         ${kTab('qr','QR Tables','qr-code','')}
         ${kTab('brand','Brand','image','')}
@@ -432,6 +438,7 @@ function kitchenShell() {
       ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
       ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
       ${session.kitchenTab === 'costing' ? recipeCostingPanel() : ''}
+      ${session.kitchenTab === 'menueng' ? menuEngineeringPanel() : ''}
       ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
       ${session.kitchenTab === 'qr' ? qrPanel() : ''}
       ${session.kitchenTab === 'brand' ? brandPanel() : ''}
@@ -442,6 +449,8 @@ function kitchenShell() {
     ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
     ${session.showBaseRecipesModal ? baseRecipesModal() : ''}
     ${session.showMainRecipesModal ? mainRecipesModal() : ''}
+    ${session.showBillingModal ? billingModal() : ''}
+    ${session.showWastageModal ? wastageModal() : ''}
   </div>`;
 }
 
@@ -493,43 +502,355 @@ function orderCard(o) {
 
 function historyPanel() {
   const completedOrders = [...DB.orders].filter(o => o.status === 'served').sort((a,b) => (b.completedTs || 0) - (a.completedTs || 0));
+  
+  // Calculate item-wise sales stats
+  const itemSales = {};
+  completedOrders.forEach(o => {
+    (o.items || []).forEach(i => {
+      if (!itemSales[i.name]) itemSales[i.name] = { qty: 0, revenue: 0 };
+      itemSales[i.name].qty += Number(i.qty || 1);
+      itemSales[i.name].revenue += Number(i.price || 0) * Number(i.qty || 1);
+    });
+  });
+
+  const topItems = Object.entries(itemSales).sort((a,b) => b[1].qty - a[1].qty);
+
   return `
-  <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Completed Order History</h3>
-      <span class="text-xs font-bold bg-brand-50 text-brand-700 px-3 py-1 rounded-full border border-brand-100">Total: ${completedOrders.length}</span>
+  <div class="space-y-6">
+    <!-- Sales Summary Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
+        <div class="text-[10px] font-bold uppercase text-brand-400">Total Billed Orders</div>
+        <div class="text-xl sm:text-2xl font-display font-bold text-brand-950 mt-1">${completedOrders.length}</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
+        <div class="text-[10px] font-bold uppercase text-brand-400">Total Gross Revenue</div>
+        <div class="text-xl sm:text-2xl font-display font-bold text-green-700 mt-1">${money(completedOrders.reduce((acc, o) => acc + calculateOrderTotal(o), 0))}</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
+        <div class="text-[10px] font-bold uppercase text-brand-400">Swiggy / Zomato Sales</div>
+        <div class="text-xl sm:text-2xl font-display font-bold text-gold-700 mt-1">${money(completedOrders.filter(o => o.paymentMode === 'Swiggy' || o.paymentMode === 'Zomato').reduce((acc, o) => acc + calculateOrderTotal(o), 0))}</div>
+      </div>
+      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
+        <div class="text-[10px] font-bold uppercase text-brand-400">Total Wastage Logs</div>
+        <div class="text-xl sm:text-2xl font-display font-bold text-red-600 mt-1">${DB.wastageLogs.length} items</div>
+      </div>
     </div>
-    <div class="overflow-x-auto -mx-4 sm:mx-0">
-      <table class="w-full text-left text-xs min-w-[700px]">
-        <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
-          <tr>
-            <th class="p-3">Order</th>
-            <th class="p-3">Table</th>
-            <th class="p-3">Customer</th>
-            <th class="p-3">Type</th>
-            <th class="p-3">Items</th>
-            <th class="p-3 text-right">Amount</th>
-            <th class="p-3">Time</th>
-            <th class="p-3">Duration</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-brand-50 font-medium">
-          ${completedOrders.map(o => `
-            <tr class="hover:bg-brand-50/40 transition">
-              <td class="p-3 font-mono font-bold text-brand-900">#${o.id}</td>
-              <td class="p-3 font-bold text-brand-800">T-${o.table}</td>
-              <td class="p-3 font-semibold text-brand-900">${o.customerName || 'Guest'}<br><span class="text-[10px] text-brand-400 font-mono">${o.customerPhone || ''}</span></td>
-              <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${o.type==='retail'?'bg-gold-100 text-gold-800':'bg-brand-100 text-brand-800'}">${o.type.toUpperCase()}</span></td>
-              <td class="p-3 max-w-[220px] truncate">
-                ${(o.items || []).map(i => `${i.qty}× ${i.name}`).join(', ')}
-              </td>
-              <td class="p-3 text-right font-bold text-brand-900">${money(calculateOrderTotal(o))}</td>
-              <td class="p-3 text-brand-500 text-[11px]">${formatTime(o.completedTs || o.ts)}</td>
-              <td class="p-3 font-bold text-green-700">${formatDuration((o.completedTs || Date.now()) - o.ts)}</td>
+
+    <!-- Item-wise Sales Breakdown Table -->
+    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
+      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Item-Wise Sales &amp; Popularity Report</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs min-w-[500px]">
+          <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
+            <tr>
+              <th class="p-3">Item Name</th>
+              <th class="p-3 text-center">Total Units Sold</th>
+              <th class="p-3 text-right">Total Revenue Generated</th>
             </tr>
-          `).join('') || `<tr><td colspan="8" class="text-center py-8 text-brand-400">No completed orders recorded yet.</td></tr>`}
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${topItems.map(([name, data]) => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-3 font-bold text-brand-950">${name}</td>
+                <td class="p-3 text-center font-bold text-brand-800">${data.qty} units</td>
+                <td class="p-3 text-right font-bold text-green-700">${money(data.revenue)}</td>
+              </tr>
+            `).join('') || `<tr><td colspan="3" class="text-center py-6 text-brand-400">No sales recorded yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Completed Order History Table -->
+    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
+      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Completed Order History &amp; Payments</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs min-w-[700px]">
+          <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
+            <tr>
+              <th class="p-3">Order ID</th>
+              <th class="p-3">Table / Source</th>
+              <th class="p-3">Customer</th>
+              <th class="p-3">Payment Mode</th>
+              <th class="p-3">Items</th>
+              <th class="p-3 text-right">Amount</th>
+              <th class="p-3">Time</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${completedOrders.map(o => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-3 font-mono font-bold text-brand-900">#${o.id}</td>
+                <td class="p-3 font-bold text-brand-800">T-${o.table}</td>
+                <td class="p-3">${o.customerName || 'Guest'}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-100 text-gold-800">${o.paymentMode || 'UPI'}</span></td>
+                <td class="p-3 max-w-[200px] truncate">${(o.items || []).map(i => `${i.qty}× ${i.name}`).join(', ')}</td>
+                <td class="p-3 text-right font-bold text-brand-950">${money(calculateOrderTotal(o))}</td>
+                <td class="p-3 text-brand-500 text-[11px]">${formatTime(o.completedTs || o.ts)}</td>
+              </tr>
+            `).join('') || `<tr><td colspan="7" class="text-center py-8 text-brand-400">No completed orders.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function menuEngineeringPanel() {
+  // Categorize menu items into Stars, Plowhorses, Puzzles, Dogs
+  const menuItems = DB.menu;
+  
+  // Compute average sales volume and average margin
+  let totalSoldUnits = 0;
+  const itemCounts = {};
+  DB.orders.filter(o => o.status === 'served').forEach(o => {
+    (o.items || []).forEach(i => {
+      itemCounts[i.name] = (itemCounts[i.name] || 0) + Number(i.qty || 1);
+      totalSoldUnits += Number(i.qty || 1);
+    });
+  });
+
+  const avgPopularity = menuItems.length > 0 ? totalSoldUnits / menuItems.length : 0;
+
+  const categorized = menuItems.map(m => {
+    const sold = itemCounts[m.name] || 0;
+    const foodCostPct = getDishFoodCostPercent(m);
+    const grossMargin = 100 - foodCostPct;
+    
+    let classification = 'Dog 🐶';
+    let desc = 'Low Profit, Low Popularity';
+    let color = 'bg-red-50 text-red-800 border-red-200';
+
+    const isPopular = sold >= avgPopularity;
+    const isProfitable = grossMargin >= 65; // High profitability threshold
+
+    if (isPopular && isProfitable) {
+      classification = 'Star ⭐';
+      desc = 'High Profit, High Popularity';
+      color = 'bg-green-50 text-green-800 border-green-200';
+    } else if (isPopular && !isProfitable) {
+      classification = 'Plowhorse 🐴';
+      desc = 'Low Profit, High Popularity';
+      color = 'bg-amber-50 text-amber-800 border-amber-200';
+    } else if (!isPopular && isProfitable) {
+      classification = 'Puzzle 🧩';
+      desc = 'High Profit, Low Popularity';
+      color = 'bg-blue-50 text-blue-800 border-blue-200';
+    }
+
+    return { name: m.name, category: m.category, price: m.price, sold, grossMargin: grossMargin.toFixed(1), classification, desc, color };
+  });
+
+  return `
+  <div class="space-y-5">
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <h3 class="font-display text-lg font-bold text-brand-950 mb-1">Menu Engineering Matrix</h3>
+      <p class="text-xs text-brand-400 mb-4">Automatically categorizes your menu items into Stars, Plowhorses, Puzzles, and Dogs based on sales volume and gross margins.</p>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div class="bg-green-50/60 p-4 rounded-xl border border-green-200">
+          <div class="text-xs font-bold text-green-800">Stars ⭐</div>
+          <div class="text-[11px] text-green-600 mt-0.5">High Profit &amp; High Popularity. Maintain quality &amp; visibility.</div>
+        </div>
+        <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
+          <div class="text-xs font-bold text-amber-800">Plowhorses 🐴</div>
+          <div class="text-[11px] text-amber-600 mt-0.5">Low Profit &amp; High Popularity. Consider slight price increases or ingredient optimization.</div>
+        </div>
+        <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-200">
+          <div class="text-xs font-bold text-blue-800">Puzzles 🧩</div>
+          <div class="text-[11px] text-blue-600 mt-0.5">High Profit &amp; Low Popularity. Promote heavily or re-market.</div>
+        </div>
+        <div class="bg-red-50/60 p-4 rounded-xl border border-red-200">
+          <div class="text-xs font-bold text-red-800">Dogs 🐶</div>
+          <div class="text-[11px] text-red-600 mt-0.5">Low Profit &amp; Low Popularity. Consider removing or redesigning.</div>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs min-w-[650px]">
+          <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
+            <tr>
+              <th class="p-3">Dish Name</th>
+              <th class="p-3">Category</th>
+              <th class="p-3 text-center">Units Sold</th>
+              <th class="p-3 text-right">Gross Margin %</th>
+              <th class="p-3 text-center">Classification</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${categorized.map(item => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-3 font-bold text-brand-950">${item.name}</td>
+                <td class="p-3 text-brand-500">${item.category}</td>
+                <td class="p-3 text-center font-bold">${item.sold}</td>
+                <td class="p-3 text-right font-bold text-brand-900">${item.grossMargin}%</td>
+                <td class="p-3 text-center"><span class="px-3 py-1 rounded-full text-xs font-bold border ${item.color}">${item.classification}</span></td>
+              </tr>
+            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No menu items available for engineering analysis.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function billingModal() {
+  const cart = session.billingCart || [];
+  const subtotal = cart.reduce((a, b) => a + (b.price * b.qty), 0);
+  const tax = subtotal * 0.05;
+  const total = subtotal + tax;
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
+    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
+        <div>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">POS Manual &amp; QR Table Billing</h3>
+          <p class="text-[11px] sm:text-xs text-brand-400">Process orders and trigger automatic BOM stock deductions.</p>
+        </div>
+        <button id="closeBillingModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto min-h-0">
+        <!-- Left: Item Selector & Cart -->
+        <div class="space-y-3 flex flex-col overflow-hidden bg-brand-50/40 p-3.5 rounded-2xl border border-brand-100">
+          <div class="text-xs font-bold text-brand-900 uppercase">Select Menu Items to Bill</div>
+          <div class="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+            ${DB.menu.map(m => `
+              <button class="add-pos-item text-left p-2.5 rounded-xl border border-brand-200 bg-white hover:border-brand-500 transition shadow-sm active:scale-98" data-id="${m.id}">
+                <div class="text-xs font-bold text-brand-950 truncate">${m.name}</div>
+                <div class="text-[10px] text-brand-500 font-mono mt-0.5">${money(m.price)}</div>
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="text-xs font-bold text-brand-900 uppercase mt-2">Current Order Cart (${cart.reduce((a,b)=>a+b.qty, 0)} items)</div>
+          <div class="flex-1 overflow-y-auto space-y-1.5 bg-white p-2.5 rounded-xl border border-brand-200">
+            ${cart.map((item, idx) => `
+              <div class="flex items-center justify-between text-xs py-1 border-b border-slate-100">
+                <span class="font-bold text-brand-950 truncate max-w-[140px]">${item.name}</span>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-brand-600">${item.qty} × ${money(item.price)}</span>
+                  <button class="remove-pos-item text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </div>
+            `).join('') || `<div class="text-xs text-center py-6 text-brand-400">Cart is empty. Click items above.</div>`}
+          </div>
+        </div>
+
+        <!-- Right: Order Details & Payment -->
+        <div class="space-y-3 bg-white p-4 rounded-2xl border border-brand-200 flex flex-col justify-between shadow-sm">
+          <div class="space-y-3">
+            <div class="text-xs font-bold text-brand-900 uppercase">Billing Details &amp; Payment Mode</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] font-bold text-brand-600 block">Table Number</label>
+                <input id="posTableInput" value="${session.billingTable}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50 font-bold">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold text-brand-600 block">Order Mode</label>
+                <select id="posBillingTypeSelect" class="w-full mt-1 border border-brand-200 rounded-xl px-2.5 py-2 text-xs font-bold bg-slate-50">
+                  <option value="manual" ${session.billingType==='manual'?'selected':''}>Manual Counter</option>
+                  <option value="qr" ${session.billingType==='qr'?'selected':''}>Table QR Billing</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] font-bold text-brand-600 block">Customer Name</label>
+                <input id="posCustName" value="${session.billingCustomerName}" placeholder="Optional" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold text-brand-600 block">Phone Number</label>
+                <input id="posCustPhone" value="${session.billingCustomerPhone}" placeholder="Optional" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50">
+              </div>
+            </div>
+
+            <div>
+              <label class="text-[10px] font-bold text-brand-600 block mb-1">Select Payment Gateway / Mode</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                ${['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card'].map(mode => `
+                  <button type="button" class="pos-pay-mode-btn py-2 text-xs font-bold rounded-xl border transition ${session.billingPaymentMode === mode ? 'bg-brand text-cream border-brand shadow' : 'bg-slate-50 text-brand-800 border-brand-200'}" data-mode="${mode}">${mode}</button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-3 border-t border-brand-100">
+            <div class="flex justify-between text-xs text-brand-600"><span>Subtotal:</span><span class="font-mono font-bold">${money(subtotal)}</span></div>
+            <div class="flex justify-between text-xs text-brand-600"><span>Tax / Charges (5%):</span><span class="font-mono font-bold">${money(tax)}</span></div>
+            <div class="flex justify-between text-sm font-bold text-brand-950 border-t border-brand-100 pt-1"><span>Total Payable:</span><span class="font-mono text-green-700">${money(total)}</span></div>
+
+            <button id="completePosBillingBtn" class="w-full mt-2 bg-green-700 hover:bg-green-800 text-white font-bold py-3.5 rounded-xl text-xs sm:text-sm transition shadow-md active:scale-98">Complete Payment &amp; Deduct BOM Stock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wastageModal() {
+  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
+    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
+        <div>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Stock Wastage &amp; Shrinkage Log</h3>
+          <p class="text-[11px] sm:text-xs text-brand-400">Record spoiled, spilled, or expired inventory items.</p>
+        </div>
+        <button id="closeWastageModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
+        <div class="bg-amber-50 p-3.5 rounded-xl border border-amber-200 space-y-3">
+          <div>
+            <label class="text-xs font-bold text-brand-950 block mb-1">Select Raw Material / Ingredient</label>
+            <select id="wastageRmSelect" class="w-full border border-brand-300 rounded-xl p-2.5 text-xs font-bold bg-white">
+              <option value="">-- Choose Material --</option>
+              ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'}) - Rate: ${money(rm.unitPrice)}/kg</option>`).join('')}
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs font-bold text-brand-950 block mb-1">Quantity Wasted</label>
+              <input id="wastageQtyInput" type="number" step="0.01" placeholder="e.g. 500" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white font-bold">
+            </div>
+            <div>
+              <label class="text-xs font-bold text-brand-950 block mb-1">Unit</label>
+              <select id="wastageUnitSelect" class="w-full border border-brand-300 rounded-xl p-2 text-xs font-bold bg-white">
+                <option>GRM</option><option>ML</option><option>KG</option><option>LITRE</option><option>PCS</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-bold text-brand-950 block mb-1">Reason for Wastage / Spoilage</label>
+            <input id="wastageReasonInput" placeholder="e.g. Expired shelf-life, container spill" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white">
+          </div>
+
+          <button id="submitWastageBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Log Wastage &amp; Deduct Stock</button>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-xs font-bold text-brand-900 uppercase">Recent Wastage History (${DB.wastageLogs.length})</div>
+          <div class="space-y-1.5 max-h-48 overflow-y-auto">
+            ${DB.wastageLogs.slice(-10).reverse().map(log => `
+              <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs flex justify-between items-center">
+                <div>
+                  <div class="font-bold text-red-700">${log.qty} ${log.unit} of ${log.item}</div>
+                  <div class="text-[10px] text-slate-500">${log.reason} · By ${log.staff}</div>
+                </div>
+                <div class="font-mono text-[10px] text-slate-400">${formatTime(log.ts)}</div>
+              </div>
+            `).join('') || `<div class="text-xs text-slate-400 text-center py-4">No wastage logged yet.</div>`}
+          </div>
+        </div>
+      </div>
     </div>
   </div>`;
 }
@@ -559,8 +880,8 @@ function recipeCostingPanel() {
       <div class="w-14 h-14 bg-brand text-cream rounded-2xl flex items-center justify-center mx-auto shadow-md">
         <i data-lucide="calculator" class="w-7 h-7"></i>
       </div>
-      <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Recipe Engineering Workspace</h3>
-      <p class="text-xs text-brand-500 max-w-md mx-auto leading-relaxed">Access full ingredient breakdowns, yield calculations, live overhead scaling, and dynamic margin graphs in our unified workspace.</p>
+      <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Bill of Materials (BOM) &amp; Recipe Master</h3>
+      <p class="text-xs text-brand-500 max-w-md mx-auto leading-relaxed">Access full ingredient breakdowns, multi-level recipe linking, and automated stock cascading.</p>
       <button id="launchMainMasterBtn" class="w-full sm:w-auto bg-brand text-cream font-bold px-6 py-3.5 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition inline-flex items-center justify-center gap-2 shadow-md active:scale-98">
         <i data-lucide="sliders" class="w-4 h-4"></i> Launch Master Costing Workspace
       </button>
@@ -593,10 +914,16 @@ function mainRecipesModal() {
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   const recipeFilterQuery = (session.recipeFilterQuery || '').toLowerCase().trim();
-  const filteredMenu = DB.menu.filter(m => {
+  let filteredMenu = DB.menu.filter(m => {
     if (!recipeFilterQuery) return true;
     return (m.name || '').toLowerCase().includes(recipeFilterQuery);
   });
+
+  if (session.recipeSortMode === 'cost') {
+    filteredMenu.sort((a, b) => getDishFoodCostPercent(b) - getDishFoodCostPercent(a));
+  } else {
+    filteredMenu.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
 
   let matchingUsage = [];
   const ingQuery = (session.ingredientUsageQuery || '').toLowerCase().trim();
@@ -619,8 +946,8 @@ function mainRecipesModal() {
     <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-7xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
         <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Main Dish Recipe &amp; Costing Master</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Edit ingredients, portions, overheads, and dish names in real time.</p>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Main Dish Recipe &amp; BOM Master</h3>
+          <p class="text-[11px] sm:text-xs text-brand-400">Track raw ingredient costs, BOM cascades, portions, and margins.</p>
         </div>
         <button id="closeMainRecipesModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
@@ -638,16 +965,22 @@ function mainRecipesModal() {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 flex-1 overflow-y-auto min-h-0">
-        <!-- Side Panel -->
         <div class="bg-brand-50/60 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 border border-brand-100 space-y-2.5 overflow-y-auto max-h-48 md:max-h-full">
           <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200 shadow-sm">
             <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Search Dishes</label>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Filter Dishes</label>
               <input id="liveLetterSearchInput" type="text" value="${session.recipeFilterQuery || ''}" placeholder="Filter menu items..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Reverse Item Lookup</label>
               <input id="liveIngredientSearchInput" type="text" value="${session.ingredientUsageQuery || ''}" placeholder="Type ingredient name..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">⚡ Sort Main Dishes</label>
+              <select id="mainDishSortSelect" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-400">
+                <option value="alpha" ${session.recipeSortMode === 'alpha' ? 'selected' : ''}>Alphabetical (A ➔ Z)</option>
+                <option value="cost" ${session.recipeSortMode === 'cost' ? 'selected' : ''}>Cost % (High ➔ Low)</option>
+              </select>
             </div>
             ${ingQuery.length >= 2 ? `
               <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded-lg max-h-28 overflow-y-auto leading-relaxed">
@@ -657,19 +990,21 @@ function mainRecipesModal() {
           </div>
 
           <div class="flex items-center justify-between border-b border-brand-100 pb-1.5">
-            <span class="text-xs font-bold text-brand-800">Menu Items (${filteredMenu.length})</span>
+            <span class="text-xs font-bold text-brand-800">Menu Dishes (${filteredMenu.length})</span>
           </div>
           <div class="space-y-1.5">
-            ${filteredMenu.map(m => `
-            <div class="main-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.activeRecipeDishId === m.id ? 'bg-brand text-cream border-brand shadow' : 'bg-white text-brand-900 border-brand-100 hover:border-brand-300'}" data-id="${m.id}">
-              <div class="font-bold truncate">${m.name}</div>
-              <div class="text-[10px] opacity-80 mt-0.5">${money(m.price)} · ${m.category}</div>
-            </div>`).join('') || `<div class="text-xs text-brand-400 text-center py-6">No matching dishes.</div>`}
+            ${filteredMenu.map(m => {
+              const cp = getDishFoodCostPercent(m);
+              return `
+              <div class="main-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.activeRecipeDishId === m.id ? 'bg-brand text-cream border-brand shadow' : 'bg-white text-brand-900 border-brand-100 hover:border-brand-300'}" data-id="${m.id}">
+                <div class="font-bold truncate">${m.name}</div>
+                <div class="text-[10px] opacity-80 mt-0.5 flex justify-between"><span>${money(m.price)}</span><span>Cost: ${cp.toFixed(1)}%</span></div>
+              </div>`;
+            }).join('') || `<div class="text-xs text-brand-400 text-center py-6">No matching dishes.</div>`}
           </div>
         </div>
 
-        <!-- Recipe Content & Tables -->
-        <div class="md:col-span-3 space-y-3 sm:space-y-4 overflow-y-auto pr-0.5">
+        <div class="md:col-span-3 space-y-4 overflow-y-auto pr-0.5">
           ${selectedDish ? `
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 bg-cream p-3 sm:p-3.5 rounded-xl border border-brand-100 shadow-sm">
               <div>
@@ -688,7 +1023,7 @@ function mainRecipesModal() {
 
             <div class="border border-amber-200 rounded-xl bg-amber-50/20 overflow-x-auto shadow-sm">
               <div class="p-2.5 bg-sheetHeader flex justify-between items-center border-b border-amber-200 sticky left-0">
-                <span class="text-xs font-bold text-brand-950 uppercase tracking-wide">Ingredients Breakdown</span>
+                <span class="text-xs font-bold text-brand-950 uppercase tracking-wide">BOM Ingredients &amp; Sub-Preps Breakdown</span>
                 <button id="addIngredientRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-lg hover:bg-brand-600 transition shadow-sm flex items-center gap-1">+ Add Line</button>
               </div>
 
@@ -706,7 +1041,7 @@ function mainRecipesModal() {
                     <th class="p-2 w-8 text-center"></th>
                   </tr>
                 </thead>
-                <tbody id="recipeRowsTable" class="divide-y divide-amber-200/80 font-medium">
+                <tbody class="divide-y divide-amber-200/80 font-medium">
                   ${(activeRecipe?.ingredients || []).map((ing, idx) => {
                     const isBase = ing.type === 'base' || ing.isBase;
                     let vendor = 'FACTORY';
@@ -824,10 +1159,16 @@ function baseRecipesModal() {
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   const baseFilterQuery = (session.baseRecipeFilterQuery || '').toLowerCase().trim();
-  const filteredBaseRecipes = DB.baseRecipes.filter(br => {
+  let filteredBaseRecipes = DB.baseRecipes.filter(br => {
     if (!baseFilterQuery) return true;
     return (br.name || '').toLowerCase().includes(baseFilterQuery);
   });
+
+  if (session.baseRecipeSortMode === 'cost') {
+    filteredBaseRecipes.sort((a, b) => calculateBaseRecipeCostPerUnit(b) - calculateBaseRecipeCostPerUnit(a));
+  } else {
+    filteredBaseRecipes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }
 
   let matchingBaseUsage = [];
   const baseIngQuery = (session.baseIngredientUsageQuery || '').toLowerCase().trim();
@@ -879,6 +1220,13 @@ function baseRecipesModal() {
               <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Usage Lookup</label>
               <input id="baseIngredientSearchInput" type="text" value="${session.baseIngredientUsageQuery || ''}" placeholder="Find where used..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gold-400">
             </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">⚡ Sort Base Preps</label>
+              <select id="baseDishSortSelect" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-brand-900 focus:outline-none focus:ring-2 focus:ring-gold-400">
+                <option value="alpha" ${session.baseRecipeSortMode === 'alpha' ? 'selected' : ''}>Alphabetical (A ➔ Z)</option>
+                <option value="cost" ${session.baseRecipeSortMode === 'cost' ? 'selected' : ''}>Cost % (High ➔ Low)</option>
+              </select>
+            </div>
             ${baseIngQuery.length >= 2 ? `
               <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded-lg max-h-28 overflow-y-auto leading-relaxed">
                 ${matchingBaseUsage.length === 0 ? `<b>No usage found for "${baseIngQuery}".</b>` : `<b>Used in (${matchingBaseUsage.length}):</b><br>` + matchingBaseUsage.map(d => `• ${d}`).join('<br>')}
@@ -902,7 +1250,7 @@ function baseRecipesModal() {
           </div>
         </div>
 
-        <div class="md:col-span-3 space-y-3 sm:space-y-4 overflow-y-auto pr-0.5">
+        <div class="md:col-span-3 space-y-3 overflow-y-auto pr-0.5">
           ${activeBase ? `
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 bg-cream p-3 sm:p-3.5 rounded-xl border border-brand-100 shadow-sm">
               <div class="sm:col-span-1">
@@ -998,7 +1346,7 @@ function baseRecipesModal() {
                       <td class="p-2 border-r border-amber-200 font-semibold text-brand-700 truncate text-[11px]">
                         ${vendor}
                       </td>
-                      <td class="p-2 border-r border-amber-200 text-right">
+                      <td class="p-2 border-r border-amber-200 text-right font-bold">
                         ${money(unitPrice)}
                       </td>
                       <td class="p-2 text-right font-bold text-brand-950 base-ing-cost-cell">
@@ -1045,7 +1393,7 @@ function rawMaterialsModal() {
     <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-5xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
         <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Raw Materials Master Database</h3>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Raw Material Master Database</h3>
           <p class="text-[11px] sm:text-xs text-brand-400">Manage wholesale ingredient costs and suppliers.</p>
         </div>
         <button id="closeRawMaterialsBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
@@ -1485,6 +1833,127 @@ function wireKitchen() {
   const dashRm = document.getElementById('dashRmSearch');
   if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
 
+  /* POS BILLING & WASTAGE MODAL TRIGGERS */
+  const openBillBtn = document.getElementById('openBillingModalBtn');
+  if (openBillBtn) openBillBtn.onclick = () => { session.showBillingModal = true; render(); };
+
+  const closeBillBtn = document.getElementById('closeBillingModalBtn');
+  if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; render(); };
+
+  const openWastageBtn = document.getElementById('openWastageModalBtn');
+  if (openWastageBtn) openWastageBtn.onclick = () => { session.showWastageModal = true; render(); };
+
+  const closeWastageBtn = document.getElementById('closeWastageModalBtn');
+  if (closeWastageBtn) closeWastageBtn.onclick = () => { session.showWastageModal = false; render(); };
+
+  /* POS CART ACTIONS */
+  document.querySelectorAll('.add-pos-item').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const m = DB.menu.find(x => x.id === id);
+      if (!m) return;
+      const existing = session.billingCart.find(i => i.id === id);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        session.billingCart.push({ id: m.id, name: m.name, price: m.price, qty: 1, kind: 'cafe' });
+      }
+      renderKeepFocus('posTableInput');
+    };
+  });
+
+  document.querySelectorAll('.remove-pos-item').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.billingCart.splice(idx, 1);
+      renderKeepFocus('posTableInput');
+    };
+  });
+
+  document.querySelectorAll('.pos-pay-mode-btn').forEach(btn => {
+    btn.onclick = () => {
+      session.billingPaymentMode = btn.dataset.mode;
+      renderKeepFocus('posTableInput');
+    };
+  });
+
+  const completePosBillingBtn = document.getElementById('completePosBillingBtn');
+  if (completePosBillingBtn) {
+    completePosBillingBtn.onclick = async () => {
+      if (session.billingCart.length === 0) {
+        toast('Cart is empty. Add items to bill.', 'alert-triangle');
+        return;
+      }
+
+      const table = document.getElementById('posTableInput').value.trim() || '1';
+      const custName = document.getElementById('posCustName').value.trim() || 'POS Customer';
+      const custPhone = document.getElementById('posCustPhone').value.trim() || '';
+      const orderType = document.getElementById('posBillingTypeSelect').value;
+
+      const orderId = Math.floor(1000 + Math.random() * 9000).toString();
+      const newOrder = {
+        id: orderId,
+        table: table,
+        type: orderType === 'qr' ? 'qr' : 'cafe',
+        customerName: custName,
+        customerPhone: custPhone,
+        items: [...session.billingCart],
+        paymentMode: session.billingPaymentMode,
+        status: 'served',
+        ts: Date.now(),
+        completedTs: Date.now()
+      };
+
+      // 1. Save order to Firebase
+      await db.ref('orders/' + orderId).set(newOrder);
+
+      // 2. Cascade BOM Stock Deduction for each item in cart
+      for (const item of session.billingCart) {
+        if (item.id) {
+          await processBOMDeduction(item.id, item.qty);
+        }
+      }
+
+      toast(`Order #${orderId} billed successfully & BOM stock updated!`, 'check-circle');
+      session.billingCart = [];
+      session.showBillingModal = false;
+      playLoudAlarm();
+      render();
+    };
+  }
+
+  /* WASTAGE LOGGING SUBMISSION */
+  const submitWastageBtn = document.getElementById('submitWastageBtn');
+  if (submitWastageBtn) {
+    submitWastageBtn.onclick = async () => {
+      const rmName = document.getElementById('wastageRmSelect').value;
+      const qty = Number(document.getElementById('wastageQtyInput').value) || 0;
+      const unit = document.getElementById('wastageUnitSelect').value;
+      const reason = document.getElementById('wastageReasonInput').value.trim() || 'General Spoilage';
+
+      if (!rmName || qty <= 0) {
+        toast('Please select a material and enter a valid quantity.', 'alert-triangle');
+        return;
+      }
+
+      const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === rmName.toLowerCase().trim());
+      if (rm) {
+        const wasteGrams = getConvertedGramsMl(qty, unit);
+        const currentStock = Number(rm.stockGrams ?? 100000);
+        const newStock = Math.max(0, currentStock - wasteGrams);
+        await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+      }
+
+      const logEntry = { id: uid('waste'), item: rmName, qty, unit, reason, staff: session.staff.username, ts: Date.now() };
+      DB.wastageLogs.push(logEntry);
+      await db.ref('wastageLogs').set(DB.wastageLogs);
+
+      toast('Wastage logged & raw material inventory updated!', 'trash-2');
+      session.showWastageModal = false;
+      render();
+    };
+  }
+
   /* MASTER MAIN RECIPES MODAL HANDLERS */
   const openMainBtn = document.getElementById('openMainRecipesModalBtn');
   if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
@@ -1501,6 +1970,23 @@ function wireKitchen() {
       render();
     };
   });
+
+  /* SORT SELECT HANDLERS */
+  const mainDishSortSelect = document.getElementById('mainDishSortSelect');
+  if (mainDishSortSelect) {
+    mainDishSortSelect.onchange = (e) => {
+      session.recipeSortMode = e.target.value;
+      renderKeepFocus('mainDishSortSelect');
+    };
+  }
+
+  const baseDishSortSelect = document.getElementById('baseDishSortSelect');
+  if (baseDishSortSelect) {
+    baseDishSortSelect.onchange = (e) => {
+      session.baseRecipeSortMode = e.target.value;
+      renderKeepFocus('baseDishSortSelect');
+    };
+  }
 
   /* REALTIME DISH NAME SYNCHRONIZATION */
   const masterDishNameInput = document.getElementById('masterDishNameInput');
@@ -1716,585 +2202,6 @@ function wireKitchen() {
       }
     };
   }
-
-  /* RAW MATERIAL MASTER HANDLERS */
-  const manageIngBtn = document.getElementById('manageIngredientsBtn');
-  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
-
-  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
-  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
-
-  const dlRmTemplateBtn = document.getElementById('dlRmTemplateBtn');
-  if (dlRmTemplateBtn) dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
-
-  const processRmExcelBtn = document.getElementById('processRmExcelBtn');
-  if (processRmExcelBtn) {
-    processRmExcelBtn.onclick = () => {
-      const fileInput = document.getElementById('rmExcelInput');
-      if (!fileInput || !fileInput.files[0]) {
-        toast('Please select an Excel or CSV file first.', 'alert-triangle');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(worksheet);
-
-          let addedCount = 0;
-          for (const row of json) {
-            if (row.name) {
-              const id = uid('rm');
-              await db.ref('rawMaterials/' + id).set({
-                id,
-                name: row.name.toString().trim(),
-                vendor: (row.vendor || 'FACTORY').toString().trim(),
-                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
-                unitPrice: Number(row.unitPrice || row.price || 0)
-              });
-              addedCount++;
-            }
-          }
-
-          toast(`Added ${addedCount} raw materials!`, 'check-circle');
-        } catch (err) {
-          toast('Error reading Excel headers.', 'alert-triangle');
-        }
-      };
-      reader.readAsArrayBuffer(fileInput.files[0]);
-    };
-  }
-
-  const addRmBtn = document.getElementById('addRmBtn');
-  if (addRmBtn) {
-    addRmBtn.onclick = async () => {
-      const name = document.getElementById('newRmName').value.trim();
-      const vendor = document.getElementById('newRmVendor').value.trim() || 'FACTORY';
-      const unit = document.getElementById('newRmUnit').value;
-      const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
-
-      if (!name) { toast('Enter raw material name.', 'alert-triangle'); return; }
-
-      const newItem = { id: uid('rm'), name, vendor, unit, unitPrice };
-      await db.ref('rawMaterials/' + newItem.id).set(newItem);
-      toast('Raw material saved!', 'check-circle');
-    };
-  }
-
-  document.querySelectorAll('.delete-rm-btn').forEach(btn => {
-    btn.onclick = async () => {
-      const id = btn.dataset.id;
-      await db.ref('rawMaterials/' + id).remove();
-      toast('Raw material removed.');
-    };
-  });
-
-  /* BASE PREP MASTER HANDLERS */
-  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
-  if (manageBaseBtn) {
-    manageBaseBtn.onclick = () => {
-      session.showBaseRecipesModal = true;
-      if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
-        session.editingBaseRecipeId = DB.baseRecipes[0].id;
-      }
-      render();
-    };
-  }
-
-  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
-  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
-
-  const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
-  if (createNewBaseBtn) {
-    createNewBaseBtn.onclick = async () => {
-      const newBase = {
-        id: uid('br'),
-        name: 'New Base Prep',
-        batchYield: 1,
-        unit: 'GRM',
-        ingredients: []
-      };
-      await db.ref('baseRecipes/' + newBase.id).set(newBase);
-      session.editingBaseRecipeId = newBase.id;
-      render();
-    };
-  }
-
-  document.querySelectorAll('.base-recipe-card').forEach(card => {
-    card.onclick = () => {
-      session.editingBaseRecipeId = card.dataset.id;
-      render();
-    };
-  });
-
-  const saveBaseRecipeBtn = document.getElementById('saveBaseRecipeBtn');
-  if (saveBaseRecipeBtn && session.editingBaseRecipeId) {
-    saveBaseRecipeBtn.onclick = async () => {
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase) {
-        activeBase.name = document.getElementById('baseName').value.trim();
-        activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
-        activeBase.unit = document.getElementById('baseUnit').value;
-
-        await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
-        toast('Base recipe saved!', 'check-circle');
-      }
-    };
-  }
-
-  const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
-  if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
-    deleteBaseRecipeBtn.onclick = async () => {
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      const name = activeBase ? activeBase.name : 'this base';
-      if (confirm(`Delete "${name}"?`)) {
-        await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
-        session.editingBaseRecipeId = DB.baseRecipes.length > 1 ? DB.baseRecipes.find(b => b.id !== session.editingBaseRecipeId).id : null;
-        render();
-        toast('Base recipe deleted.', 'trash-2');
-      }
-    };
-  }
-
-  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
-  if (addBaseIngRowBtn && session.editingBaseRecipeId) {
-    addBaseIngRowBtn.onclick = () => {
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase) {
-        if (!activeBase.ingredients) activeBase.ingredients = [];
-        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
-        render();
-      }
-    };
-  }
-
-  document.querySelectorAll('.base-mode-toggle-raw').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].type = 'raw';
-        activeBase.ingredients[idx].isBase = false;
-        activeBase.ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-mode-toggle-base').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].type = 'base';
-        activeBase.ingredients[idx].isBase = true;
-        activeBase.ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-select').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const val = e.target.value;
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-
-      if (activeBase) {
-        if (val.startsWith('rm_')) {
-          const name = val.replace('rm_', '');
-          const rm = getRawMaterialDetails(name);
-          activeBase.ingredients[idx].name = name;
-          activeBase.ingredients[idx].unit = rm.unit || 'GRM';
-          activeBase.ingredients[idx].uom = rm.unit || 'GRM';
-          activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
-          activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
-          activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, rm.unit || 'GRM');
-          activeBase.ingredients[idx].type = 'raw';
-        } else if (val.startsWith('br_')) {
-          const name = val.replace('br_', '');
-          const br = DB.baseRecipes.find(b => b.name === name);
-          if (br) {
-            activeBase.ingredients[idx].name = br.name;
-            activeBase.ingredients[idx].unit = br.unit || 'GRM';
-            activeBase.ingredients[idx].uom = br.unit || 'GRM';
-            activeBase.ingredients[idx].vendor = 'LINKED BASE';
-            activeBase.ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
-            activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, br.unit || 'GRM');
-            activeBase.ingredients[idx].type = 'base';
-          }
-        }
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-unit').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        const newUnit = e.target.value;
-        activeBase.ingredients[idx].unit = newUnit;
-        activeBase.ingredients[idx].uom = newUnit;
-        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, newUnit);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-qty').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        const qty = Number(e.target.value) || 0;
-        activeBase.ingredients[idx].qty = qty;
-        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(qty, activeBase.ingredients[idx].unit);
-
-        const row = input.closest('tr');
-        if (row) {
-          const gramsInput = row.querySelector('.base-ing-grams');
-          if (gramsInput) gramsInput.value = activeBase.ingredients[idx].gramsMl;
-
-          const costCell = row.querySelector('.base-ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
-        }
-        recalculateBaseRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-grams').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.base-ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
-        }
-        recalculateBaseRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.remove-base-ing').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase) {
-        activeBase.ingredients.splice(idx, 1);
-        render();
-      }
-    };
-  });
-
-  /* MAIN RECIPES EVENT HANDLERS */
-  document.querySelectorAll('.mode-toggle-raw').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = false;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.mode-toggle-base').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = true;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  const recipePortionsInput = document.getElementById('recipePortions');
-  if (recipePortionsInput) {
-    recipePortionsInput.oninput = (e) => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].portions = Number(e.target.value) || 1;
-        recalculateMainRecipeTotals();
-      }
-    };
-  }
-
-  const recipeWastageInput = document.getElementById('recipeWastage');
-  if (recipeWastageInput) {
-    recipeWastageInput.oninput = (e) => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].wastagePercent = Number(e.target.value) || 0;
-        recalculateMainRecipeTotals();
-      }
-    };
-  }
-
-  const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
-  if (addIngredientRowBtn) {
-    addIngredientRowBtn.onclick = () => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
-        render();
-      }
-    };
-  }
-
-  document.querySelectorAll('.ing-master-select').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const val = e.target.value;
-      
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        if (val.startsWith('rm_')) {
-          const name = val.replace('rm_', '');
-          const rm = getRawMaterialDetails(name);
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].name = name;
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice || 0;
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, rm.unit || 'GRM');
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
-        } else if (val.startsWith('br_')) {
-          const name = val.replace('br_', '');
-          const br = DB.baseRecipes.find(b => b.name === name);
-          if (br) {
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = br.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'LINKED BASE';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, br.unit || 'GRM');
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
-          }
-        }
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-unit').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const newUnit = e.target.value;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = newUnit;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = newUnit;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, newUnit);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.remove-ing-row').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients.splice(idx, 1);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-qty').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const qty = Number(e.target.value) || 0;
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.qty = qty;
-        ing.gramsMl = getConvertedGramsMl(qty, ing.unit);
-
-        const row = input.closest('tr');
-        if (row) {
-          const gramsInput = row.querySelector('.ing-grams');
-          if (gramsInput) gramsInput.value = ing.gramsMl;
-
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-grams').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.gramsMl = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-price').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.unitPrice = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  const saveRecipeBtn = document.getElementById('saveRecipeBtn');
-  if (saveRecipeBtn) {
-    saveRecipeBtn.onclick = async () => {
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
-        toast('Recipe saved cloud-wide!', 'check-circle');
-      }
-    };
-  }
-
-  const deleteMainRecipeBtn = document.getElementById('deleteMainRecipeBtn');
-  if (deleteMainRecipeBtn) {
-    deleteMainRecipeBtn.onclick = async () => {
-      if (session.activeRecipeDishId) {
-        const dish = DB.menu.find(m => m.id === session.activeRecipeDishId);
-        const name = dish ? dish.name : 'this recipe';
-        if (confirm(`Clear recipe sheet for "${name}"?`)) {
-          await db.ref('recipes/' + session.activeRecipeDishId).remove();
-          render();
-          toast('Recipe sheet cleared!', 'trash-2');
-        }
-      }
-    };
-  }
-
-  document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
-    const o = DB.orders.find(x => x.id === b.dataset.id);
-    if (o) {
-      const nextStatus = b.dataset.next;
-      const updates = { status: nextStatus };
-      if (nextStatus === 'served') {
-        updates.completedTs = Date.now();
-        for (const item of (o.items || [])) {
-          if (item.id) {
-            await deductStockForDish(item.id, item.qty || 1);
-          }
-        }
-      }
-      await db.ref('orders/' + o.id).update(updates);
-      render();
-    }
-  });
-
-  document.querySelectorAll('.stock-toggle').forEach(b => b.onclick = async () => {
-    const kind = b.dataset.kind;
-    const arr = kind === 'menu' ? DB.menu : DB.retail;
-    const it = arr.find(x => x.id === b.dataset.id);
-    it.stock = !it.stock;
-    await db.ref(`${kind}/${it.id}`).update({ stock: it.stock });
-    render(); toast(it.name + ' marked ' + (it.stock ? 'in stock' : 'out of stock'), it.stock ? 'check-circle' : 'ban');
-  });
-
-  document.querySelectorAll('.edit-item').forEach(b => b.onclick = () => {
-    if (b.dataset.kind === 'menu') session.editingDish = b.dataset.id; else session.editingRetail = b.dataset.id;
-    render();
-  });
-
-  document.querySelectorAll('.delete-item').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this item?')) return;
-    const kind = b.dataset.kind;
-    await db.ref(`${kind}/${b.dataset.id}`).remove();
-    render();
-  });
-
-  const addDish = document.getElementById('addDishBtn'); if (addDish) addDish.onclick = () => { session.editingDish = 'new'; render(); };
-  const addRetail = document.getElementById('addRetailBtn'); if (addRetail) addRetail.onclick = () => { session.editingRetail = 'new'; render(); };
-
-  const saveDish = document.getElementById('saveDishBtn');
-  if (saveDish) saveDish.onclick = async () => {
-    const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
-    const fileInput = document.getElementById('dImgFile');
-    const existing = saveDish.dataset.id ? DB.menu.find(m => m.id === saveDish.dataset.id) : null;
-    let imgData = existing ? existing.img : '';
-
-    if (fileInput && fileInput.files[0]) {
-      toast('Compressing photo...', 'image');
-      imgData = await compressAndGetBase64(fileInput.files[0]);
-    }
-
-    const payload = {
-      id: saveDish.dataset.id || uid('m'),
-      name: document.getElementById('dName').value.trim(),
-      category: document.getElementById('dCategory').value.trim(),
-      price: Number(document.getElementById('dPrice').value) || 0,
-      img: imgData,
-      desc: document.getElementById('dDesc').value.trim(),
-      badges, stock: true,
-      nutrition: { cal: Number(document.getElementById('dCal').value) || 0, protein: Number(document.getElementById('dProt').value) || 0, carbs: Number(document.getElementById('dCarb').value) || 0, fat: Number(document.getElementById('dFat').value) || 0 }
-    };
-    if (!payload.name) { toast('Please enter a dish name.', 'alert-triangle'); return; }
-
-    await db.ref('menu/' + payload.id).set(payload);
-    session.editingDish = null; render(); toast('Dish saved cloud-wide!');
-  };
-
-  const saveRetail = document.getElementById('saveRetailBtn');
-  if (saveRetail) saveRetail.onclick = async () => {
-    const fileInput = document.getElementById('rImgFile');
-    const existing = saveRetail.dataset.id ? DB.retail.find(m => m.id === saveRetail.dataset.id) : null;
-    let imgData = existing ? existing.img : '';
-
-    if (fileInput && fileInput.files[0]) {
-      toast('Compressing photo...', 'image');
-      imgData = await compressAndGetBase64(fileInput.files[0]);
-    }
-
-    const payload = {
-      id: saveRetail.dataset.id || uid('r'),
-      name: document.getElementById('rName').value.trim(),
-      category: document.getElementById('rCategory').value.trim(),
-      price: Number(document.getElementById('rPrice').value) || 0,
-      size: document.getElementById('rSize').value.trim(),
-      img: imgData,
-      desc: document.getElementById('rDesc').value.trim(),
-      badges: ['100% Organic'],
-      stock: true
-    };
-    if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
-
-    await db.ref('retail/' + payload.id).set(payload);
-    session.editingRetail = null; render(); toast('Product saved cloud-wide!');
-  };
 }
 
 function renderKeepFocus(inputId) {
@@ -2344,6 +2251,12 @@ db.ref('baseRecipes').on('value', snap => {
 db.ref('recipes').on('value', snap => {
   const data = snap.val();
   DB.recipes = data || {};
+  render();
+});
+
+db.ref('wastageLogs').on('value', snap => {
+  const data = snap.val();
+  DB.wastageLogs = data || [];
   render();
 });
 
