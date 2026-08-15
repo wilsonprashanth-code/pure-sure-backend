@@ -109,13 +109,13 @@ let session = {
   stockTakeSearch: '',
   purchaseSearch: '',
   activeRecipeDishId: null,
-  showRawMaterialsModal: false,
-  showBaseRecipesModal: false,
-  showMainRecipesModal: false,
-  showBillingModal: false,
-  showWastageModal: false,
-  showPurchaseModal: false,
-  showStockTakeModal: false,
+  showRawMaterialsModal: localStorage.getItem('showRawMaterialsModal') === 'true',
+  showBaseRecipesModal: localStorage.getItem('showBaseRecipesModal') === 'true',
+  showMainRecipesModal: localStorage.getItem('showMainRecipesModal') === 'true',
+  showBillingModal: localStorage.getItem('ps_show_billing') === 'true',
+  showWastageModal: localStorage.getItem('showWastageModal') === 'true',
+  showPurchaseModal: localStorage.getItem('showPurchaseModal') === 'true',
+  showStockTakeModal: localStorage.getItem('howStockTakeModal') === 'true',
   editingBaseRecipeId: null,
   recipeFilterQuery: '',
   ingredientUsageQuery: '',
@@ -141,11 +141,7 @@ let session = {
   salesOrderType: 'Dine-In',
   salesTableNo: 'Table 12',
   salesGlobalSearchQuery: '',
-  salesItems: [
-    { id: 'item_1', barcode: '8906123456781', itemName: 'Blueberry Cheesecake', code: 'CAKE-BLUE-001', qty: 1, unit: 'Nos', rate: 320.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 15.24, netValue: 320.00 },
-    { id: 'item_2', barcode: '8906123456798', itemName: 'Iced Americano', code: 'BEV-ICE-002', qty: 2, unit: 'Nos', rate: 140.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 13.33, netValue: 280.00 },
-    { id: 'item_3', barcode: '8906123456804', itemName: 'Peri Peri Fries', code: 'SNK-003', qty: 1, unit: 'Nos', rate: 160.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 7.62, netValue: 160.00 }
-  ],
+  salesItems: [     ],
   salesPayments: [
     { mode: 'Cash', amount: 500.00 },
     { mode: 'UPI', amount: 296.19 }
@@ -2523,7 +2519,43 @@ function usersPanel() {
   </div>`;
 }
 
-function wireKitchen() {
+function wireKitchen()  const openBillBtn = document.getElementById('openBillingModalBtn');
+  if (openBillBtn) {
+    openBillBtn.onclick = () => { 
+      session.showBillingModal = true; 
+      localStorage.setItem('ps_show_billing', 'true');
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
+      render(); 
+    };
+  }
+
+  const closeBillBtn = document.getElementById('closeBillingModalBtn');
+  if (closeBillBtn) {
+    closeBillBtn.onclick = () => {
+      session.showBillingModal = false;
+      localStorage.removeItem('ps_show_billing');
+      render();
+    };
+  }
+
+  const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
+  if (openPurchaseBtn) {
+    openPurchaseBtn.onclick = () => { 
+      session.showPurchaseModal = true; 
+      localStorage.setItem('ps_show_purchase', 'true');
+      render(); 
+    };
+  }
+
+  const closePurchaseBtn = document.getElementById('closePurchaseModalBtn');
+  if (closePurchaseBtn) {
+    closePurchaseBtn.onclick = () => {
+      session.showPurchaseModal = false;
+      localStorage.removeItem('ps_show_purchase');
+      render();
+    };
+  }{
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.onclick = () => { 
