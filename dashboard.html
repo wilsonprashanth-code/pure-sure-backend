@@ -98,6 +98,8 @@ let session = {
   cafeSearch: '', 
   retailSearch: '', 
   rmSearch: '',
+  stockTakeSearch: '',
+  purchaseSearch: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -655,6 +657,39 @@ function historyPanel() {
       </div>
     </div>
 
+    <!-- Wastage Summary Report -->
+    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Wastage &amp; Shrinkage Audit Report</h3>
+        <span class="text-xs font-bold bg-red-50 text-red-700 px-3 py-1 rounded-full border border-red-200">Total Logs: ${DB.wastageLogs.length}</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs min-w-[600px]">
+          <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
+            <tr>
+              <th class="p-2.5">Item Name</th>
+              <th class="p-2.5 text-center">Wasted Qty</th>
+              <th class="p-2.5">Reason for Spoilage / Loss</th>
+              <th class="p-2.5">Logged By Staff</th>
+              <th class="p-2.5 text-right">Time</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${DB.wastageLogs.slice(-20).reverse().map(log => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-2.5 font-bold text-brand-950">${log.item}</td>
+                <td class="p-2.5 text-center font-bold text-red-600">${log.qty} ${log.unit}</td>
+                <td class="p-2.5 text-brand-700">${log.reason}</td>
+                <td class="p-2.5 text-brand-600">${log.staff}</td>
+                <td class="p-2.5 text-right text-brand-400 text-[11px]">${formatTime(log.ts)}</td>
+              </tr>
+            `).join('') || `<tr><td colspan="5" class="text-center py-6 text-brand-400">No wastage records found.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Monthly Stock Reconciliation Summary Table -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
       <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Monthly Stock Take &amp; Reconciliation (Qty &amp; Value)</h3>
       <div class="overflow-x-auto">
@@ -892,7 +927,10 @@ function billingModal() {
 }
 
 function purchaseModal() {
-  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const query = (session.purchaseSearch || '').toLowerCase().trim();
+  const sortedRawMaterials = [...DB.rawMaterials]
+    .filter(rm => !query || rm.name.toLowerCase().includes(query) || (rm.vendor && rm.vendor.toLowerCase().includes(query)))
+    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
@@ -919,7 +957,8 @@ function purchaseModal() {
           </div>
 
           <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">Select Raw Material to Restock</label>
+            <label class="text-xs font-bold text-brand-950 block mb-1">🔍 Search &amp; Select Raw Material</label>
+            <input id="purchaseSearchInput" value="${session.purchaseSearch || ''}" placeholder="Filter materials..." class="w-full mb-2 border border-emerald-300 rounded-xl p-2 text-xs bg-white focus:outline-none">
             <select id="purchaseRmSelect" class="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold bg-white">
               <option value="">-- Choose Material --</option>
               ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'}) - Current Rate: ${money(rm.unitPrice)}</option>`).join('')}
@@ -987,7 +1026,10 @@ function priceDifferenceWarningModal() {
 }
 
 function stockTakeModal() {
-  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const query = (session.stockTakeSearch || '').toLowerCase().trim();
+  const sortedRawMaterials = [...DB.rawMaterials]
+    .filter(rm => !query || rm.name.toLowerCase().includes(query) || (rm.vendor && rm.vendor.toLowerCase().includes(query)))
+    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
@@ -1001,6 +1043,11 @@ function stockTakeModal() {
       </div>
 
       <div class="flex-1 overflow-y-auto space-y-3">
+        <div class="relative mb-2">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
+          <input id="stockTakeSearchInput" value="${session.stockTakeSearch || ''}" placeholder="Search raw materials..." class="w-full bg-slate-50 border border-brand-200 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400">
+        </div>
+
         <div class="overflow-x-auto border border-brand-100 rounded-2xl">
           <table class="w-full text-left text-xs min-w-[650px]">
             <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
@@ -1028,7 +1075,7 @@ function stockTakeModal() {
                   </td>
                   <td class="p-3 text-right font-mono font-bold text-brand-700 variance-cell" data-id="${rm.id}">0.00 ${unit}</td>
                 </tr>`;
-              }).join('')}
+              }).join('') || `<tr><td colspan="5" class="text-center py-6 text-brand-400">No matching items found.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -2092,6 +2139,12 @@ function wireKitchen() {
 
   const dashRm = document.getElementById('dashRmSearch');
   if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
+
+  const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
+  if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
+
+  const purchaseSearchInput = document.getElementById('purchaseSearchInput');
+  if (purchaseSearchInput) purchaseSearchInput.oninput = (e) => { session.purchaseSearch = e.target.value; renderKeepFocus('purchaseSearchInput'); };
 
   /* MODAL TRIGGERS */
   const openBillBtn = document.getElementById('openBillingModalBtn');
