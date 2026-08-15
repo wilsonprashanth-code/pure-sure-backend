@@ -88,7 +88,8 @@ let DB = {
     { id: 'sup_1', name: 'ABC Organic Foods Pvt Ltd.', address: 'No.12, KIADB, Peenya 2nd Phase, Bengaluru', phone: '9876543210', gstin: '29ABCDE1234F1Z5', fssai: '10020043003120' }
   ],
   customers: [
-    { id: 'cust_1', name: 'Walk-In Customer', phone: '9876543210', gstin: '', type: 'Retail' }
+    { id: 'cust_1', name: 'Walk-In Customer', phone: '9876543210', address: 'Bengaluru', gstin: '', fssai: '' },
+    { id: 'cust_2', name: 'Regular Member', phone: '9812345678', address: 'Jayanagar, Bengaluru', gstin: '29AABCP1234F1Z9', fssai: '' }
   ],
   menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato']
 };
@@ -575,7 +576,7 @@ function kitchenShell() {
         ${kTab('bulk','Bulk Import','file-spreadsheet','')}
         ${kTab('qr','QR Tables','qr-code','')}
         ${kTab('brand','Brand','image','')}
-        ${kTab('users','Staff','users','')}
+        ${kTab('users','Staff & Directory','users','')}
       </nav>
     </header>
     <main class="max-w-7xl mx-auto px-3 sm:px-5 py-4 sm:py-5">
@@ -902,11 +903,11 @@ function billingModalReferenceStyle() {
       <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
         <div class="md:col-span-3 flex items-center gap-2">
           <label class="font-bold text-slate-700 shrink-0">Customer</label>
-          <div class="relative flex-1">
+          <div class="relative flex-1 flex items-center gap-1">
             <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium">
-              <option value="Walk-In Customer" ${session.salesCustomerName === 'Walk-In Customer' ? 'selected' : ''}>Walk-In Customer</option>
-              <option value="Regular Member" ${session.salesCustomerName === 'Regular Member' ? 'selected' : ''}>Regular Member</option>
+              ${DB.customers.map(c => `<option value="${c.name}" ${session.salesCustomerName === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
             </select>
+            <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); render(); toast('Customer added!', 'check-circle'); }" class="bg-posGreen text-white text-[10px] font-bold px-2 py-1.5 rounded-lg shrink-0" title="Add New Customer">+ New</button>
           </div>
         </div>
         <div class="md:col-span-3 flex items-center gap-2">
@@ -959,7 +960,7 @@ function billingModalReferenceStyle() {
                   <th class="p-2.5 border border-teal-900 text-center w-28">Qty</th>
                   <th class="p-2.5 border border-teal-900 text-center w-16">UOM</th>
                   <th class="p-2.5 border border-teal-900 text-right w-24">Rate (₹)</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-16">Disc</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-16">Disc %</th>
                   <th class="p-2.5 border border-teal-900 text-right w-24">Disc Amt</th>
                   <th class="p-2.5 border border-teal-900 text-center w-16">GST</th>
                   <th class="p-2.5 border border-teal-900 text-right w-24">GST Amt</th>
@@ -1215,10 +1216,12 @@ function purchaseModalReferenceStyle() {
       <!-- Top Supplier & Meta Grid -->
       <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs shrink-0 shadow-sm">
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-          <label class="font-bold text-slate-700 block">Supplier *</label>
+          <div class="flex items-center justify-between">
+            <label class="font-bold text-slate-700 block">Supplier *</label>
+            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
+          </div>
           <select id="purchaseSupplierSelect" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-bold text-slate-900">
-            <option>ABC Organic Foods Pvt Ltd.</option>
-            <option>Phalada Organic Consumer Products</option>
+            ${DB.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
           </select>
           <div class="text-[10px] text-slate-500 space-y-0.5 pt-1">
             <div><b>GSTIN:</b> ${session.purchaseSupplierGstin}</div>
@@ -1337,8 +1340,7 @@ function purchaseModalReferenceStyle() {
               <tr class="hover:bg-slate-50">
                 <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
                 <td class="p-2 border border-slate-200">
-                  <div class="font-bold text-slate-900">${item.itemName}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">${item.code}</div>
+                  <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
                 </td>
                 <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch}</td>
                 <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate}</td>
@@ -1366,6 +1368,10 @@ function purchaseModalReferenceStyle() {
           </tbody>
         </table>
       </div>
+
+      <datalist id="rawMaterialsList">
+        ${DB.rawMaterials.map(rm => `<option value="${rm.name}">`).join('')}
+      </datalist>
 
       <!-- Add Item Line button -->
       <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
@@ -2127,7 +2133,7 @@ function rawMaterialsModal() {
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <input id="newRmName" placeholder="Item Name (e.g. TOMATO)" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
             <input id="newRmVendor" placeholder="Vendor (e.g. AD VEGETABLES)" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
-            <select id="newRmUnit" class="border border-brand-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
+            <select id="newRmUnit" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
               <option value="GRM">GRM</option>
               <option value="ML">ML</option>
               <option value="KG">KG</option>
@@ -2484,6 +2490,36 @@ function usersPanel() {
         </table>
       </div>
     </div>
+
+    <!-- Customers Master Table -->
+    <div class="space-y-3 pt-4 border-t border-brand-100">
+      <div class="flex items-center justify-between">
+        <div class="text-xs font-bold text-brand-900 uppercase">Registered Customers (${DB.customers.length})</div>
+        <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); render(); toast('Customer added!', 'check-circle'); }" class="text-xs font-bold bg-gold text-white px-3 py-1.5 rounded-lg">+ Add Customer</button>
+      </div>
+      <div class="overflow-x-auto border border-brand-100 rounded-xl">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
+            <tr>
+              <th class="p-2.5">Customer Name</th>
+              <th class="p-2.5">Mobile No</th>
+              <th class="p-2.5">GSTIN</th>
+              <th class="p-2.5">Address</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${DB.customers.map(cust => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-2.5 font-bold text-brand-950">${cust.name}</td>
+                <td class="p-2.5 font-mono text-slate-600">${cust.phone || 'N/A'}</td>
+                <td class="p-2.5 font-mono uppercase">${cust.gstin || 'N/A'}</td>
+                <td class="p-2.5 text-slate-500">${cust.address || 'N/A'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -2591,7 +2627,16 @@ function wireKitchen() {
 
   /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
-  if (salesCustomerNameInput) salesCustomerNameInput.onchange = (e) => { session.salesCustomerName = e.target.value; };
+  if (salesCustomerNameInput) {
+    salesCustomerNameInput.onchange = (e) => { 
+      session.salesCustomerName = e.target.value; 
+      const foundCust = DB.customers.find(c => c.name === e.target.value);
+      if (foundCust && foundCust.phone) {
+        session.salesCustomerPhone = foundCust.phone;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  }
 
   const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
   if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
