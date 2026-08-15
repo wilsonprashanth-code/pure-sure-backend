@@ -112,11 +112,11 @@ let session = {
   recipeSortMode: 'alpha',
   baseRecipeSortMode: 'alpha',
   billingCart: [],
-  billingType: 'manual', // 'manual' or 'qr'
+  billingType: 'manual',
   billingTable: '1',
   billingCustomerName: '',
   billingCustomerPhone: '',
-  billingPaymentMode: 'UPI' // UPI, Cash, Swiggy, Zomato, Card
+  billingPaymentMode: 'UPI'
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -215,7 +215,7 @@ function formatTime(ts) {
 function calculateOrderTotal(order) {
   const items = order.items || [];
   const sub = items.reduce((a, b) => a + (b.price * b.qty), 0);
-  return sub + (sub * 0.05); // 5% tax or service charge
+  return sub + (sub * 0.05);
 }
 
 function getRawMaterialDetails(name) {
@@ -295,7 +295,6 @@ function getDishFoodCostPercent(dish) {
   return price > 0 ? (portionCost / price) * 100 : 0;
 }
 
-// Bill of Materials (BOM) Cascading Deduction Engine
 async function processBOMDeduction(dishId, orderedPortions = 1) {
   const recipe = DB.recipes[dishId];
   if (!recipe || !recipe.ingredients) return;
@@ -367,8 +366,16 @@ function downloadMainRecipesTemplate() {
 
 function render() {
   const app = document.getElementById('app');
-  if (!session.staff) { app.innerHTML = loginModalHTML(); wireLogin(); lucide.createIcons(); return; }
-  app.innerHTML = kitchenShell(); wireKitchen(); lucide.createIcons();
+  if (!app) return;
+  if (!session.staff) { 
+    app.innerHTML = loginModalHTML(); 
+    wireLogin(); 
+    lucide.createIcons(); 
+    return; 
+  }
+  app.innerHTML = kitchenShell(); 
+  wireKitchen(); 
+  lucide.createIcons();
 }
 
 function loginModalHTML() {
@@ -394,23 +401,28 @@ function loginModalHTML() {
 }
 
 function wireLogin() {
-  document.getElementById('loginSubmit').onclick = () => {
-    unlockAudio();
-    const u = document.getElementById('loginUser').value.trim();
-    const p = document.getElementById('loginPass').value;
-    const found = DB.staff.find(s => s.username === u && s.password === p);
-    const err = document.getElementById('loginError');
-    if (found) {
-      session.staff = found;
-      localStorage.setItem('ps_staff', JSON.stringify(found));
-      session.kitchenTab = 'orders'; 
-      render(); 
-      toast('Welcome back, ' + found.username, 'log-in');
-    } else {
-      err.textContent = 'Incorrect username or password.'; 
-      err.classList.remove('hidden');
-    }
-  };
+  const submitBtn = document.getElementById('loginSubmit');
+  if (submitBtn) {
+    submitBtn.onclick = () => {
+      unlockAudio();
+      const u = document.getElementById('loginUser').value.trim();
+      const p = document.getElementById('loginPass').value;
+      const found = DB.staff.find(s => s.username === u && s.password === p);
+      const err = document.getElementById('loginError');
+      if (found) {
+        session.staff = found;
+        localStorage.setItem('ps_staff', JSON.stringify(found));
+        session.kitchenTab = 'orders'; 
+        render(); 
+        toast('Welcome back, ' + found.username, 'log-in');
+      } else {
+        if (err) {
+          err.textContent = 'Incorrect username or password.'; 
+          err.classList.remove('hidden');
+        }
+      }
+    };
+  }
 }
 
 function kitchenShell() {
@@ -631,7 +643,6 @@ function menuEngineeringPanel() {
     const grossMargin = 100 - foodCostPct;
     
     let classification = 'Dog 🐶';
-    let desc = 'Low Profit, Low Popularity';
     let color = 'bg-red-50 text-red-800 border-red-200';
 
     const isPopular = sold >= avgPopularity;
@@ -1822,13 +1833,26 @@ function recalculateBaseRecipeTotals() {
 }
 
 function wireKitchen() {
-  document.getElementById('logoutBtn').onclick = () => { 
-    localStorage.removeItem('ps_staff');
-    session.staff = null; 
-    render(); 
-  };
-  document.getElementById('soundToggle').onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
-  document.querySelectorAll('.k-tab').forEach(b => b.onclick = () => { session.kitchenTab = b.dataset.ktab; render(); });
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => { 
+      localStorage.removeItem('ps_staff');
+      session.staff = null; 
+      render(); 
+    };
+  }
+
+  const soundToggle = document.getElementById('soundToggle');
+  if (soundToggle) {
+    soundToggle.onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
+  }
+
+  document.querySelectorAll('.k-tab').forEach(b => {
+    b.onclick = () => { 
+      session.kitchenTab = b.dataset.ktab; 
+      render(); 
+    };
+  });
 
   const dashCafe = document.getElementById('dashCafeSearch');
   if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
