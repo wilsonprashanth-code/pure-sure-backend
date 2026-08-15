@@ -85,7 +85,7 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit']
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit', 'EazyDiner']
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -124,14 +124,16 @@ let session = {
   billingCustomerPhone: '',
   billingPaymentMode: 'UPI',
   newCustomPayment: '',
-  purchaseInvoiceNo: 'P/26-27/16',
+  purchaseInvoiceNo: 'P/26-27/000016',
   purchaseVendor: '',
   purchaseVendorPhone: '',
   purchaseVendorGst: '',
   purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
-  salesInvoiceNo: 'S/26-27/290',
+  salesInvoiceNo: 'S/26-27/000290',
   salesCustomerName: '',
   salesCustomerPhone: '',
+  salesOrderType: 'Dine-In',
+  salesTableNo: '12',
   salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
   salesPayments: [{ mode: 'Cash', amount: 0 }],
   newSalesPaymentModeInput: '',
@@ -1052,19 +1054,8 @@ function billingModalBillmaxStyle() {
         </div>
       </div>
 
-      <!-- Top Billmaxo Action Toolbar: Add Item Line & Add Mode -->
-      <div class="bg-[#e6decc] px-3 py-2 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2 shrink-0">
-        <div class="flex items-center gap-2">
-          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-3.5 py-1.5 rounded shadow hover:opacity-90 flex items-center gap-1">+ Add Item Line</button>
-        </div>
-        <div class="flex items-center gap-1.5 bg-white p-1 rounded border border-slate-300 shadow-sm">
-          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode (e.g. GPay)..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-44 font-medium">
-          <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-xs font-bold px-3 py-1 rounded shadow hover:bg-brand-600">+ Add Mode</button>
-        </div>
-      </div>
-
-      <!-- Main Scrollable Item Table Container (Clean separation with sticky header) -->
-      <div class="flex-1 bg-white overflow-y-auto">
+      <!-- Main Item Grid Container (Table headers sit directly below top meta with no overlapping buttons) -->
+      <div class="flex-1 bg-white overflow-y-auto flex flex-col">
         <table class="w-full text-left text-xs min-w-[900px] border-collapse">
           <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px] sticky top-0 z-20">
             <tr>
@@ -1140,6 +1131,12 @@ function billingModalBillmaxStyle() {
           `).join('')}
         </div>
         <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-1 rounded shadow">+ Add Split Line</button>
+        
+        <!-- Add Custom Payment Mode Input -->
+        <div class="flex items-center gap-1.5 bg-white p-1 rounded border border-slate-300 shadow-sm ml-auto">
+          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode..." class="text-xs border border-slate-300 rounded px-2 py-0.5 bg-slate-50 w-36 font-medium">
+          <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-0.5 rounded shadow">+ Add Mode</button>
+        </div>
       </div>
 
       <datalist id="menuItemsList">
@@ -1188,7 +1185,7 @@ function billingModalBillmaxStyle() {
       <div class="bg-[#10344a] p-2 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none shrink-0">
         <div class="flex items-center gap-1.5 shrink-0">
           <button id="completeSalesBillBtn" class="bg-[#005b82] hover:bg-[#1a73a3] text-white font-bold px-4 py-2 rounded flex items-center gap-1 text-xs shadow"><i data-lucide="check-circle" class="w-4 h-4"></i> Complete &amp; Print</button>
-          <button id="closeBillingModalBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-3 py-2 rounded text-xs">Clear</button>
+          <button id="closeBillingModalBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded text-xs">Clear</button>
         </div>
         <div class="flex items-center gap-1 shrink-0 text-white text-[11px] font-bold">
           ${payModes.map((mode, i) => `<span class="bg-blue-900 px-2 py-1.5 rounded">${i+1}.${mode}</span>`).join('')}
