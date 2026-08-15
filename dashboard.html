@@ -141,14 +141,9 @@ let session = {
   salesOrderType: 'Dine-In',
   salesTableNo: 'Table 12',
   salesGlobalSearchQuery: '',
-  salesItems: [
-    { id: 'item_1', barcode: '8906123456781', itemName: 'Blueberry Cheesecake', code: 'CAKE-BLUE-001', qty: 1, unit: 'Nos', rate: 320.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 15.24, netValue: 320.00 },
-    { id: 'item_2', barcode: '8906123456798', itemName: 'Iced Americano', code: 'BEV-ICE-002', qty: 2, unit: 'Nos', rate: 140.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 13.33, netValue: 280.00 },
-    { id: 'item_3', barcode: '8906123456804', itemName: 'Peri Peri Fries', code: 'SNK-003', qty: 1, unit: 'Nos', rate: 160.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 7.62, netValue: 160.00 }
-  ],
+  salesItems: [],
   salesPayments: [
-    { mode: 'Cash', amount: 500.00 },
-    { mode: 'UPI', amount: 296.19 }
+    { mode: 'Cash', amount: 0.00 }
   ],
   splitPaymentEnabled: true,
   purchaseItemDiffWarning: null
@@ -2751,7 +2746,7 @@ function wireKitchen() {
   const clearSalesCartBtn = document.getElementById('clearSalesCartBtn');
   if (clearSalesCartBtn) {
     clearSalesCartBtn.onclick = () => {
-      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesItems = [];
       renderKeepFocus('globalSalesSearchInput');
     };
   }
@@ -2853,7 +2848,7 @@ function wireKitchen() {
       }
 
       toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
-      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesItems = [];
       session.salesPayments = [{ mode: 'Cash', amount: 0 }];
       session.salesCustomerName = 'Walk-In Customer';
       session.salesCustomerPhone = '9876543210';
