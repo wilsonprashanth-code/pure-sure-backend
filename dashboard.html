@@ -101,7 +101,6 @@ let session = {
   retailSearch: '', 
   rmSearch: '',
   stockTakeSearch: '',
-  purchaseSearch: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -133,6 +132,7 @@ let session = {
   salesCustomerName: '',
   salesCustomerPhone: '',
   salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
+  salesPayments: [{ mode: 'Cash', amount: 0 }],
   purchaseItemDiffWarning: null
 };
 
@@ -1013,10 +1013,13 @@ function purchaseModalBillmaxStyle() {
 
 function billingModalBillmaxStyle() {
   const cart = session.salesItems || [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+  const payments = session.salesPayments || [{ mode: 'Cash', amount: 0 }];
   const totalLines = cart.length;
   const totalQty = cart.reduce((a, b) => a + Number(b.qty || 0), 0);
   const totalValue = cart.reduce((a, b) => a + Number(b.netValue || 0), 0);
   const totalTax = cart.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
+  const grandTotal = totalValue + totalTax;
+  const totalPaid = payments.reduce((a, b) => a + Number(b.amount || 0), 0);
   const payModes = DB.paymentModes || ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit'];
 
   return `
@@ -1109,8 +1112,25 @@ function billingModalBillmaxStyle() {
             </tbody>
           </table>
         </div>
-        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-start">
+        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-between items-center">
           <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
+          
+          <!-- Split Payment Section (e.g. Cash 200 + UPI 243) -->
+          <div class="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
+            <span class="text-xs font-bold text-amber-900">Split Payment Modes:</span>
+            <div id="paymentSplitsContainer" class="flex items-center gap-1.5 flex-wrap">
+              ${payments.map((p, pIdx) => `
+                <div class="flex items-center gap-1 bg-white p-1 rounded border border-slate-300">
+                  <select class="payment-mode-select text-xs border-0 font-bold text-slate-800 bg-transparent" data-idx="${pIdx}">
+                    ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+                  </select>
+                  <input type="number" step="0.01" class="payment-mode-amount w-20 text-xs border border-slate-300 rounded px-1 py-0.5 text-right font-mono font-bold" data-idx="${pIdx}" value="${p.amount}">
+                  ${payments.length > 1 ? `<button type="button" class="remove-payment-line text-red-500 hover:text-red-700 font-bold text-xs px-1" data-idx="${pIdx}">✕</button>` : ''}
+                </div>
+              `).join('')}
+            </div>
+            <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2 py-1 rounded shadow">+ Add Mode</button>
+          </div>
         </div>
       </div>
 
@@ -1122,12 +1142,10 @@ function billingModalBillmaxStyle() {
       <div class="bg-[#e6decc] p-2 border-t border-slate-300 flex items-center gap-3 text-xs shrink-0">
         <label class="font-bold text-slate-800">Remarks</label>
         <input id="salesRemarksInput" placeholder="Order remarks..." class="flex-1 border border-slate-400 rounded px-2 py-1 bg-white">
-        <label class="font-bold text-slate-800">Disc %</label>
-        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
-        <label class="font-bold text-slate-800">Disc Amount</label>
-        <input value="0.00" class="w-20 border border-slate-400 rounded px-2 py-1 text-right bg-white">
-        <label class="font-bold text-slate-800">Round Off</label>
-        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">Total Paid:</label>
+        <span class="font-mono font-bold text-green-700 text-sm">${money(totalPaid)}</span>
+        <label class="font-bold text-slate-800">Balance Due:</label>
+        <span class="font-mono font-bold text-red-600 text-sm">${money(Math.max(0, (totalValue + totalTax) - totalPaid))}</span>
       </div>
 
       <!-- Financial Totals Summary Boxes Bar -->
@@ -1154,7 +1172,7 @@ function billingModalBillmaxStyle() {
         </div>
         <div class="bg-[#005b82] text-white border border-blue-900 rounded p-1.5 flex flex-col justify-center text-right">
           <span class="text-[10px] font-bold text-blue-200 uppercase">Net Value</span>
-          <span class="font-bold text-lg font-mono text-gold-300">${money(totalValue + totalTax)}</span>
+          <span class="font-bold text-lg font-mono text-gold-300">${money(grandTotal)}</span>
         </div>
       </div>
 
@@ -2481,6 +2499,44 @@ function wireKitchen() {
     };
   });
 
+  /* PAYMENT SPLIT WIRING */
+  document.querySelectorAll('.payment-mode-select').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.salesPayments[idx]) session.salesPayments[idx].mode = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.payment-mode-amount').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesPayments[idx]) {
+        session.salesPayments[idx].amount = Number(e.target.value) || 0;
+        renderKeepFocus('salesCustomerNameInput');
+      }
+    };
+  });
+
+  const addPaymentLineBtn = document.getElementById('addPaymentLineBtn');
+  if (addPaymentLineBtn) {
+    addPaymentLineBtn.onclick = () => {
+      if (!session.salesPayments) session.salesPayments = [];
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const remaining = Math.max(0, totalVal - currentPaid);
+      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      renderKeepFocus('salesCustomerNameInput');
+    };
+  }
+
+  document.querySelectorAll('.remove-payment-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesPayments.splice(idx, 1);
+      renderKeepFocus('salesCustomerNameInput');
+    };
+  });
+
   const addSalesLineBtn = document.getElementById('addSalesLineBtn');
   if (addSalesLineBtn) {
     addSalesLineBtn.onclick = () => {
@@ -2509,6 +2565,8 @@ function wireKitchen() {
 
       const orderId = Math.floor(1000 + Math.random() * 9000).toString();
       const cartFormatted = items.map(i => ({ id: uid('s'), name: i.itemName, price: i.rate, qty: i.qty, kind: 'cafe' }));
+      const primaryPayment = session.salesPayments && session.salesPayments.length > 0 ? session.salesPayments[0].mode : 'Cash';
+
       const newOrder = {
         id: orderId,
         table: 'Counter',
@@ -2516,7 +2574,8 @@ function wireKitchen() {
         customerName: session.salesCustomerName || 'Walk-In Customer',
         customerPhone: session.salesCustomerPhone || '',
         items: cartFormatted,
-        paymentMode: 'Cash',
+        paymentMode: primaryPayment,
+        payments: session.salesPayments,
         status: 'served',
         ts: Date.now(),
         completedTs: Date.now()
@@ -2529,6 +2588,7 @@ function wireKitchen() {
 
       toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
       session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesPayments = [{ mode: 'Cash', amount: 0 }];
       session.salesCustomerName = '';
       session.salesCustomerPhone = '';
       session.showBillingModal = false;
@@ -2538,7 +2598,12 @@ function wireKitchen() {
 
   /* MODAL TRIGGERS */
   const openBillBtn = document.getElementById('openBillingModalBtn');
-  if (openBillBtn) openBillBtn.onclick = () => { session.showBillingModal = true; render(); };
+  if (openBillBtn) openBillBtn.onclick = () => { 
+    session.showBillingModal = true; 
+    const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+    session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
+    render(); 
+  };
 
   const closeBillBtn = document.getElementById('closeBillingModalBtn');
   if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; render(); };
