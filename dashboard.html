@@ -126,9 +126,12 @@ let session = {
   newCustomPayment: '',
   purchaseInvoiceNo: 'P/26-27/16',
   purchaseVendor: '',
+  purchaseVendorPhone: '',
+  purchaseVendorGst: '',
   purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
   salesInvoiceNo: 'S/26-27/290',
-  salesCustomer: '',
+  salesCustomerName: '',
+  salesCustomerPhone: '',
   salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
   purchaseItemDiffWarning: null
 };
@@ -397,7 +400,9 @@ function exportPurchaseReportToExcel() {
   const data = DB.purchases.map(p => ({
     "Invoice No": p.invoiceNo,
     "Date": new Date(p.ts).toLocaleDateString(),
-    "Vendor": p.vendor,
+    "Supplier": p.vendor,
+    "Supplier Phone": p.vendorPhone || 'N/A',
+    "GST No": p.vendorGst || 'N/A',
     "Item Name": p.itemName,
     "Qty Purchased": p.qty,
     "Unit": p.unit,
@@ -849,26 +854,28 @@ function purchaseModalBillmaxStyle() {
     <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[95vh] sm:max-w-[96vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-4 border-[#005b82]">
       <!-- Header Bar -->
       <div class="bg-[#005b82] text-white px-4 py-2.5 flex items-center justify-between shrink-0">
-        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Purchase</h2>
+        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Purchase Entry</h2>
         <div class="text-sm font-semibold">Pure &amp; Sure Organic Store</div>
         <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded font-bold flex items-center justify-center text-lg">✕</button>
       </div>
 
-      <!-- Top Form Meta -->
+      <!-- Top Form Meta with Supplier Name, Phone & GST No -->
       <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
-        <div class="md:col-span-5 flex items-center gap-2">
-          <label class="font-bold text-slate-800 w-16 shrink-0">Supplier</label>
-          <input id="purchaseVendor" value="${session.purchaseVendor || ''}" placeholder="Select supplier..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
-        </div>
         <div class="md:col-span-4 flex items-center gap-2">
-          <label class="font-bold text-slate-800 shrink-0">Document No</label>
-          <input id="purchaseInvoiceNo" value="${session.purchaseInvoiceNo || ''}" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
-          <label class="font-bold text-slate-800 shrink-0">Date</label>
-          <input type="date" value="2026-08-15" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
+          <label class="font-bold text-slate-800 w-16 shrink-0">Supplier</label>
+          <input id="purchaseVendor" value="${session.purchaseVendor || ''}" placeholder="Supplier name..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
-        <div class="md:col-span-3 flex items-center gap-2 justify-end">
-          <label class="font-bold text-slate-800 shrink-0">Reference</label>
-          <input placeholder="Ref no" class="w-28 border border-slate-400 rounded px-2 py-1.5 bg-white">
+        <div class="md:col-span-3 flex items-center gap-2">
+          <label class="font-bold text-slate-800 shrink-0">Phone No</label>
+          <input id="purchaseVendorPhone" value="${session.purchaseVendorPhone || ''}" placeholder="10-digit mobile" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white">
+        </div>
+        <div class="md:col-span-3 flex items-center gap-2">
+          <label class="font-bold text-slate-800 shrink-0">GST No</label>
+          <input id="purchaseVendorGst" value="${session.purchaseVendorGst || ''}" placeholder="GSTIN" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white font-mono uppercase">
+        </div>
+        <div class="md:col-span-2 flex items-center gap-2 justify-end">
+          <label class="font-bold text-slate-800 shrink-0">Doc No</label>
+          <input id="purchaseInvoiceNo" value="${session.purchaseInvoiceNo || ''}" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
         </div>
       </div>
 
@@ -1017,22 +1024,26 @@ function billingModalBillmaxStyle() {
     <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[95vh] sm:max-w-[96vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-4 border-[#005b82]">
       <!-- Header Bar -->
       <div class="bg-[#005b82] text-white px-4 py-2.5 flex items-center justify-between shrink-0">
-        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Sales</h2>
+        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Sales / POS Billing</h2>
         <div class="text-sm font-semibold">Pure &amp; Sure Organic Cafe</div>
         <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded font-bold flex items-center justify-center text-lg">✕</button>
       </div>
 
-      <!-- Top Form Meta -->
+      <!-- Top Form Meta with Customer Name & Phone No -->
       <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
-        <div class="md:col-span-6 flex items-center gap-2">
-          <label class="font-bold text-slate-800 w-16 shrink-0">Customer</label>
-          <input id="salesCustomerInput" value="${session.salesCustomer || ''}" placeholder="Walk-In Customer / Select..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
+        <div class="md:col-span-5 flex items-center gap-2">
+          <label class="font-bold text-slate-800 w-20 shrink-0">Customer Name</label>
+          <input id="salesCustomerNameInput" value="${session.salesCustomerName || ''}" placeholder="Walk-In Customer..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
-        <div class="md:col-span-6 flex items-center gap-2 justify-end">
-          <label class="font-bold text-slate-800 shrink-0">Document No</label>
-          <input value="${session.salesInvoiceNo || 'S/26-27/290'}" class="w-36 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
+        <div class="md:col-span-3 flex items-center gap-2">
+          <label class="font-bold text-slate-800 shrink-0">Phone No</label>
+          <input id="salesCustomerPhoneInput" value="${session.salesCustomerPhone || ''}" placeholder="10-digit mobile" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white">
+        </div>
+        <div class="md:col-span-4 flex items-center gap-2 justify-end">
+          <label class="font-bold text-slate-800 shrink-0">Doc No</label>
+          <input value="${session.salesInvoiceNo || 'S/26-27/290'}" class="w-28 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
           <label class="font-bold text-slate-800 shrink-0">Date</label>
-          <input type="date" value="2026-08-15" class="w-36 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
+          <input type="date" value="2026-08-15" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
       </div>
 
@@ -2234,12 +2245,19 @@ function wireKitchen() {
   const purchaseVendorInput = document.getElementById('purchaseVendor');
   if (purchaseVendorInput) purchaseVendorInput.oninput = (e) => { session.purchaseVendor = e.target.value; };
 
+  const purchaseVendorPhoneInput = document.getElementById('purchaseVendorPhone');
+  if (purchaseVendorPhoneInput) purchaseVendorPhoneInput.oninput = (e) => { session.purchaseVendorPhone = e.target.value; };
+
+  const purchaseVendorGstInput = document.getElementById('purchaseVendorGst');
+  if (purchaseVendorGstInput) purchaseVendorGstInput.oninput = (e) => { session.purchaseVendorGst = e.target.value; };
+
   document.querySelectorAll('.purchase-item-name').forEach(inp => {
     inp.oninput = (e) => {
       const idx = Number(inp.dataset.idx);
+      const val = e.target.value;
       if (session.purchaseItems[idx]) {
-        session.purchaseItems[idx].itemName = e.target.value;
-        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === e.target.value.toLowerCase().trim());
+        session.purchaseItems[idx].itemName = val;
+        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === val.toLowerCase().trim());
         if (matched) {
           session.purchaseItems[idx].rate = matched.unitPrice || 0;
           session.purchaseItems[idx].mrp = (matched.unitPrice || 0) * 1.25;
@@ -2252,6 +2270,12 @@ function wireKitchen() {
           session.purchaseItems[idx].netValue = net;
           const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
           session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
+
+          if (idx === session.purchaseItems.length - 1 && val.trim().length > 0) {
+            session.purchaseItems.push({ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 });
+            renderKeepFocus('purchaseInvoiceNo');
+            return;
+          }
         }
       }
     };
@@ -2271,6 +2295,7 @@ function wireKitchen() {
         session.purchaseItems[idx].netValue = net;
         const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
         session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('purchaseInvoiceNo');
       }
     };
   });
@@ -2289,6 +2314,7 @@ function wireKitchen() {
         session.purchaseItems[idx].netValue = net;
         const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
         session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('purchaseInvoiceNo');
       }
     };
   });
@@ -2307,6 +2333,7 @@ function wireKitchen() {
         session.purchaseItems[idx].netValue = net;
         const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
         session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('purchaseInvoiceNo');
       }
     };
   });
@@ -2355,8 +2382,11 @@ function wireKitchen() {
   });
 
   /* SALES WIRING WITH AUTO-NEW-LINE & INSTANT RECALC */
-  const salesCustomerInput = document.getElementById('salesCustomerInput');
-  if (salesCustomerInput) salesCustomerInput.oninput = (e) => { session.salesCustomer = e.target.value; };
+  const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
+  if (salesCustomerNameInput) salesCustomerNameInput.oninput = (e) => { session.salesCustomerName = e.target.value; };
+
+  const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
+  if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
 
   document.querySelectorAll('.sales-item-barcode').forEach(inp => {
     inp.oninput = (e) => {
@@ -2384,10 +2414,9 @@ function wireKitchen() {
           const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
           session.salesItems[idx].gstAmt = net * (gstRate / 100);
 
-          // AUTO ADD NEXT LINE IF TYPING IN THE LAST ROW
           if (idx === session.salesItems.length - 1 && val.trim().length > 0) {
             session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
-            renderKeepFocus('salesCustomerInput');
+            renderKeepFocus('salesCustomerNameInput');
             return;
           }
         }
@@ -2409,7 +2438,7 @@ function wireKitchen() {
         session.salesItems[idx].netValue = net;
         const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
         session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerInput');
+        renderKeepFocus('salesCustomerNameInput');
       }
     };
   });
@@ -2428,7 +2457,7 @@ function wireKitchen() {
         session.salesItems[idx].netValue = net;
         const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
         session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerInput');
+        renderKeepFocus('salesCustomerNameInput');
       }
     };
   });
@@ -2447,7 +2476,7 @@ function wireKitchen() {
         session.salesItems[idx].netValue = net;
         const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
         session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerInput');
+        renderKeepFocus('salesCustomerNameInput');
       }
     };
   });
@@ -2457,7 +2486,7 @@ function wireKitchen() {
     addSalesLineBtn.onclick = () => {
       if (!session.salesItems) session.salesItems = [];
       session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
-      renderKeepFocus('salesCustomerInput');
+      renderKeepFocus('salesCustomerNameInput');
     };
   }
 
@@ -2465,7 +2494,7 @@ function wireKitchen() {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
       session.salesItems.splice(idx, 1);
-      renderKeepFocus('salesCustomerInput');
+      renderKeepFocus('salesCustomerNameInput');
     };
   });
 
@@ -2484,8 +2513,8 @@ function wireKitchen() {
         id: orderId,
         table: 'Counter',
         type: 'manual',
-        customerName: session.salesCustomer || 'Walk-In Customer',
-        customerPhone: '',
+        customerName: session.salesCustomerName || 'Walk-In Customer',
+        customerPhone: session.salesCustomerPhone || '',
         items: cartFormatted,
         paymentMode: 'Cash',
         status: 'served',
@@ -2500,6 +2529,8 @@ function wireKitchen() {
 
       toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
       session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesCustomerName = '';
+      session.salesCustomerPhone = '';
       session.showBillingModal = false;
       render();
     };
@@ -2577,6 +2608,8 @@ function wireKitchen() {
     validatePurchaseBtn.onclick = async () => {
       const invoiceNo = session.purchaseInvoiceNo || 'P/26-27/16';
       const vendor = session.purchaseVendor || 'Supplier';
+      const vendorPhone = session.purchaseVendorPhone || '';
+      const vendorGst = session.purchaseVendorGst || '';
       const items = session.purchaseItems || [];
 
       if (items.length === 0 || !items[0].itemName) {
@@ -2602,6 +2635,8 @@ function wireKitchen() {
               rmId: rm ? rm.id : null,
               invoiceNo,
               vendor,
+              vendorPhone,
+              vendorGst,
               itemName: item.itemName,
               qty: item.qty,
               unit: item.unit,
@@ -2614,12 +2649,15 @@ function wireKitchen() {
             return;
           }
         }
-        await executePurchaseSave(rm, invoiceNo, vendor, item.itemName, item.qty, item.unit, item.totalAmount, newRate);
+        await executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, item.itemName, item.qty, item.unit, item.totalAmount, newRate);
       }
 
       toast('All purchase entries recorded & stock updated!', 'check-circle');
       session.showPurchaseModal = false;
       session.purchaseItems = [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }];
+      session.purchaseVendor = '';
+      session.purchaseVendorPhone = '';
+      session.purchaseVendorGst = '';
       render();
     };
   }
@@ -2631,7 +2669,7 @@ function wireKitchen() {
       if (!diff) return;
       const rm = DB.rawMaterials.find(r => r.id === diff.rmId);
       session.purchaseItemDiffWarning = null;
-      await executePurchaseSave(rm, diff.invoiceNo, diff.vendor, diff.itemName, diff.qty, diff.unit, diff.totalAmount, diff.newRate);
+      await executePurchaseSaveWithDetails(rm, diff.invoiceNo, diff.vendor, diff.vendorPhone, diff.vendorGst, diff.itemName, diff.qty, diff.unit, diff.totalAmount, diff.newRate);
       toast('Purchase entry recorded despite price variance!', 'check-circle');
       session.showPurchaseModal = false;
       render();
@@ -2826,7 +2864,7 @@ function wireKitchen() {
   }
 }
 
-async function executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, totalAmount, newRate) {
+async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
   if (rm) {
     const addedGrams = getConvertedGramsMl(qty, unit);
     const currentStock = Number(rm.stockGrams ?? 100000);
@@ -2840,6 +2878,8 @@ async function executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, tot
     id: uid('p'),
     invoiceNo,
     vendor,
+    vendorPhone,
+    vendorGst,
     itemName: rmName,
     qty,
     unit,
