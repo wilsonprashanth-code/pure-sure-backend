@@ -36,7 +36,9 @@
           brand: { DEFAULT:'#105955', 50:'#f0f6f5', 100:'#dbeae8', 200:'#b3d3cf', 300:'#82b6af', 400:'#4f948c', 500:'#2c7a72', 600:'#1a6a63', 700:'#105955', 800:'#0d4744', 900:'#0a3836', 950:'#052120' },
           gold: { DEFAULT:'#D4A359', 50:'#fbf6ee', 100:'#f5e8d2', 200:'#ebd0a4', 300:'#deb26f', 400:'#D4A359', 500:'#c68f3f', 600:'#a97432', 700:'#8a5b2a' },
           cream:'#F9F8F3',
-          sheetHeader:'#ECE4D8'
+          sheetHeader:'#ECE4D8',
+          billmaxBlue: '#005b82',
+          billmaxHeader: '#1a73a3'
         },
         fontFamily: {
           display:['Fraunces','ui-serif','Georgia','serif'],
@@ -78,12 +80,12 @@
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
 
 let DB = {
-  settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure", tagline:"Everyday food, made good. Since 1999" },
+  settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Pure & Sure Organic Store", tagline:"Everyday food, made good. Since 1999" },
   staff: [
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card']
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit']
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -100,7 +102,6 @@ let session = {
   rmSearch: '',
   stockTakeSearch: '',
   purchaseSearch: '',
-  selectedPurchaseItem: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -123,6 +124,12 @@ let session = {
   billingCustomerPhone: '',
   billingPaymentMode: 'UPI',
   newCustomPayment: '',
+  purchaseInvoiceNo: 'P/26-27/16',
+  purchaseVendor: '',
+  purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
+  salesInvoiceNo: 'S/26-27/290',
+  salesCustomer: '',
+  salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
   purchaseItemDiffWarning: null
 };
 
@@ -243,6 +250,7 @@ function calculateIngCost(ing) {
       case 'ML':
       case 'G':
       case 'PCS':
+      case 'NOS':
       default: gramsMl = qty; break;
     }
   }
@@ -261,6 +269,7 @@ function getConvertedGramsMl(qty, unit) {
     case 'GRM':
     case 'ML':
     case 'PCS':
+    case 'NOS':
     default: return q;
   }
 }
@@ -520,7 +529,7 @@ function kitchenShell() {
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap">
           <button id="openBillingModalBtn" class="bg-gold text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:opacity-90 active:scale-98">
-            <i data-lucide="receipt" class="w-3.5 h-3.5"></i> POS Billing
+            <i data-lucide="receipt" class="w-3.5 h-3.5"></i> POS Sales / Billing
           </button>
           <button id="openPurchaseModalBtn" class="bg-emerald-600 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:bg-emerald-500 active:scale-98">
             <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Purchase Entry
@@ -564,9 +573,9 @@ function kitchenShell() {
     ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
     ${session.showBaseRecipesModal ? baseRecipesModal() : ''}
     ${session.showMainRecipesModal ? mainRecipesModal() : ''}
-    ${session.showBillingModal ? billingModal() : ''}
+    ${session.showBillingModal ? billingModalBillmaxStyle() : ''}
     ${session.showWastageModal ? wastageModal() : ''}
-    ${session.showPurchaseModal ? purchaseModal() : ''}
+    ${session.showPurchaseModal ? purchaseModalBillmaxStyle() : ''}
     ${session.showStockTakeModal ? stockTakeModal() : ''}
     ${session.purchaseItemDiffWarning ? priceDifferenceWarningModal() : ''}
   </div>`;
@@ -828,198 +837,329 @@ function menuEngineeringPanel() {
   </div>`;
 }
 
-function billingModal() {
-  const cart = session.billingCart || [];
-  const subtotal = cart.reduce((a, b) => a + (b.price * b.qty), 0);
-  const tax = subtotal * 0.05;
-  const total = subtotal + tax;
-  const payModes = DB.paymentModes || ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card'];
+function purchaseModalBillmaxStyle() {
+  const items = session.purchaseItems || [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }];
+  const totalLines = items.length;
+  const totalQty = items.reduce((a, b) => a + Number(b.qty || 0), 0);
+  const totalValue = items.reduce((a, b) => a + Number(b.netValue || 0), 0);
+  const totalTax = items.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
 
   return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">POS Manual &amp; QR Table Billing</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Process orders and trigger automatic BOM stock deductions.</p>
-        </div>
-        <button id="closeBillingModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+  <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
+    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[95vh] sm:max-w-[96vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-4 border-[#005b82]">
+      <!-- Header Bar -->
+      <div class="bg-[#005b82] text-white px-4 py-2.5 flex items-center justify-between shrink-0">
+        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Purchase</h2>
+        <div class="text-sm font-semibold">Pure &amp; Sure Organic Store</div>
+        <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded font-bold flex items-center justify-center text-lg">✕</button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto min-h-0">
-        <div class="space-y-3 flex flex-col overflow-hidden bg-brand-50/40 p-3.5 rounded-2xl border border-brand-100">
-          <div class="text-xs font-bold text-brand-900 uppercase">Select Menu Items to Bill</div>
-          <div class="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-            ${DB.menu.map(m => `
-              <button class="add-pos-item text-left p-2.5 rounded-xl border border-brand-200 bg-white hover:border-brand-500 transition shadow-sm active:scale-98" data-id="${m.id}">
-                <div class="text-xs font-bold text-brand-950 truncate">${m.name}</div>
-                <div class="text-[10px] text-brand-500 font-mono mt-0.5">${money(m.price)}</div>
-              </button>
-            `).join('')}
-          </div>
-
-          <div class="text-xs font-bold text-brand-900 uppercase mt-2">Current Order Cart (${cart.reduce((a,b)=>a+b.qty, 0)} items)</div>
-          <div class="flex-1 overflow-y-auto space-y-1.5 bg-white p-2.5 rounded-xl border border-brand-200">
-            ${cart.map((item, idx) => `
-              <div class="flex items-center justify-between text-xs py-1 border-b border-slate-100">
-                <span class="font-bold text-brand-950 truncate max-w-[140px]">${item.name}</span>
-                <div class="flex items-center gap-2">
-                  <span class="font-mono text-brand-600">${item.qty} × ${money(item.price)}</span>
-                  <button class="remove-pos-item text-red-500 hover:text-red-700" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                </div>
-              </div>
-            `).join('') || `<div class="text-xs text-center py-6 text-brand-400">Cart is empty. Click items above.</div>`}
-          </div>
+      <!-- Top Form Meta -->
+      <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
+        <div class="md:col-span-5 flex items-center gap-2">
+          <label class="font-bold text-slate-800 w-16 shrink-0">Supplier</label>
+          <input id="purchaseVendor" value="${session.purchaseVendor || ''}" placeholder="Select supplier..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
-
-        <div class="space-y-3 bg-white p-4 rounded-2xl border border-brand-200 flex flex-col justify-between shadow-sm">
-          <div class="space-y-3">
-            <div class="text-xs font-bold text-brand-900 uppercase">Billing Details &amp; Payment Mode</div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] font-bold text-brand-600 block">Table Number</label>
-                <input id="posTableInput" value="${session.billingTable}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50 font-bold">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold text-brand-600 block">Order Mode</label>
-                <select id="posBillingTypeSelect" class="w-full mt-1 border border-brand-200 rounded-xl px-2.5 py-2 text-xs font-bold bg-slate-50">
-                  <option value="manual" ${session.billingType==='manual'?'selected':''}>Manual Counter</option>
-                  <option value="qr" ${session.billingType==='qr'?'selected':''}>Table QR Billing</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-[10px] font-bold text-brand-600 block">Customer Name</label>
-                <input id="posCustName" value="${session.billingCustomerName}" placeholder="Optional" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold text-brand-600 block">Phone Number</label>
-                <input id="posCustPhone" value="${session.billingCustomerPhone}" placeholder="Optional" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs bg-slate-50">
-              </div>
-            </div>
-
-            <div>
-              <label class="text-[10px] font-bold text-brand-600 block mb-1">Select Payment Gateway / Mode</label>
-              <div class="grid grid-cols-3 gap-1.5 mb-2">
-                ${payModes.map(mode => `
-                  <button type="button" class="pos-pay-mode-btn py-2 text-xs font-bold rounded-xl border transition ${session.billingPaymentMode === mode ? 'bg-brand text-cream border-brand shadow' : 'bg-slate-50 text-brand-800 border-brand-200'}" data-mode="${mode}">${mode}</button>
-                `).join('')}
-              </div>
-              <div class="flex gap-2">
-                <input id="newCustomPaymentInput" value="${session.newCustomPayment || ''}" placeholder="Add custom payment mode..." class="flex-1 border border-brand-200 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50">
-                <button type="button" id="addCustomPaymentBtn" class="bg-gold text-white font-bold px-3 py-1.5 rounded-xl text-xs hover:opacity-90">Add Mode</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="space-y-2 pt-3 border-t border-brand-100">
-            <div class="flex justify-between text-xs text-brand-600"><span>Subtotal:</span><span class="font-mono font-bold">${money(subtotal)}</span></div>
-            <div class="flex justify-between text-xs text-brand-600"><span>Tax / Charges (5%):</span><span class="font-mono font-bold">${money(tax)}</span></div>
-            <div class="flex justify-between text-sm font-bold text-brand-950 border-t border-brand-100 pt-1"><span>Total Payable:</span><span class="font-mono text-green-700">${money(total)}</span></div>
-
-            <button id="completePosBillingBtn" class="w-full mt-2 bg-green-700 hover:bg-green-800 text-white font-bold py-3.5 rounded-xl text-xs sm:text-sm transition shadow-md active:scale-98">Complete Payment &amp; Deduct BOM Stock</button>
-          </div>
+        <div class="md:col-span-4 flex items-center gap-2">
+          <label class="font-bold text-slate-800 shrink-0">Document No</label>
+          <input id="purchaseInvoiceNo" value="${session.purchaseInvoiceNo || ''}" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
+          <label class="font-bold text-slate-800 shrink-0">Date</label>
+          <input type="date" value="2026-08-15" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
+        <div class="md:col-span-3 flex items-center gap-2 justify-end">
+          <label class="font-bold text-slate-800 shrink-0">Reference</label>
+          <input placeholder="Ref no" class="w-28 border border-slate-400 rounded px-2 py-1.5 bg-white">
+        </div>
+      </div>
+
+      <!-- Main Item Grid Container -->
+      <div class="flex-1 bg-white overflow-y-auto flex flex-col justify-between">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs min-w-[950px] border-collapse">
+            <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px]">
+              <tr>
+                <th class="p-2 border border-blue-900 w-10 text-center">#</th>
+                <th class="p-2 border border-blue-900 min-w-[220px]">Item Name (Auto-Suggest Search)</th>
+                <th class="p-2 border border-blue-900 text-right w-24">MRP (₹)</th>
+                <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
+                <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
+                <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
+                <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
+                <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
+                <th class="p-2 border border-blue-900 text-center w-20">GST</th>
+                <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
+                <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
+                <th class="p-2 border border-blue-900 text-right w-20">Margin</th>
+                <th class="p-2 border border-blue-900 text-center w-12"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 font-medium">
+              ${items.map((item, idx) => `
+                <tr class="hover:bg-slate-50">
+                  <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
+                  <td class="p-2 border border-slate-200">
+                    <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right">
+                    <input type="number" step="0.01" class="purchase-item-mrp w-full border border-slate-300 rounded p-1 text-xs text-right bg-white" data-idx="${idx}" value="${item.mrp}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <input type="number" step="0.01" class="purchase-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <select class="purchase-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                      <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                      <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                      <option ${item.unit === 'GRM' ? 'selected' : ''}>GRM</option>
+                      <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                      <option ${item.unit === 'ML' ? 'selected' : ''}>ML</option>
+                    </select>
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right">
+                    <input type="number" step="0.01" class="purchase-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <input type="number" step="0.01" class="purchase-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <select class="purchase-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                      <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                      <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                      <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                      <option ${item.gstGroup === '18%' ? 'selected' : ''}>18%</option>
+                    </select>
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
+                  <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
+                  <td class="p-2 border border-slate-200 text-right font-mono">${Number(item.margin || 0).toFixed(2)}</td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    ${items.length > 1 ? `<button type="button" class="remove-purchase-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-start">
+          <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded shadow hover:bg-brand-600">+ Add Item Line</button>
+        </div>
+      </div>
+
+      <datalist id="rawMaterialsList">
+        ${DB.rawMaterials.map(rm => `<option value="${rm.name}">`).join('')}
+      </datalist>
+
+      <!-- Remarks & Footer Meta Bar -->
+      <div class="bg-[#e6decc] p-2 border-t border-slate-300 flex items-center gap-3 text-xs shrink-0">
+        <label class="font-bold text-slate-800">Remarks</label>
+        <input placeholder="Add invoice remarks..." class="flex-1 border border-slate-400 rounded px-2 py-1 bg-white">
+        <label class="font-bold text-slate-800">Disc %</label>
+        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">Disc Amount</label>
+        <input value="0.00" class="w-20 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">TCS Amount</label>
+        <input value="0.00" class="w-20 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">Round Off</label>
+        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+      </div>
+
+      <!-- Financial Totals Summary Boxes Bar -->
+      <div class="bg-[#f2edd9] p-2 border-t border-slate-400 grid grid-cols-6 gap-2 text-xs shrink-0">
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Address / Info</span>
+          <span class="font-semibold text-slate-800 truncate">Factory Warehouse</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Lines</span>
+          <span class="font-bold text-base text-slate-900">${totalLines}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Qty</span>
+          <span class="font-bold text-base text-brand-700">${totalQty.toFixed(2)}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Value</span>
+          <span class="font-bold text-base font-mono text-slate-900">${money(totalValue)}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Tax</span>
+          <span class="font-bold text-base font-mono text-slate-900">${money(totalTax)}</span>
+        </div>
+        <div class="bg-[#005b82] text-white border border-blue-900 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-blue-200 uppercase">Net Value</span>
+          <span class="font-bold text-lg font-mono text-gold-300">${money(totalValue + totalTax)}</span>
+        </div>
+      </div>
+
+      <!-- Bottom Action Toolbar -->
+      <div class="bg-[#10344a] p-2 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2">
+          <button id="validatePurchaseBtn" class="bg-[#005b82] hover:bg-[#1a73a3] text-white font-bold px-5 py-2 rounded flex items-center gap-1.5 text-xs shadow"><i data-lucide="save" class="w-4 h-4"></i> Save (F10)</button>
+          <button id="closePurchaseModalBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded flex items-center gap-1.5 text-xs">Clear</button>
+        </div>
+        <div class="text-white text-xs font-mono font-bold">billmaxo</div>
       </div>
     </div>
   </div>`;
 }
 
-function purchaseModal() {
-  const query = (session.purchaseSearch || '').toLowerCase().trim();
-  const sortedRawMaterials = [...DB.rawMaterials]
-    .filter(rm => !query || rm.name.toLowerCase().includes(query) || (rm.vendor && rm.vendor.toLowerCase().includes(query)))
-    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+function billingModalBillmaxStyle() {
+  const cart = session.salesItems || [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+  const totalLines = cart.length;
+  const totalQty = cart.reduce((a, b) => a + Number(b.qty || 0), 0);
+  const totalValue = cart.reduce((a, b) => a + Number(b.netValue || 0), 0);
+  const totalTax = cart.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
+  const payModes = DB.paymentModes || ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit'];
 
   return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Purchase Entry &amp; Rate Variance Check</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Manual entry with automatic 5% price variance alerts.</p>
-        </div>
-        <button id="closePurchaseModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+  <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
+    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[95vh] sm:max-w-[96vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-4 border-[#005b82]">
+      <!-- Header Bar -->
+      <div class="bg-[#005b82] text-white px-4 py-2.5 flex items-center justify-between shrink-0">
+        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Sales</h2>
+        <div class="text-sm font-semibold">Pure &amp; Sure Organic Cafe</div>
+        <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded font-bold flex items-center justify-center text-lg">✕</button>
       </div>
 
-      <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
-        <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-3">
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Invoice No / Ref No</label>
-              <input id="purchaseInvoiceNo" placeholder="e.g. INV-001" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
-            </div>
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Vendor Name</label>
-              <input id="purchaseVendor" placeholder="e.g. Ad Vegetables" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
-            </div>
-          </div>
-
-          <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">🔍 Auto-Suggest Raw Material</label>
-            <input id="purchaseSearchInput" value="${session.purchaseSearch || ''}" placeholder="Type to filter &amp; select..." class="w-full mb-2 border border-emerald-300 rounded-xl p-2 text-xs bg-white focus:outline-none">
-            <select id="purchaseRmSelect" class="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold bg-white" size="5">
-              ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${session.selectedPurchaseItem === rm.name ? 'selected' : ''}>${rm.name} (${rm.unit || 'GRM'}) — Rate: ${money(rm.unitPrice)}</option>`).join('')}
-            </select>
-          </div>
-
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Quantity</label>
-              <input id="purchaseQtyInput" type="number" step="0.01" placeholder="e.g. 10" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
-            </div>
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Unit</label>
-              <select id="purchaseUnitSelect" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white">
-                <option>KG</option><option>GRM</option><option>LITRE</option><option>ML</option><option>PCS</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Total Cost (₹)</label>
-              <input id="purchaseTotalCostInput" type="number" step="0.01" placeholder="e.g. 500" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
-            </div>
-          </div>
-
-          <button id="validatePurchaseBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Verify &amp; Inward Purchase</button>
+      <!-- Top Form Meta -->
+      <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
+        <div class="md:col-span-6 flex items-center gap-2">
+          <label class="font-bold text-slate-800 w-16 shrink-0">Customer</label>
+          <input id="salesCustomerInput" value="${session.salesCustomer || ''}" placeholder="Walk-In Customer / Select..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
-
-        <div class="space-y-2">
-          <div class="text-xs font-bold text-brand-900 uppercase">Recent Purchase Logs (${DB.purchases.length})</div>
-          <div class="space-y-1.5 max-h-40 overflow-y-auto">
-            ${DB.purchases.slice(-10).reverse().map(p => `
-              <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs flex justify-between items-center">
-                <div>
-                  <div class="font-bold text-emerald-800">${p.qty} ${p.unit} ${p.itemName} (${money(p.totalAmount)})</div>
-                  <div class="text-[10px] text-slate-500">Ref: ${p.invoiceNo} · Vendor: ${p.vendor}</div>
-                </div>
-                <div class="font-mono text-[10px] text-slate-400">${new Date(p.ts).toLocaleDateString()}</div>
-              </div>
-            `).join('') || `<div class="text-xs text-slate-400 text-center py-4">No purchase entries logged yet.</div>`}
-          </div>
+        <div class="md:col-span-6 flex items-center gap-2 justify-end">
+          <label class="font-bold text-slate-800 shrink-0">Document No</label>
+          <input value="${session.salesInvoiceNo || 'S/26-27/290'}" class="w-36 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
+          <label class="font-bold text-slate-800 shrink-0">Date</label>
+          <input type="date" value="2026-08-15" class="w-36 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
       </div>
-    </div>
-  </div>`;
-}
 
-function priceDifferenceWarningModal() {
-  const diff = session.purchaseItemDiffWarning;
-  if (!diff) return '';
-  return `
-  <div class="fixed inset-0 z-[120] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-3">
-      <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
-        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      <!-- Main Item Grid Container -->
+      <div class="flex-1 bg-white overflow-y-auto flex flex-col justify-between">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs min-w-[900px] border-collapse">
+            <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px]">
+              <tr>
+                <th class="p-2 border border-blue-900 w-10 text-center">#</th>
+                <th class="p-2 border border-blue-900 w-32">Barcode</th>
+                <th class="p-2 border border-blue-900 min-w-[240px]">Item Name (Select from Menu)</th>
+                <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
+                <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
+                <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
+                <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
+                <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
+                <th class="p-2 border border-blue-900 text-center w-20">GST</th>
+                <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
+                <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
+                <th class="p-2 border border-blue-900 text-center w-12"></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 font-medium">
+              ${cart.map((item, idx) => `
+                <tr class="hover:bg-slate-50">
+                  <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
+                  <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
+                  <td class="p-2 border border-slate-200">
+                    <select class="sales-item-select w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}">
+                      <option value="">-- Choose Menu Item --</option>
+                      ${DB.menu.map(m => `<option value="${m.name}" ${item.itemName === m.name ? 'selected' : ''}>${m.name} — ${money(m.price)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <input type="number" step="0.01" class="sales-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <select class="sales-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                      <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                      <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                      <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                    </select>
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right">
+                    <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    <select class="sales-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                      <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                      <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                      <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                    </select>
+                  </td>
+                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
+                  <td class="p-2 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
+                  <td class="p-2 border border-slate-200 text-center">
+                    ${cart.length > 1 ? `<button type="button" class="remove-sales-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-start">
+          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
+        </div>
       </div>
-      <h3 class="font-display text-base font-bold text-brand-950">Price Variance Alert (>5%)</h3>
-      <p class="text-xs text-brand-600 leading-relaxed">
-        The rate for <b>${diff.itemName}</b> has changed by <b>${diff.percentDiff}%</b> compared to the previous unit rate (${money(diff.oldRate)} ➔ ${money(diff.newRate)}).
-      </p>
-      <div class="flex gap-2 pt-2">
-        <button id="confirmPurchaseAnywayBtn" class="flex-1 bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-emerald-800">Proceed Anyway</button>
-        <button id="cancelPurchaseWarningBtn" class="flex-1 bg-slate-200 text-slate-800 font-bold py-2.5 rounded-xl text-xs hover:bg-slate-300">Cancel</button>
+
+      <!-- Remarks & Footer Meta Bar -->
+      <div class="bg-[#e6decc] p-2 border-t border-slate-300 flex items-center gap-3 text-xs shrink-0">
+        <label class="font-bold text-slate-800">Remarks</label>
+        <input id="salesRemarksInput" placeholder="Order remarks..." class="flex-1 border border-slate-400 rounded px-2 py-1 bg-white">
+        <label class="font-bold text-slate-800">Disc %</label>
+        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">Disc Amount</label>
+        <input value="0.00" class="w-20 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+        <label class="font-bold text-slate-800">Round Off</label>
+        <input value="0.00" class="w-16 border border-slate-400 rounded px-2 py-1 text-right bg-white">
+      </div>
+
+      <!-- Financial Totals Summary Boxes Bar -->
+      <div class="bg-[#f2edd9] p-2 border-t border-slate-400 grid grid-cols-6 gap-2 text-xs shrink-0">
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Billing Address</span>
+          <span class="font-semibold text-slate-800 truncate">Dining Area</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Lines</span>
+          <span class="font-bold text-base text-slate-900">${totalLines}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Qty</span>
+          <span class="font-bold text-base text-brand-700">${totalQty.toFixed(2)}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Value</span>
+          <span class="font-bold text-base font-mono text-slate-900">${money(totalValue)}</span>
+        </div>
+        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Tax (5%)</span>
+          <span class="font-bold text-base font-mono text-slate-900">${money(totalTax)}</span>
+        </div>
+        <div class="bg-[#005b82] text-white border border-blue-900 rounded p-1.5 flex flex-col justify-center text-right">
+          <span class="text-[10px] font-bold text-blue-200 uppercase">Net Value</span>
+          <span class="font-bold text-lg font-mono text-gold-300">${money(totalValue + totalTax)}</span>
+        </div>
+      </div>
+
+      <!-- Bottom Billmaxo Style POS Toolbar -->
+      <div class="bg-[#10344a] p-2 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button id="completeSalesBillBtn" class="bg-[#005b82] hover:bg-[#1a73a3] text-white font-bold px-4 py-2 rounded flex items-center gap-1 text-xs shadow"><i data-lucide="check-circle" class="w-4 h-4"></i> Complete &amp; Print</button>
+          <button id="closeBillingModalBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-3 py-2 rounded text-xs">Clear</button>
+        </div>
+        <div class="flex items-center gap-1 shrink-0 text-white text-[11px] font-bold">
+          <span class="bg-blue-900 px-2 py-1.5 rounded">1.Cash</span>
+          <span class="bg-blue-900 px-2 py-1.5 rounded">2.UPI</span>
+          <span class="bg-blue-900 px-2 py-1.5 rounded">3.CARD</span>
+          <span class="bg-pink-900 px-2 py-1.5 rounded">4.Swiggy</span>
+          <span class="bg-orange-900 px-2 py-1.5 rounded">5.Zomato</span>
+          <span class="bg-blue-900 px-2 py-1.5 rounded">6.R-Credit</span>
+        </div>
       </div>
     </div>
   </div>`;
@@ -1117,7 +1257,7 @@ function wastageModal() {
             </div>
             <div>
               <label class="text-xs font-bold text-brand-950 block mb-1">Unit</label>
-              <select id="wastageUnitSelect" class="w-full border border-brand-300 rounded-xl p-2 text-xs font-bold bg-white">
+              <select id="wastageUnitSelect" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white">
                 <option>GRM</option><option>ML</option><option>KG</option><option>LITRE</option><option>PCS</option>
               </select>
             </div>
@@ -2143,18 +2283,204 @@ function wireKitchen() {
   const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
   if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
 
-  const purchaseSearchInput = document.getElementById('purchaseSearchInput');
-  if (purchaseSearchInput) {
-    purchaseSearchInput.oninput = (e) => { 
-      session.purchaseSearch = e.target.value; 
-      renderKeepFocus('purchaseSearchInput'); 
+  /* PURCHASE MODAL WIRING */
+  const purchaseInvoiceNoInput = document.getElementById('purchaseInvoiceNo');
+  if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
+
+  const purchaseVendorInput = document.getElementById('purchaseVendor');
+  if (purchaseVendorInput) purchaseVendorInput.oninput = (e) => { session.purchaseVendor = e.target.value; };
+
+  document.querySelectorAll('.purchase-item-name').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].itemName = e.target.value;
+        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === e.target.value.toLowerCase().trim());
+        if (matched) {
+          session.purchaseItems[idx].rate = matched.unitPrice || 0;
+          session.purchaseItems[idx].mrp = (matched.unitPrice || 0) * 1.25;
+          const q = Number(session.purchaseItems[idx].qty || 1);
+          const r = Number(session.purchaseItems[idx].rate || 0);
+          session.purchaseItems[idx].totalAmount = q * r;
+          session.purchaseItems[idx].netValue = q * r;
+        }
+      }
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-qty').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].qty = Number(e.target.value) || 0;
+        const q = Number(session.purchaseItems[idx].qty || 0);
+        const r = Number(session.purchaseItems[idx].rate || 0);
+        session.purchaseItems[idx].totalAmount = q * r;
+        session.purchaseItems[idx].netValue = q * r;
+      }
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-rate').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].rate = Number(e.target.value) || 0;
+        const q = Number(session.purchaseItems[idx].qty || 0);
+        const r = Number(session.purchaseItems[idx].rate || 0);
+        session.purchaseItems[idx].totalAmount = q * r;
+        session.purchaseItems[idx].netValue = q * r;
+      }
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-mrp').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].mrp = Number(e.target.value) || 0;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-unit').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].unit = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-gst').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].gstGroup = e.target.value;
+        const pct = parseFloat(e.target.value) || 0;
+        const net = Number(session.purchaseItems[idx].netValue || 0);
+        session.purchaseItems[idx].gstAmt = net * (pct / 100);
+      }
+    };
+  });
+
+  const addPurchaseLineBtn = document.getElementById('addPurchaseLineBtn');
+  if (addPurchaseLineBtn) {
+    addPurchaseLineBtn.onclick = () => {
+      if (!session.purchaseItems) session.purchaseItems = [];
+      session.purchaseItems.push({ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 });
+      renderKeepFocus('purchaseInvoiceNo');
     };
   }
 
-  const purchaseRmSelect = document.getElementById('purchaseRmSelect');
-  if (purchaseRmSelect) {
-    purchaseRmSelect.onchange = (e) => {
-      session.selectedPurchaseItem = e.target.value;
+  document.querySelectorAll('.remove-purchase-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.purchaseItems.splice(idx, 1);
+      renderKeepFocus('purchaseInvoiceNo');
+    };
+  });
+
+  /* SALES / POS BILLING MODAL WIRING */
+  const salesCustomerInput = document.getElementById('salesCustomerInput');
+  if (salesCustomerInput) salesCustomerInput.oninput = (e) => { session.salesCustomer = e.target.value; };
+
+  document.querySelectorAll('.sales-item-barcode').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) session.salesItems[idx].barcode = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.sales-item-select').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      const val = e.target.value;
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].itemName = val;
+        const found = DB.menu.find(m => m.name.toLowerCase() === val.toLowerCase().trim());
+        if (found) {
+          session.salesItems[idx].rate = found.price || 0;
+          const q = Number(session.salesItems[idx].qty || 1);
+          session.salesItems[idx].netValue = q * (found.price || 0);
+          session.salesItems[idx].gstAmt = (q * (found.price || 0)) * 0.05;
+        }
+      }
+    };
+  });
+
+  document.querySelectorAll('.sales-item-qty').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+      }
+    };
+  });
+
+  document.querySelectorAll('.sales-item-rate').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].rate = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+      }
+    };
+  });
+
+  const addSalesLineBtn = document.getElementById('addSalesLineBtn');
+  if (addSalesLineBtn) {
+    addSalesLineBtn.onclick = () => {
+      if (!session.salesItems) session.salesItems = [];
+      session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
+      renderKeepFocus('salesCustomerInput');
+    };
+  }
+
+  document.querySelectorAll('.remove-sales-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesItems.splice(idx, 1);
+      renderKeepFocus('salesCustomerInput');
+    };
+  });
+
+  const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
+  if (completeSalesBillBtn) {
+    completeSalesBillBtn.onclick = async () => {
+      const items = session.salesItems || [];
+      if (items.length === 0 || !items[0].itemName) {
+        toast('Please add at least one valid sales item.', 'alert-triangle');
+        return;
+      }
+
+      const orderId = Math.floor(1000 + Math.random() * 9000).toString();
+      const cartFormatted = items.map(i => ({ id: uid('s'), name: i.itemName, price: i.rate, qty: i.qty, kind: 'cafe' }));
+      const newOrder = {
+        id: orderId,
+        table: 'Counter',
+        type: 'manual',
+        customerName: session.salesCustomer || 'Walk-In Customer',
+        customerPhone: '',
+        items: cartFormatted,
+        paymentMode: 'Cash',
+        status: 'served',
+        ts: Date.now(),
+        completedTs: Date.now()
+      };
+
+      await db.ref('orders/' + orderId).set(newOrder);
+      for (const item of cartFormatted) {
+        if (item.id) await processBOMDeduction(item.id, item.qty);
+      }
+
+      toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.showBillingModal = false;
+      render();
     };
   }
 
@@ -2166,7 +2492,11 @@ function wireKitchen() {
   if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; render(); };
 
   const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
-  if (openPurchaseBtn) openPurchaseBtn.onclick = () => { session.showPurchaseModal = true; render(); };
+  if (openPurchaseBtn) openPurchaseBtn.onclick = () => { 
+    session.showPurchaseModal = true; 
+    session.purchaseItems = [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }];
+    render(); 
+  };
 
   const closePurchaseBtn = document.getElementById('closePurchaseModalBtn');
   if (closePurchaseBtn) closePurchaseBtn.onclick = () => { session.showPurchaseModal = false; render(); };
@@ -2183,7 +2513,7 @@ function wireKitchen() {
   const closeWastageBtn = document.getElementById('closeWastageModalBtn');
   if (closeWastageBtn) closeWastageBtn.onclick = () => { session.showWastageModal = false; render(); };
 
-  /* LIVE PHYSICAL STOCK TAKE VARIANCE CALCULATION */
+  /* PHYSICAL STOCK TAKE WIRING */
   document.querySelectorAll('.physical-count-input').forEach(input => {
     input.oninput = (e) => {
       const id = input.dataset.id;
@@ -2220,67 +2550,56 @@ function wireKitchen() {
     };
   }
 
-  /* ADD CUSTOM PAYMENT MODE */
-  const addCustomPaymentBtn = document.getElementById('addCustomPaymentBtn');
-  if (addCustomPaymentBtn) {
-    addCustomPaymentBtn.onclick = async () => {
-      const input = document.getElementById('newCustomPaymentInput');
-      const val = input ? input.value.trim() : '';
-      if (!val) { toast('Enter a valid payment mode name.', 'alert-triangle'); return; }
-      if (!DB.paymentModes.includes(val)) {
-        DB.paymentModes.push(val);
-        session.billingPaymentMode = val;
-        session.newCustomPayment = '';
-        await db.ref('paymentModes').set(DB.paymentModes);
-        toast(`Added custom payment mode: ${val}`, 'check-circle');
-        renderKeepFocus('posTableInput');
-      }
-    };
-  }
-
-  /* PURCHASE INWARDING & 5% RATE VARIANCE CHECK */
+  /* PURCHASE INWARDING & 5% VARIANCE CHECK */
   const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
   if (validatePurchaseBtn) {
-    validatePurchaseBtn.onclick = () => {
-      const rmName = document.getElementById('purchaseRmSelect').value;
-      const invoiceNo = document.getElementById('purchaseInvoiceNo').value.trim() || 'INV-001';
-      const vendor = document.getElementById('purchaseVendor').value.trim() || 'Vendor';
-      const qty = Number(document.getElementById('purchaseQtyInput').value) || 0;
-      const unit = document.getElementById('purchaseUnitSelect').value;
-      const totalAmount = Number(document.getElementById('purchaseTotalCostInput').value) || 0;
+    validatePurchaseBtn.onclick = async () => {
+      const invoiceNo = session.purchaseInvoiceNo || 'P/26-27/16';
+      const vendor = session.purchaseVendor || 'Supplier';
+      const items = session.purchaseItems || [];
 
-      if (!rmName || qty <= 0 || totalAmount <= 0) {
-        toast('Please fill in material, quantity, and total cost.', 'alert-triangle');
+      if (items.length === 0 || !items[0].itemName) {
+        toast('Please add at least one purchase item line.', 'alert-triangle');
         return;
       }
 
-      const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === rmName.toLowerCase().trim());
-      const oldRate = rm ? Number(rm.unitPrice || 0) : 0;
-      const addedGrams = getConvertedGramsMl(qty, unit);
-      const newRate = totalAmount / (addedGrams / 1000);
-
-      // Check if price variance > 5%
-      if (oldRate > 0) {
-        const percentDiff = Math.abs(((newRate - oldRate) / oldRate) * 100);
-        if (percentDiff > 5) {
-          session.purchaseItemDiffWarning = {
-            rmId: rm.id,
-            invoiceNo,
-            vendor,
-            itemName: rmName,
-            qty,
-            unit,
-            totalAmount,
-            oldRate,
-            newRate,
-            percentDiff: percentDiff.toFixed(1)
-          };
-          render();
+      for (const item of items) {
+        if (!item.itemName || item.qty <= 0 || item.totalAmount <= 0) {
+          toast('Please complete all item lines with valid quantity and cost.', 'alert-triangle');
           return;
         }
+
+        const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === item.itemName.toLowerCase().trim());
+        const oldRate = rm ? Number(rm.unitPrice || 0) : 0;
+        const addedGrams = getConvertedGramsMl(item.qty, item.unit);
+        const newRate = item.totalAmount / (addedGrams / 1000);
+
+        if (oldRate > 0) {
+          const percentDiff = Math.abs(((newRate - oldRate) / oldRate) * 100);
+          if (percentDiff > 5) {
+            session.purchaseItemDiffWarning = {
+              rmId: rm ? rm.id : null,
+              invoiceNo,
+              vendor,
+              itemName: item.itemName,
+              qty: item.qty,
+              unit: item.unit,
+              totalAmount: item.totalAmount,
+              oldRate,
+              newRate,
+              percentDiff: percentDiff.toFixed(1)
+            };
+            render();
+            return;
+          }
+        }
+        await executePurchaseSave(rm, invoiceNo, vendor, item.itemName, item.qty, item.unit, item.totalAmount, newRate);
       }
 
-      executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, totalAmount, newRate);
+      toast('All purchase entries recorded & stock updated!', 'check-circle');
+      session.showPurchaseModal = false;
+      session.purchaseItems = [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }];
+      render();
     };
   }
 
@@ -2292,6 +2611,9 @@ function wireKitchen() {
       const rm = DB.rawMaterials.find(r => r.id === diff.rmId);
       session.purchaseItemDiffWarning = null;
       await executePurchaseSave(rm, diff.invoiceNo, diff.vendor, diff.itemName, diff.qty, diff.unit, diff.totalAmount, diff.newRate);
+      toast('Purchase entry recorded despite price variance!', 'check-circle');
+      session.showPurchaseModal = false;
+      render();
     };
   }
 
@@ -2299,80 +2621,6 @@ function wireKitchen() {
   if (cancelPurchaseWarningBtn) {
     cancelPurchaseWarningBtn.onclick = () => {
       session.purchaseItemDiffWarning = null;
-      render();
-    };
-  }
-
-  /* POS CART ACTIONS */
-  document.querySelectorAll('.add-pos-item').forEach(btn => {
-    btn.onclick = () => {
-      const id = btn.dataset.id;
-      const m = DB.menu.find(x => x.id === id);
-      if (!m) return;
-      const existing = session.billingCart.find(i => i.id === id);
-      if (existing) {
-        existing.qty += 1;
-      } else {
-        session.billingCart.push({ id: m.id, name: m.name, price: m.price, qty: 1, kind: 'cafe' });
-      }
-      renderKeepFocus('posTableInput');
-    };
-  });
-
-  document.querySelectorAll('.remove-pos-item').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      session.billingCart.splice(idx, 1);
-      renderKeepFocus('posTableInput');
-    };
-  });
-
-  document.querySelectorAll('.pos-pay-mode-btn').forEach(btn => {
-    btn.onclick = () => {
-      session.billingPaymentMode = btn.dataset.mode;
-      renderKeepFocus('posTableInput');
-    };
-  });
-
-  const completePosBillingBtn = document.getElementById('completePosBillingBtn');
-  if (completePosBillingBtn) {
-    completePosBillingBtn.onclick = async () => {
-      if (session.billingCart.length === 0) {
-        toast('Cart is empty. Add items to bill.', 'alert-triangle');
-        return;
-      }
-
-      const table = document.getElementById('posTableInput').value.trim() || '1';
-      const custName = document.getElementById('posCustName').value.trim() || 'POS Customer';
-      const custPhone = document.getElementById('posCustPhone').value.trim() || '';
-      const orderType = document.getElementById('posBillingTypeSelect').value;
-
-      const orderId = Math.floor(1000 + Math.random() * 9000).toString();
-      const newOrder = {
-        id: orderId,
-        table: table,
-        type: orderType === 'qr' ? 'qr' : 'cafe',
-        customerName: custName,
-        customerPhone: custPhone,
-        items: [...session.billingCart],
-        paymentMode: session.billingPaymentMode,
-        status: 'served',
-        ts: Date.now(),
-        completedTs: Date.now()
-      };
-
-      await db.ref('orders/' + orderId).set(newOrder);
-
-      for (const item of session.billingCart) {
-        if (item.id) {
-          await processBOMDeduction(item.id, item.qty);
-        }
-      }
-
-      toast(`Order #${orderId} billed successfully & BOM stock updated!`, 'check-circle');
-      session.billingCart = [];
-      session.showBillingModal = false;
-      playLoudAlarm();
       render();
     };
   }
@@ -2426,7 +2674,6 @@ function wireKitchen() {
     };
   });
 
-  /* SORT SELECT HANDLERS */
   const mainDishSortSelect = document.getElementById('mainDishSortSelect');
   if (mainDishSortSelect) {
     mainDishSortSelect.onchange = (e) => {
@@ -2443,21 +2690,18 @@ function wireKitchen() {
     };
   }
 
-  /* REALTIME DISH NAME SYNCHRONIZATION */
   const masterDishNameInput = document.getElementById('masterDishNameInput');
   if (masterDishNameInput) {
     masterDishNameInput.oninput = async (e) => {
       const dishId = masterDishNameInput.dataset.id;
       const newName = e.target.value.trim();
       if (!dishId || !newName) return;
-
       await db.ref(`menu/${dishId}/name`).set(newName);
       const menuDish = DB.menu.find(m => m.id === dishId);
       if (menuDish) menuDish.name = newName;
     };
   }
 
-  /* SEARCH & REVERSE LOOKUP INPUT HANDLERS */
   const liveLetterInput = document.getElementById('liveLetterSearchInput');
   if (liveLetterInput) {
     liveLetterInput.oninput = (e) => {
@@ -2474,72 +2718,11 @@ function wireKitchen() {
     };
   }
 
-  const baseLetterInput = document.getElementById('baseLetterSearchInput');
-  if (baseLetterInput) {
-    baseLetterInput.oninput = (e) => {
-      session.baseRecipeFilterQuery = e.target.value;
-      renderKeepFocus('baseLetterSearchInput');
-    };
-  }
-
-  const baseIngInput = document.getElementById('baseIngredientSearchInput');
-  if (baseIngInput) {
-    baseIngInput.oninput = (e) => {
-      session.baseIngredientUsageQuery = e.target.value;
-      renderKeepFocus('baseIngredientSearchInput');
-    };
-  }
-
-  /* RAW MATERIAL MASTER MODAL HANDLERS */
   const manageIngBtn = document.getElementById('manageIngredientsBtn');
   if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
 
   const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
   if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
-
-  const dlRmTemplateBtn = document.getElementById('dlRmTemplateBtn');
-  if (dlRmTemplateBtn) dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
-
-  const processRmExcelBtn = document.getElementById('processRmExcelBtn');
-  if (processRmExcelBtn) {
-    processRmExcelBtn.onclick = () => {
-      const fileInput = document.getElementById('rmExcelInput');
-      if (!fileInput || !fileInput.files[0]) {
-        toast('Please select an Excel or CSV file first.', 'alert-triangle');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(worksheet);
-
-          let addedCount = 0;
-          for (const row of json) {
-            if (row.name) {
-              const id = uid('rm');
-              await db.ref('rawMaterials/' + id).set({
-                id,
-                name: row.name.toString().trim(),
-                vendor: (row.vendor || 'FACTORY').toString().trim(),
-                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
-                unitPrice: Number(row.unitPrice || row.price || 0)
-              });
-              addedCount++;
-            }
-          }
-
-          toast(`Added ${addedCount} raw materials!`, 'check-circle');
-        } catch (err) {
-          toast('Error reading Excel headers.', 'alert-triangle');
-        }
-      };
-      reader.readAsArrayBuffer(fileInput.files[0]);
-    };
-  }
 
   const addRmBtn = document.getElementById('addRmBtn');
   if (addRmBtn) {
@@ -2565,7 +2748,6 @@ function wireKitchen() {
     };
   });
 
-  /* BASE PREP MASTER HANDLERS */
   const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
   if (manageBaseBtn) {
     manageBaseBtn.onclick = () => {
@@ -2583,13 +2765,7 @@ function wireKitchen() {
   const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
   if (createNewBaseBtn) {
     createNewBaseBtn.onclick = async () => {
-      const newBase = {
-        id: uid('br'),
-        name: 'New Base Prep',
-        batchYield: 1,
-        unit: 'GRM',
-        ingredients: []
-      };
+      const newBase = { id: uid('br'), name: 'New Base Prep', batchYield: 1, unit: 'GRM', ingredients: [] };
       await db.ref('baseRecipes/' + newBase.id).set(newBase);
       session.editingBaseRecipeId = newBase.id;
       render();
@@ -2611,7 +2787,6 @@ function wireKitchen() {
         activeBase.name = document.getElementById('baseName').value.trim();
         activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
         activeBase.unit = document.getElementById('baseUnit').value;
-
         await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
         toast('Base recipe saved!', 'check-circle');
       }
@@ -2621,453 +2796,13 @@ function wireKitchen() {
   const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
   if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
     deleteBaseRecipeBtn.onclick = async () => {
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      const name = activeBase ? activeBase.name : 'this base';
-      if (confirm(`Delete "${name}"?`)) {
+      if (confirm('Delete this base prep?')) {
         await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
-        session.editingBaseRecipeId = DB.baseRecipes.length > 1 ? DB.baseRecipes.find(b => b.id !== session.editingBaseRecipeId).id : null;
-        render();
-        toast('Base recipe deleted.', 'trash-2');
-      }
-    };
-  }
-
-  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
-  if (addBaseIngRowBtn && session.editingBaseRecipeId) {
-    addBaseIngRowBtn.onclick = () => {
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase) {
-        if (!activeBase.ingredients) activeBase.ingredients = [];
-        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
+        session.editingBaseRecipeId = null;
         render();
       }
     };
   }
-
-  document.querySelectorAll('.base-mode-toggle-raw').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].type = 'raw';
-        activeBase.ingredients[idx].isBase = false;
-        activeBase.ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-mode-toggle-base').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].type = 'base';
-        activeBase.ingredients[idx].isBase = true;
-        activeBase.ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-select').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const val = e.target.value;
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-
-      if (activeBase) {
-        if (val.startsWith('rm_')) {
-          const name = val.replace('rm_', '');
-          const rm = getRawMaterialDetails(name);
-          activeBase.ingredients[idx].name = name;
-          activeBase.ingredients[idx].unit = rm.unit || 'GRM';
-          activeBase.ingredients[idx].uom = rm.unit || 'GRM';
-          activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
-          activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
-          activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, rm.unit || 'GRM');
-          activeBase.ingredients[idx].type = 'raw';
-        } else if (val.startsWith('br_')) {
-          const name = val.replace('br_', '');
-          const br = DB.baseRecipes.find(b => b.name === name);
-          if (br) {
-            activeBase.ingredients[idx].name = br.name;
-            activeBase.ingredients[idx].unit = br.unit || 'GRM';
-            activeBase.ingredients[idx].uom = br.unit || 'GRM';
-            activeBase.ingredients[idx].vendor = 'LINKED BASE';
-            activeBase.ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
-            activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, br.unit || 'GRM');
-            activeBase.ingredients[idx].type = 'base';
-          }
-        }
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-unit').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        const newUnit = e.target.value;
-        activeBase.ingredients[idx].unit = newUnit;
-        activeBase.ingredients[idx].uom = newUnit;
-        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, newUnit);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-qty').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        const qty = Number(e.target.value) || 0;
-        activeBase.ingredients[idx].qty = qty;
-        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(qty, activeBase.ingredients[idx].unit);
-
-        const row = input.closest('tr');
-        if (row) {
-          const gramsInput = row.querySelector('.base-ing-grams');
-          if (gramsInput) gramsInput.value = activeBase.ingredients[idx].gramsMl;
-
-          const costCell = row.querySelector('.base-ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
-        }
-        recalculateBaseRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.base-ing-grams').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase && activeBase.ingredients[idx]) {
-        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.base-ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
-        }
-        recalculateBaseRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.remove-base-ing').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (activeBase) {
-        activeBase.ingredients.splice(idx, 1);
-        render();
-      }
-    };
-  });
-
-  /* MAIN RECIPES EVENT HANDLERS */
-  document.querySelectorAll('.mode-toggle-raw').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = false;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.mode-toggle-base').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = true;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
-        render();
-      }
-    };
-  });
-
-  const recipePortionsInput = document.getElementById('recipePortions');
-  if (recipePortionsInput) {
-    recipePortionsInput.oninput = (e) => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].portions = Number(e.target.value) || 1;
-        recalculateMainRecipeTotals();
-      }
-    };
-  }
-
-  const recipeWastageInput = document.getElementById('recipeWastage');
-  if (recipeWastageInput) {
-    recipeWastageInput.oninput = (e) => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].wastagePercent = Number(e.target.value) || 0;
-        recalculateMainRecipeTotals();
-      }
-    };
-  }
-
-  const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
-  if (addIngredientRowBtn) {
-    addIngredientRowBtn.onclick = () => {
-      if (session.activeRecipeDishId) {
-        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
-        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
-        render();
-      }
-    };
-  }
-
-  document.querySelectorAll('.ing-master-select').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      const val = e.target.value;
-      
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        if (val.startsWith('rm_')) {
-          const name = val.replace('rm_', '');
-          const rm = getRawMaterialDetails(name);
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].name = name;
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice || 0;
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, rm.unit || 'GRM');
-          DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
-        } else if (val.startsWith('br_')) {
-          const name = val.replace('br_', '');
-          const br = DB.baseRecipes.find(b => b.name === name);
-          if (br) {
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = br.unit || 'GRM';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'LINKED BASE';
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, br.unit || 'GRM');
-            DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
-          }
-        }
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-unit').forEach(select => {
-    select.onchange = (e) => {
-      const idx = Number(select.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const newUnit = e.target.value;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = newUnit;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = newUnit;
-        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, newUnit);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.remove-ing-row').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        DB.recipes[session.activeRecipeDishId].ingredients.splice(idx, 1);
-        render();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-qty').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const qty = Number(e.target.value) || 0;
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.qty = qty;
-        ing.gramsMl = getConvertedGramsMl(qty, ing.unit);
-
-        const row = input.closest('tr');
-        if (row) {
-          const gramsInput = row.querySelector('.ing-grams');
-          if (gramsInput) gramsInput.value = ing.gramsMl;
-
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-grams').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.gramsMl = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  document.querySelectorAll('.ing-price').forEach(input => {
-    input.oninput = (e) => {
-      const idx = Number(input.dataset.idx);
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
-        if (!ing) return;
-
-        ing.unitPrice = Number(e.target.value) || 0;
-
-        const row = input.closest('tr');
-        if (row) {
-          const costCell = row.querySelector('.ing-cost-cell');
-          if (costCell) costCell.textContent = money(calculateIngCost(ing));
-        }
-        recalculateMainRecipeTotals();
-      }
-    };
-  });
-
-  const saveRecipeBtn = document.getElementById('saveRecipeBtn');
-  if (saveRecipeBtn) {
-    saveRecipeBtn.onclick = async () => {
-      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
-        await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
-        toast('Recipe saved cloud-wide!', 'check-circle');
-      }
-    };
-  }
-
-  const deleteMainRecipeBtn = document.getElementById('deleteMainRecipeBtn');
-  if (deleteMainRecipeBtn) {
-    deleteMainRecipeBtn.onclick = async () => {
-      if (session.activeRecipeDishId) {
-        const dish = DB.menu.find(m => m.id === session.activeRecipeDishId);
-        const name = dish ? dish.name : 'this recipe';
-        if (confirm(`Clear recipe sheet for "${name}"?`)) {
-          await db.ref('recipes/' + session.activeRecipeDishId).remove();
-          render();
-          toast('Recipe sheet cleared!', 'trash-2');
-        }
-      }
-    };
-  }
-
-  document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
-    const o = DB.orders.find(x => x.id === b.dataset.id);
-    if (o) {
-      const nextStatus = b.dataset.next;
-      const updates = { status: nextStatus };
-      if (nextStatus === 'served') {
-        updates.completedTs = Date.now();
-        for (const item of (o.items || [])) {
-          if (item.id) {
-            await processBOMDeduction(item.id, item.qty || 1);
-          }
-        }
-      }
-      await db.ref('orders/' + o.id).update(updates);
-      render();
-    }
-  });
-
-  document.querySelectorAll('.stock-toggle').forEach(b => b.onclick = async () => {
-    const kind = b.dataset.kind;
-    const arr = kind === 'menu' ? DB.menu : DB.retail;
-    const it = arr.find(x => x.id === b.dataset.id);
-    it.stock = !it.stock;
-    await db.ref(`${kind}/${it.id}`).update({ stock: it.stock });
-    render(); toast(it.name + ' marked ' + (it.stock ? 'in stock' : 'out of stock'), it.stock ? 'check-circle' : 'ban');
-  });
-
-  document.querySelectorAll('.edit-item').forEach(b => b.onclick = () => {
-    if (b.dataset.kind === 'menu') session.editingDish = b.dataset.id; else session.editingRetail = b.dataset.id;
-    render();
-  });
-
-  document.querySelectorAll('.delete-item').forEach(b => b.onclick = async () => {
-    if (!confirm('Remove this item?')) return;
-    const kind = b.dataset.kind;
-    await db.ref(`${kind}/${b.dataset.id}`).remove();
-    render();
-  });
-
-  const addDish = document.getElementById('addDishBtn'); if (addDish) addDish.onclick = () => { session.editingDish = 'new'; render(); };
-  const addRetail = document.getElementById('addRetailBtn'); if (addRetail) addRetail.onclick = () => { session.editingRetail = 'new'; render(); };
-
-  const saveDish = document.getElementById('saveDishBtn');
-  if (saveDish) saveDish.onclick = async () => {
-    const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
-    const fileInput = document.getElementById('dImgFile');
-    const existing = saveDish.dataset.id ? DB.menu.find(m => m.id === saveDish.dataset.id) : null;
-    let imgData = existing ? existing.img : '';
-
-    if (fileInput && fileInput.files[0]) {
-      toast('Compressing photo...', 'image');
-      imgData = await compressAndGetBase64(fileInput.files[0]);
-    }
-
-    const payload = {
-      id: saveDish.dataset.id || uid('m'),
-      name: document.getElementById('dName').value.trim(),
-      category: document.getElementById('dCategory').value.trim(),
-      price: Number(document.getElementById('dPrice').value) || 0,
-      img: imgData,
-      desc: document.getElementById('dDesc').value.trim(),
-      badges, stock: true,
-      nutrition: { cal: Number(document.getElementById('dCal').value) || 0, protein: Number(document.getElementById('dProt').value) || 0, carbs: Number(document.getElementById('dCarb').value) || 0, fat: Number(document.getElementById('dFat').value) || 0 }
-    };
-    if (!payload.name) { toast('Please enter a dish name.', 'alert-triangle'); return; }
-
-    await db.ref('menu/' + payload.id).set(payload);
-    session.editingDish = null; render(); toast('Dish saved cloud-wide!');
-  };
-
-  const saveRetail = document.getElementById('saveRetailBtn');
-  if (saveRetail) saveRetail.onclick = async () => {
-    const fileInput = document.getElementById('rImgFile');
-    const existing = saveRetail.dataset.id ? DB.retail.find(m => m.id === saveRetail.dataset.id) : null;
-    let imgData = existing ? existing.img : '';
-
-    if (fileInput && fileInput.files[0]) {
-      toast('Compressing photo...', 'image');
-      imgData = await compressAndGetBase64(fileInput.files[0]);
-    }
-
-    const payload = {
-      id: saveRetail.dataset.id || uid('r'),
-      name: document.getElementById('rName').value.trim(),
-      category: document.getElementById('rCategory').value.trim(),
-      price: Number(document.getElementById('rPrice').value) || 0,
-      size: document.getElementById('rSize').value.trim(),
-      img: imgData,
-      desc: document.getElementById('rDesc').value.trim(),
-      badges: ['100% Organic'],
-      stock: true
-    };
-    if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
-
-    await db.ref('retail/' + payload.id).set(payload);
-    session.editingRetail = null; render(); toast('Product saved cloud-wide!');
-  };
 }
 
 async function executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, totalAmount, newRate) {
@@ -3095,10 +2830,6 @@ async function executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, tot
 
   DB.purchases.push(purchaseLog);
   await db.ref('purchases').set(DB.purchases);
-
-  toast('Purchase entry recorded & inventory stock updated!', 'check-circle');
-  session.showPurchaseModal = false;
-  render();
 }
 
 function renderKeepFocus(inputId) {
