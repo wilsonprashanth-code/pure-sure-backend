@@ -881,78 +881,78 @@ function purchaseModalBillmaxStyle() {
         </div>
       </div>
 
+      <!-- Action Toolbar for Purchase -->
+      <div class="bg-[#e6decc] px-3 py-2 border-b border-slate-300 flex items-center justify-between shrink-0">
+        <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded shadow hover:bg-brand-600">+ Add Item Line</button>
+      </div>
+
       <!-- Main Item Grid Container -->
-      <div class="flex-1 bg-white overflow-y-auto flex flex-col justify-between">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs min-w-[950px] border-collapse">
-            <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px]">
-              <tr>
-                <th class="p-2 border border-blue-900 w-10 text-center">#</th>
-                <th class="p-2 border border-blue-900 min-w-[220px]">Item Name (Auto-Suggest Search)</th>
-                <th class="p-2 border border-blue-900 text-right w-24">MRP (₹)</th>
-                <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
-                <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
-                <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
-                <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
-                <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
-                <th class="p-2 border border-blue-900 text-center w-20">GST</th>
-                <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
-                <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
-                <th class="p-2 border border-blue-900 text-right w-20">Margin</th>
-                <th class="p-2 border border-blue-900 text-center w-12"></th>
+      <div class="flex-1 bg-white overflow-y-auto">
+        <table class="w-full text-left text-xs min-w-[950px] border-collapse">
+          <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px] sticky top-0 z-20">
+            <tr>
+              <th class="p-2 border border-blue-900 w-10 text-center">#</th>
+              <th class="p-2 border border-blue-900 min-w-[220px]">Item Name (Auto-Suggest Search)</th>
+              <th class="p-2 border border-blue-900 text-right w-24">MRP (₹)</th>
+              <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
+              <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
+              <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
+              <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
+              <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
+              <th class="p-2 border border-blue-900 text-center w-20">GST</th>
+              <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
+              <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
+              <th class="p-2 border border-blue-900 text-right w-20">Margin</th>
+              <th class="p-2 border border-blue-900 text-center w-12"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 font-medium">
+            ${items.map((item, idx) => `
+              <tr class="hover:bg-slate-50">
+                <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
+                <td class="p-2 border border-slate-200">
+                  <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
+                </td>
+                <td class="p-2 border border-slate-200 text-right">
+                  <input type="number" step="0.01" class="purchase-item-mrp w-full border border-slate-300 rounded p-1 text-xs text-right bg-white" data-idx="${idx}" value="${item.mrp}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="purchase-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                    <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                    <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                    <option ${item.unit === 'GRM' ? 'selected' : ''}>GRM</option>
+                    <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                    <option ${item.unit === 'ML' ? 'selected' : ''}>ML</option>
+                  </select>
+                </td>
+                <td class="p-2 border border-slate-200 text-right">
+                  <input type="number" step="0.01" class="purchase-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
+                </td>
+                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="purchase-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                    <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                    <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                    <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                    <option ${item.gstGroup === '18%' ? 'selected' : ''}>18%</option>
+                  </select>
+                </td>
+                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
+                <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
+                <td class="p-2 border border-slate-200 text-right font-mono">${Number(item.margin || 0).toFixed(2)}</td>
+                <td class="p-2 border border-slate-200 text-center">
+                  ${items.length > 1 ? `<button type="button" class="remove-purchase-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
+                </td>
               </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-200 font-medium">
-              ${items.map((item, idx) => `
-                <tr class="hover:bg-slate-50">
-                  <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                  <td class="p-2 border border-slate-200">
-                    <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right">
-                    <input type="number" step="0.01" class="purchase-item-mrp w-full border border-slate-300 rounded p-1 text-xs text-right bg-white" data-idx="${idx}" value="${item.mrp}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <input type="number" step="0.01" class="purchase-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <select class="purchase-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                      <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
-                      <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
-                      <option ${item.unit === 'GRM' ? 'selected' : ''}>GRM</option>
-                      <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                      <option ${item.unit === 'ML' ? 'selected' : ''}>ML</option>
-                    </select>
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right">
-                    <input type="number" step="0.01" class="purchase-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <input type="number" step="0.01" class="purchase-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <select class="purchase-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                      <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
-                      <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
-                      <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
-                      <option ${item.gstGroup === '18%' ? 'selected' : ''}>18%</option>
-                    </select>
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                  <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
-                  <td class="p-2 border border-slate-200 text-right font-mono">${Number(item.margin || 0).toFixed(2)}</td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    ${items.length > 1 ? `<button type="button" class="remove-purchase-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-start">
-          <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded shadow hover:bg-brand-600">+ Add Item Line</button>
-        </div>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
 
       <datalist id="rawMaterialsList">
@@ -1052,13 +1052,13 @@ function billingModalBillmaxStyle() {
         </div>
       </div>
 
-      <!-- Action Toolbar (Add Item & Add Payment Mode) - Cleanly placed above table -->
+      <!-- Action Toolbar (Add Item & Add Payment Mode) -->
       <div class="bg-[#e6decc] px-3 py-2 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2 shrink-0">
         <div class="flex items-center gap-2">
-          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-3.5 py-1.5 rounded shadow hover:opacity-90 flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i> + Add Item Line</button>
+          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-3.5 py-1.5 rounded shadow hover:opacity-90 flex items-center gap-1">+ Add Item Line</button>
         </div>
         <div class="flex items-center gap-1.5 bg-white p-1 rounded border border-slate-300 shadow-sm">
-          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-44 font-medium">
+          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode (e.g. GPay)..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-44 font-medium">
           <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-xs font-bold px-3 py-1 rounded shadow hover:bg-brand-600">+ Add Mode</button>
         </div>
       </div>
