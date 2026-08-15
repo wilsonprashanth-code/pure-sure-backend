@@ -166,25 +166,6 @@ function unlockAudio() {
   } catch(e) {}
 }
 
-function playLoudAlarm() {
-  if (!session.soundOn || !session.staff) return;
-  unlockAudio();
-  if (!actx) return;
-  const now = actx.currentTime;
-  [0, 0.25, 0.5, 0.75].forEach(delay => {
-    const o = actx.createOscillator();
-    const g = actx.createGain();
-    o.type = 'sawtooth';
-    o.frequency.setValueAtTime(delay % 0.5 === 0 ? 950 : 1250, now + delay);
-    g.gain.setValueAtTime(0.5, now + delay);
-    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.2);
-    o.connect(g);
-    g.connect(actx.destination);
-    o.start(now + delay);
-    o.stop(now + delay + 0.2);
-  });
-}
-
 function money(n) { return '₹' + Number(n || 0).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
@@ -192,7 +173,7 @@ function toast(msg, icon) {
   const el = document.createElement('div');
   el.className = 'modal-fade pointer-events-auto bg-brand-900 text-cream px-4 py-2.5 rounded-full shadow-xl text-xs sm:text-sm font-medium flex items-center gap-2 max-w-full truncate';
   el.innerHTML = `<i data-lucide="${icon || 'check-circle'}" class="w-4 h-4 text-gold-400 shrink-0"></i><span class="truncate">${msg}</span>`;
-  host.appendChild(el); lucide.createIcons();
+  host.appendChild(el); try { lucide.createIcons(); } catch(e){}
   setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 2600);
 }
 
@@ -455,17 +436,21 @@ function exportMonthlyStockReconciliationToExcel() {
 }
 
 function render() {
-  const app = document.getElementById('app');
-  if (!app) return;
-  if (!session.staff) { 
-    app.innerHTML = loginModalHTML(); 
-    wireLogin(); 
-    lucide.createIcons(); 
-    return; 
+  try {
+    const app = document.getElementById('app');
+    if (!app) return;
+    if (!session.staff) { 
+      app.innerHTML = loginModalHTML(); 
+      wireLogin(); 
+      try { lucide.createIcons(); } catch(e){}
+      return; 
+    }
+    app.innerHTML = kitchenShell(); 
+    wireKitchen(); 
+    try { lucide.createIcons(); } catch(e){}
+  } catch(err) {
+    console.error("Render error:", err);
   }
-  app.innerHTML = kitchenShell(); 
-  wireKitchen(); 
-  lucide.createIcons();
 }
 
 function loginModalHTML() {
