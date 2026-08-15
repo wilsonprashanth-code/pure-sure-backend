@@ -123,31 +123,11 @@ let session = {
   billingCustomerPhone: '',
   billingPaymentMode: 'Cash',
   newCustomPayment: '',
-  
-  // Purchase Reference State matching screenshot exactly
-  purchaseSupplier: 'ABC Organic Foods Pvt Ltd.',
-  purchaseSupplierGstin: '29ABCDE1234F1Z5',
-  purchaseSupplierPhone: '9876543210',
-  purchaseSupplierAddress: 'No.12, KIADB, Peenya 2nd Phase, Bengaluru - 560058, Karnataka',
-  purchaseInvoiceNo: 'INV-4587',
-  purchaseInvoiceDate: '2026-08-14',
-  purchaseNo: 'P/26-27/00001',
-  purchaseReceivedDate: '2026-08-15',
-  purchaseType: 'Regular Purchase',
-  purchasePaymentTerms: '15 Days',
-  purchaseDueDate: '2026-08-30',
-  purchasePaymentMode: 'Credit',
-  purchasePaymentStatus: 'Pending',
-  purchaseCurrency: 'INR',
-  purchaseReceivingLocation: 'Factory Warehouse',
-  purchaseGlobalSearchQuery: '',
-  purchaseItems: [
-    { id: 'p1', itemName: 'Organic Wheat Flour-5kg', code: 'WF-001', batch: 'B240815', mfgDate: '2026-08-01', expDate: '2027-02-01', unit: 'Pcs', orderedQty: 5, receivedQty: 5, shortQty: 0, damagedQty: 0, rate: 266.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 66.50, netValue: 1396.50, lastRate: 260.00 },
-    { id: 'p2', itemName: 'Organic Sunflower Oil-2 Ltr', code: 'SFO-002', batch: 'B240810', mfgDate: '2026-08-10', expDate: '2027-02-10', unit: 'Pcs', orderedQty: 2, receivedQty: 2, shortQty: 0, damagedQty: 0, rate: 493.34, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 49.33, netValue: 1036.01, lastRate: 490.00 },
-    { id: 'p3', itemName: 'Organic Coconut Milk-400ml', code: 'CM-003', batch: 'B240812', mfgDate: '2026-08-12', expDate: '2027-02-12', unit: 'Pcs', orderedQty: 6, receivedQty: 5, shortQty: -1, damagedQty: 0, rate: 170.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 42.50, netValue: 892.50, lastRate: 168.00 }
-  ],
-  purchasePaidAmount: 0.00,
-
+  purchaseInvoiceNo: 'P/26-27/000016',
+  purchaseVendor: '',
+  purchaseVendorPhone: '',
+  purchaseVendorGst: '',
+  purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
   salesInvoiceNo: 'S/26-27/000290',
   salesCustomerName: 'Walk-In Customer',
   salesCustomerPhone: '9876543210',
@@ -873,279 +853,14 @@ function menuEngineeringPanel() {
   </div>`;
 }
 
-function purchaseModalReferenceStyle() {
-  const items = session.purchaseItems || [];
-  const totalLines = items.length;
-  const totalOrderedQty = items.reduce((a, b) => a + Number(b.orderedQty || 0), 0);
-  const totalReceivedQty = items.reduce((a, b) => a + Number(b.receivedQty || 0), 0);
-  const totalShortQty = items.reduce((a, b) => a + Number(b.shortQty || 0), 0);
-  const totalDamagedQty = items.reduce((a, b) => a + Number(b.damagedQty || 0), 0);
-  const subTotal = items.reduce((a, b) => a + Number(b.netValue || 0), 0);
-  const totalTax = items.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
-  const netPayable = subTotal + totalTax;
-  const outstanding = Math.max(0, netPayable - (session.purchasePaidAmount || 0));
-
-  return `
-  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
-      
-      <!-- Top Header matching screenshot -->
-      <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <h2 class="font-bold text-sm tracking-wide text-white">Purchase Entry</h2>
-          </div>
-          <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Store</span>
-        </div>
-        
-        <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
-          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
-          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Purchase List</button>
-          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="users" class="w-3.5 h-3.5"></i> Suppliers</button>
-          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
-          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
-        </div>
-
-        <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
-      </div>
-
-      <!-- Top Supplier & Meta Grid matching screenshot exactly -->
-      <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs shrink-0 shadow-sm">
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-          <label class="font-bold text-slate-700 block">Supplier *</label>
-          <select id="purchaseSupplierSelect" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-bold text-slate-900">
-            <option>ABC Organic Foods Pvt Ltd.</option>
-            <option>Phalada Organic Consumer Products</option>
-          </select>
-          <div class="text-[10px] text-slate-500 space-y-0.5 pt-1">
-            <div><b>GSTIN:</b> ${session.purchaseSupplierGstin}</div>
-            <div><b>Phone:</b> ${session.purchaseSupplierPhone}</div>
-            <div><b>Address:</b> ${session.purchaseSupplierAddress}</div>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Supplier Invoice No. *</label>
-            <input id="purchaseInvoiceNo" value="${session.purchaseInvoiceNo}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Terms</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>15 Days</option><option>30 Days</option><option>Immediate</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Invoice Date *</label>
-            <input type="date" value="${session.purchaseInvoiceDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Due Date</label>
-            <input type="date" value="${session.purchaseDueDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Purchase No. *</label>
-            <div class="bg-slate-100 border border-slate-300 rounded-lg p-2 font-mono font-bold text-brand-950">
-              ${session.purchaseNo}
-              <div class="text-[9px] text-slate-400 font-normal">Next No: P/26-27/00002</div>
-            </div>
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Mode</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>Credit</option><option>Bank Transfer</option><option>Cash</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Received Date *</label>
-            <input type="date" value="${session.purchaseReceivedDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Status</label>
-            <div class="pt-1"><span class="bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-300">Pending</span></div>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Purchase Type</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>Regular Purchase</option><option>Return</option><option>Sample</option>
-            </select>
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Receiving Location *</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold text-brand-900">
-              <option>Factory Warehouse</option><option>Jayanagar Cafe</option><option>Vajarahalli Store</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Barcode / Item Search Bar -->
-      <div class="bg-slate-100 p-2.5 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
-        <div class="relative flex-1">
-          <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
-        </div>
-        <div class="flex items-center gap-4 text-xs font-semibold text-slate-700">
-          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked class="accent-brand"> Show last purchase rate</label>
-          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="accent-brand"> Show inactive items</label>
-        </div>
-        <button type="button" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
-      </div>
-
-      <!-- Main Item Table Container -->
-      <div class="flex-1 bg-white overflow-y-auto">
-        <table class="w-full text-left text-xs border-collapse min-w-[1200px]">
-          <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
-            <tr>
-              <th class="p-2 border border-teal-900 w-10 text-center">#</th>
-              <th class="p-2 min-w-[200px] border border-teal-900">Item Name (Code)</th>
-              <th class="p-2 w-28 border border-teal-900">Batch / Lot No.</th>
-              <th class="p-2 w-24 border border-teal-900">Mfg Date</th>
-              <th class="p-2 w-24 border border-teal-900">Expiry Date</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">UOM</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Ordered Qty</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Received Qty</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Short / Excess</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Damaged Qty</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Rate (₹)</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">Disc %</th>
-              <th class="p-2 w-20 border border-teal-900 text-right">Disc Amt</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">GST %</th>
-              <th class="p-2 w-20 border border-teal-900 text-right">GST Amt</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Net Value (₹)</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Last Purchase Rate</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 font-medium">
-            ${items.map((item, idx) => `
-              <tr class="hover:bg-slate-50">
-                <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                <td class="p-2 border border-slate-200">
-                  <div class="font-bold text-slate-900">${item.itemName}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">${item.code}</div>
-                </td>
-                <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.expDate}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.unit}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.orderedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold text-emerald-700">${item.receivedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold ${item.shortQty < 0 ? 'text-red-600' : 'text-slate-700'}">${item.shortQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.damagedQty}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-semibold">${money(item.rate)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.discPct}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.gstGroup}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono text-slate-500">${money(item.lastRate)}</td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <div class="flex items-center justify-center gap-1">
-                    <button type="button" class="text-blue-600 hover:text-blue-800 p-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                    <button type="button" class="text-red-500 hover:text-red-700 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Add Item Line button -->
-      <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
-        <button type="button" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded-lg shadow hover:bg-brand-600">+ Add Item Line</button>
-      </div>
-
-      <!-- Bottom Three-Column Summary Section matching screenshot exactly -->
-      <div class="bg-[#f4f7f6] p-3 border-t border-slate-300 grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs shrink-0">
-        
-        <!-- Left: Remarks -->
-        <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-          <label class="font-bold text-slate-800 mb-1">Remarks</label>
-          <textarea placeholder="Add invoice remarks..." rows="3" class="w-full flex-1 border border-slate-300 rounded-xl p-2 text-xs bg-slate-50 focus:outline-none"></textarea>
-        </div>
-
-        <!-- Middle: Item Summary & Amount Summary -->
-        <div class="lg:col-span-4 grid grid-cols-1 gap-2">
-          <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
-            <div class="text-[11px] font-bold text-slate-400 uppercase border-b border-slate-100 pb-1">Item Summary</div>
-            <div class="flex justify-between font-medium"><span>Total Items</span><span class="font-bold">3</span></div>
-            <div class="flex justify-between font-medium"><span>Total Ordered Qty</span><span class="font-bold">13</span></div>
-            <div class="flex justify-between font-medium"><span>Total Received Qty</span><span class="font-bold text-emerald-700">12</span></div>
-            <div class="flex justify-between font-medium"><span>Total Shortage Qty</span><span class="font-bold text-red-600">-1</span></div>
-            <div class="flex justify-between font-medium"><span>Total Damaged Qty</span><span class="font-bold">0</span></div>
-          </div>
-        </div>
-
-        <!-- Right: Amount Summary & Payment Summary -->
-        <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Sub Total</span><span class="font-mono">${money(subTotal)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Item Discount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Taxable Value</span><span class="font-mono">${money(subTotal)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Total GST</span><span class="font-mono">${money(totalTax)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>TCS Amount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Round Off</span><span class="font-mono">₹0.16</span></div>
-          <div class="flex justify-between text-sm font-bold text-white bg-posGreen p-2.5 rounded-xl shadow-sm">
-            <span>Net Payable</span>
-            <span class="font-mono text-base">${money(netPayable)}</span>
-          </div>
-
-          <div class="pt-2 space-y-1.5 text-xs font-bold border-t border-slate-200">
-            <div class="flex justify-between text-slate-800"><span>Total Payable</span><span class="font-mono">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800 items-center">
-              <span>Paid Amount</span>
-              <input type="number" value="0.00" class="w-28 border border-slate-300 rounded-lg p-1 text-right font-mono font-bold bg-slate-50">
-            </div>
-            <div class="flex justify-between text-slate-800"><span>Outstanding Amount</span><span class="font-mono text-red-600">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800"><span>Due Date</span><span class="font-mono">30-08-2026</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Bottom Action Toolbar matching screenshot -->
-      <div class="bg-[#10344a] p-3 flex items-center justify-between shrink-0 flex-wrap gap-2">
-        <div class="flex items-center gap-2">
-          <button id="validatePurchaseBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
-            <i data-lucide="save" class="w-4 h-4"></i> Save Purchase (F10)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="printer" class="w-4 h-4"></i> Save &amp; Print (F11)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="file-plus" class="w-4 h-4"></i> Save &amp; New (F12)
-          </button>
-        </div>
-        <button id="closePurchaseModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-5 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-          <i data-lucide="trash-2" class="w-4 h-4"></i> Clear
-        </button>
-      </div>
-
-    </div>
-  </div>`;
-}
-
 function billingModalReferenceStyle() {
-  const cart = session.salesItems || [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
-  const payments = session.salesPayments || [{ mode: 'Cash', amount: 0 }];
+  const cart = session.salesItems || [];
   const totalLines = cart.length;
   const totalQty = cart.reduce((a, b) => a + Number(b.qty || 0), 0);
   const totalValue = cart.reduce((a, b) => a + Number(b.netValue || 0), 0);
   const totalTax = cart.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
   const grandTotal = totalValue + totalTax;
+  const payments = session.salesPayments || [{ mode: 'Cash', amount: grandTotal }];
   const totalPaid = payments.reduce((a, b) => a + Number(b.amount || 0), 0);
   const balanceDue = Math.max(0, grandTotal - totalPaid);
   const changeDue = Math.max(0, totalPaid - grandTotal);
@@ -1155,7 +870,7 @@ function billingModalReferenceStyle() {
   <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
     <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       
-      <!-- Top Title Header matching reference image -->
+      <!-- Top Title Header matching screenshot -->
       <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
@@ -1165,7 +880,7 @@ function billingModalReferenceStyle() {
           <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Cafe</span>
         </div>
         
-        <!-- Top Nav Menu Items matching reference image -->
+        <!-- Top Nav Menu Items matching screenshot -->
         <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
           <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
           <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
@@ -1209,11 +924,14 @@ function billingModalReferenceStyle() {
         </div>
       </div>
 
-      <!-- Global Search Bar / Barcode Scanner -->
-      <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center gap-3 shrink-0">
+      <!-- Global Search Bar / Barcode Scanner with Autocomplete Dropdown -->
+      <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center gap-3 shrink-0 relative">
         <div class="relative flex-1">
           <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
           <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
+          
+          <!-- Autocomplete Dropdown suggestions container -->
+          <div id="salesSearchDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto z-50"></div>
         </div>
         <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
@@ -1226,7 +944,7 @@ function billingModalReferenceStyle() {
           
           <!-- Scrollable Table -->
           <div class="flex-1 overflow-y-auto">
-            <table class="w-full text-left text-xs border-collapse">
+            <table class="w-full text-left text-xs border-collapse min-w-[900px]">
               <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
                 <tr>
                   <th class="p-2.5 border border-teal-900 w-10 text-center">#</th>
@@ -1248,9 +966,10 @@ function billingModalReferenceStyle() {
                   <tr class="hover:bg-brand-50/20 transition">
                     <td class="p-2.5 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
                     <td class="p-2.5 border border-slate-200">
-                      <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
+                      <div class="font-bold text-slate-900">${item.itemName || 'Select Item'}</div>
+                      <div class="text-[10px] text-slate-400 font-mono">${item.code || 'CAKE-001'}</div>
                     </td>
-                    <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
+                    <td class="p-2.5 border border-slate-200 font-mono text-slate-600">${item.barcode || '—'}</td>
                     <td class="p-2.5 border border-slate-200 text-center">
                       <div class="inline-flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
                         <button type="button" class="sales-qty-dec px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">−</button>
@@ -1258,27 +977,11 @@ function billingModalReferenceStyle() {
                         <button type="button" class="sales-qty-inc px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">+</button>
                       </div>
                     </td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <select class="sales-item-unit border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                        <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
-                        <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
-                        <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                      </select>
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-right">
-                      <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
-                    </td>
+                    <td class="p-2.5 border border-slate-200 text-center text-slate-600">${item.unit || 'Nos'}</td>
+                    <td class="p-2.5 border border-slate-200 text-right font-mono font-semibold">${Number(item.rate || 0).toFixed(2)}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">${item.discPct || 0}</td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <select class="sales-item-gst border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                        <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
-                        <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
-                        <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
-                      </select>
-                    </td>
+                    <td class="p-2.5 border border-slate-200 text-center">${item.gstGroup || '5%'}</td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
                     <td class="p-2.5 border border-slate-200 text-center">
@@ -1293,11 +996,7 @@ function billingModalReferenceStyle() {
             </table>
           </div>
 
-          <datalist id="menuItemsList">
-            ${DB.menu.map(m => `<option value="${m.name}">`).join('')}
-          </datalist>
-
-          <!-- Table Bottom Bar: Clear Cart & Totals -->
+          <!-- Table Footer / Cart Controls -->
           <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
             <button type="button" id="clearSalesCartBtn" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Cart
@@ -2553,7 +2252,7 @@ function wireKitchen() {
     };
   }
 
-  /* SALES WIRING WITH AUTO-NEW-LINE & INSTANT RECALC */
+  /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
   if (salesCustomerNameInput) salesCustomerNameInput.onchange = (e) => { session.salesCustomerName = e.target.value; };
 
@@ -2561,18 +2260,57 @@ function wireKitchen() {
   if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
 
   const globalSalesSearchInput = document.getElementById('globalSalesSearchInput');
-  if (globalSalesSearchInput) {
+  const salesSearchDropdown = document.getElementById('salesSearchDropdown');
+
+  if (globalSalesSearchInput && salesSearchDropdown) {
+    globalSalesSearchInput.oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      session.salesGlobalSearchQuery = e.target.value;
+      if (q.length === 0) {
+        salesSearchDropdown.classList.add('hidden');
+        salesSearchDropdown.innerHTML = '';
+        return;
+      }
+
+      const matches = DB.menu.filter(m => m.name.toLowerCase().includes(q));
+      if (matches.length > 0) {
+        salesSearchDropdown.innerHTML = matches.map(m => `
+          <div class="search-suggestion-item p-2.5 hover:bg-brand-50 cursor-pointer border-b border-slate-100 flex justify-between items-center text-xs" data-name="${m.name}" data-price="${m.price}">
+            <div>
+              <div class="font-bold text-brand-950">${m.name}</div>
+              <div class="text-[10px] text-slate-400">${m.category}</div>
+            </div>
+            <div class="font-mono font-bold text-brand-700">${money(m.price)}</div>
+          </div>
+        `).join('');
+        salesSearchDropdown.classList.remove('hidden');
+
+        document.querySelectorAll('.search-suggestion-item').forEach(el => {
+          el.onclick = () => {
+            const name = el.dataset.name;
+            const price = Number(el.dataset.price);
+            session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: price, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: price * 0.05, netValue: price });
+            session.salesGlobalSearchQuery = '';
+            salesSearchDropdown.classList.add('hidden');
+            renderKeepFocus('globalSalesSearchInput');
+          };
+        });
+      } else {
+        salesSearchDropdown.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No matching items found.</div>`;
+        salesSearchDropdown.classList.remove('hidden');
+      }
+    };
+
     globalSalesSearchInput.onkeydown = (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const query = globalSalesSearchInput.value.toLowerCase().trim();
-        const found = DB.menu.find(m => m.name.toLowerCase().includes(query));
-        if (found) {
+        const matches = DB.menu.filter(m => m.name.toLowerCase().includes(globalSalesSearchInput.value.toLowerCase().trim()));
+        if (matches.length > 0) {
+          const found = matches[0];
           session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: found.name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: found.price || 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: (found.price || 0) * 0.05, netValue: found.price || 0 });
           session.salesGlobalSearchQuery = '';
+          salesSearchDropdown.classList.add('hidden');
           renderKeepFocus('globalSalesSearchInput');
-        } else {
-          toast('Item not found in menu.', 'alert-triangle');
         }
       }
     };
