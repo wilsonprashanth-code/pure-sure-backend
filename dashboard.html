@@ -1052,12 +1052,12 @@ function billingModalBillmaxStyle() {
         </div>
       </div>
 
-      <!-- Main Item Grid Container with proper flex spacing -->
-      <div class="flex-1 bg-white overflow-hidden flex flex-col">
-        <div class="overflow-x-auto overflow-y-auto flex-1">
+      <!-- Main Item Grid Container - Cleaned up to prevent table header overlap -->
+      <div class="flex-1 bg-white overflow-y-auto flex flex-col">
+        <div class="overflow-x-auto">
           <table class="w-full text-left text-xs min-w-[900px] border-collapse">
-            <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px] sticky top-0 z-20">
-              <tr>
+            <thead>
+              <tr class="bg-[#005b82] text-white uppercase font-bold text-[10px]">
                 <th class="p-2 border border-blue-900 w-10 text-center">#</th>
                 <th class="p-2 border border-blue-900 w-32">Barcode</th>
                 <th class="p-2 border border-blue-900 min-w-[240px]">Item Name (Select from Menu)</th>
@@ -1116,7 +1116,7 @@ function billingModalBillmaxStyle() {
         </div>
         
         <!-- Bottom Grid Controls & Split Payment Management -->
-        <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex flex-col gap-2 shrink-0">
+        <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex flex-col gap-2 shrink-0 mt-auto">
           <div class="flex items-center justify-between flex-wrap gap-2">
             <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
             
