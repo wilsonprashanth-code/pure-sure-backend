@@ -2535,6 +2535,17 @@ function wireKitchen() {
   });
 
   document.querySelectorAll('.payment-mode-amount').forEach(inp => {
+    inp.onfocus = () => {
+      const idx = Number(inp.dataset.idx);
+      const currentPaid = session.salesPayments.reduce((a, p, pIdx) => pIdx !== idx ? a + Number(p.amount || 0) : a, 0);
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      const remaining = Math.max(0, totalVal - currentPaid);
+      if (Number(inp.value || 0) === 0) {
+        session.salesPayments[idx].amount = remaining;
+        renderKeepFocus('salesCustomerNameInput');
+      }
+    };
+
     inp.oninput = (e) => {
       const idx = Number(inp.dataset.idx);
       if (session.salesPayments[idx]) {
