@@ -3153,13 +3153,27 @@ async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone
   await db.ref('purchases').set(DB.purchases);
 }
 async function clearTrialData() {
-  if (confirm("Are you sure you want to clear all test sales, purchases, and wastage logs?")) {
+  if (confirm("Are you sure you want to clear all orders, purchases, wastage logs, and reset all inventory and opening stock to zero?")) {
+    // 1. Clear transaction and log nodes from Firebase
     await db.ref('orders').remove();
     await db.ref('purchases').remove();
     await db.ref('wastageLogs').remove();
     await db.ref('stockTakes').remove();
     
-    // Reset local session arrays immediately
+    // 2. Reset all raw material stocks, opening qty, and opening values to 0 in Firebase
+    const rmSnapshot = await db.ref('rawMaterials').once('value');
+    const materials = rmSnapshot.val();
+    if (materials) {
+      const updates = {};
+      for (const id in materials) {
+        updates[`rawMaterials/${id}/openingQty`] = 0;
+        updates[`rawMaterials/${id}/openingValue`] = 0;
+        updates[`rawMaterials/${id}/stockGrams`] = 0;
+      }
+      await db.ref().update(updates);
+    }
+    
+    // 3. Clear local session arrays immediately
     DB.orders = [];
     DB.purchases = [];
     DB.wastageLogs = [];
@@ -3168,8 +3182,9 @@ async function clearTrialData() {
     session.purchaseItems = [];
     
     render();
-    toast("All trial data cleared successfully!", "trash-2");
+    toast("All data, logs, and opening stock reset to zero!", "trash-2");
   }
+
 }
 async function clearTrialData() {
   if (confirm("Are you sure you want to clear all test sales, purchases, and wastage logs?")) {
