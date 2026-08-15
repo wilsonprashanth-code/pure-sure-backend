@@ -162,6 +162,25 @@ function unlockAudio() {
   } catch(e) {}
 }
 
+function playLoudAlarm() {
+  if (!session.soundOn || !session.staff) return;
+  unlockAudio();
+  if (!actx) return;
+  const now = actx.currentTime;
+  [0, 0.25, 0.5, 0.75].forEach(delay => {
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(delay % 0.5 === 0 ? 950 : 1250, now + delay);
+    g.gain.setValueAtTime(0.5, now + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.2);
+    o.connect(g);
+    g.connect(actx.destination);
+    o.start(now + delay);
+    o.stop(now + delay + 0.2);
+  });
+}
+
 function money(n) { return '₹' + Number(n || 0).toFixed(2); }
 function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
 function toast(msg, icon) {
@@ -503,7 +522,6 @@ function orderCard(o) {
 function historyPanel() {
   const completedOrders = [...DB.orders].filter(o => o.status === 'served').sort((a,b) => (b.completedTs || 0) - (a.completedTs || 0));
   
-  // Calculate item-wise sales stats
   const itemSales = {};
   completedOrders.forEach(o => {
     (o.items || []).forEach(i => {
@@ -517,7 +535,6 @@ function historyPanel() {
 
   return `
   <div class="space-y-6">
-    <!-- Sales Summary Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
         <div class="text-[10px] font-bold uppercase text-brand-400">Total Billed Orders</div>
@@ -537,7 +554,6 @@ function historyPanel() {
       </div>
     </div>
 
-    <!-- Item-wise Sales Breakdown Table -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
       <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Item-Wise Sales &amp; Popularity Report</h3>
       <div class="overflow-x-auto">
@@ -562,7 +578,6 @@ function historyPanel() {
       </div>
     </div>
 
-    <!-- Completed Order History Table -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
       <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Completed Order History &amp; Payments</h3>
       <div class="overflow-x-auto">
@@ -598,10 +613,7 @@ function historyPanel() {
 }
 
 function menuEngineeringPanel() {
-  // Categorize menu items into Stars, Plowhorses, Puzzles, Dogs
   const menuItems = DB.menu;
-  
-  // Compute average sales volume and average margin
   let totalSoldUnits = 0;
   const itemCounts = {};
   DB.orders.filter(o => o.status === 'served').forEach(o => {
@@ -623,47 +635,44 @@ function menuEngineeringPanel() {
     let color = 'bg-red-50 text-red-800 border-red-200';
 
     const isPopular = sold >= avgPopularity;
-    const isProfitable = grossMargin >= 65; // High profitability threshold
+    const isProfitable = grossMargin >= 65;
 
     if (isPopular && isProfitable) {
       classification = 'Star ⭐';
-      desc = 'High Profit, High Popularity';
       color = 'bg-green-50 text-green-800 border-green-200';
     } else if (isPopular && !isProfitable) {
       classification = 'Plowhorse 🐴';
-      desc = 'Low Profit, High Popularity';
       color = 'bg-amber-50 text-amber-800 border-amber-200';
     } else if (!isPopular && isProfitable) {
       classification = 'Puzzle 🧩';
-      desc = 'High Profit, Low Popularity';
       color = 'bg-blue-50 text-blue-800 border-blue-200';
     }
 
-    return { name: m.name, category: m.category, price: m.price, sold, grossMargin: grossMargin.toFixed(1), classification, desc, color };
+    return { name: m.name, category: m.category, price: m.price, sold, grossMargin: grossMargin.toFixed(1), classification, color };
   });
 
   return `
   <div class="space-y-5">
     <div class="bg-white rounded-2xl card-shadow p-5">
       <h3 class="font-display text-lg font-bold text-brand-950 mb-1">Menu Engineering Matrix</h3>
-      <p class="text-xs text-brand-400 mb-4">Automatically categorizes your menu items into Stars, Plowhorses, Puzzles, and Dogs based on sales volume and gross margins.</p>
+      <p class="text-xs text-brand-400 mb-4">Automatically categorizes your menu items into Stars, Plowhorses, Puzzles, and Dogs.</p>
       
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div class="bg-green-50/60 p-4 rounded-xl border border-green-200">
           <div class="text-xs font-bold text-green-800">Stars ⭐</div>
-          <div class="text-[11px] text-green-600 mt-0.5">High Profit &amp; High Popularity. Maintain quality &amp; visibility.</div>
+          <div class="text-[11px] text-green-600 mt-0.5">High Profit &amp; High Popularity.</div>
         </div>
         <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
           <div class="text-xs font-bold text-amber-800">Plowhorses 🐴</div>
-          <div class="text-[11px] text-amber-600 mt-0.5">Low Profit &amp; High Popularity. Consider slight price increases or ingredient optimization.</div>
+          <div class="text-[11px] text-amber-600 mt-0.5">Low Profit &amp; High Popularity.</div>
         </div>
         <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-200">
-          <div class="text-xs font-bold text-blue-800">Puzzles 🧩</div>
-          <div class="text-[11px] text-blue-600 mt-0.5">High Profit &amp; Low Popularity. Promote heavily or re-market.</div>
+          <div class="text-xs font-bold text-blue-800">Puzzle 🧩</div>
+          <div class="text-[11px] text-blue-600 mt-0.5">High Profit &amp; Low Popularity.</div>
         </div>
         <div class="bg-red-50/60 p-4 rounded-xl border border-red-200">
           <div class="text-xs font-bold text-red-800">Dogs 🐶</div>
-          <div class="text-[11px] text-red-600 mt-0.5">Low Profit &amp; Low Popularity. Consider removing or redesigning.</div>
+          <div class="text-[11px] text-red-600 mt-0.5">Low Profit &amp; Low Popularity.</div>
         </div>
       </div>
 
@@ -687,7 +696,7 @@ function menuEngineeringPanel() {
                 <td class="p-3 text-right font-bold text-brand-900">${item.grossMargin}%</td>
                 <td class="p-3 text-center"><span class="px-3 py-1 rounded-full text-xs font-bold border ${item.color}">${item.classification}</span></td>
               </tr>
-            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No menu items available for engineering analysis.</td></tr>`}
+            `).join('') || `<tr><td colspan="5" class="text-center py-8 text-brand-400">No menu items available.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -713,7 +722,6 @@ function billingModal() {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto min-h-0">
-        <!-- Left: Item Selector & Cart -->
         <div class="space-y-3 flex flex-col overflow-hidden bg-brand-50/40 p-3.5 rounded-2xl border border-brand-100">
           <div class="text-xs font-bold text-brand-900 uppercase">Select Menu Items to Bill</div>
           <div class="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
@@ -739,7 +747,6 @@ function billingModal() {
           </div>
         </div>
 
-        <!-- Right: Order Details & Payment -->
         <div class="space-y-3 bg-white p-4 rounded-2xl border border-brand-200 flex flex-col justify-between shadow-sm">
           <div class="space-y-3">
             <div class="text-xs font-bold text-brand-900 uppercase">Billing Details &amp; Payment Mode</div>
@@ -1110,7 +1117,6 @@ function mainRecipesModal() {
               </table>
             </div>
 
-            <!-- Summary Box -->
             <div class="bg-brand-50/80 p-3.5 rounded-xl border border-brand-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div class="space-y-1 font-medium">
                 <div class="flex justify-between text-brand-700"><span>Menu Selling Price:</span><span class="font-bold text-brand-950">${money(sellingPrice)}</span></div>
@@ -1904,10 +1910,8 @@ function wireKitchen() {
         completedTs: Date.now()
       };
 
-      // 1. Save order to Firebase
       await db.ref('orders/' + orderId).set(newOrder);
 
-      // 2. Cascade BOM Stock Deduction for each item in cart
       for (const item of session.billingCart) {
         if (item.id) {
           await processBOMDeduction(item.id, item.qty);
@@ -2202,6 +2206,585 @@ function wireKitchen() {
       }
     };
   }
+
+  /* RAW MATERIAL MASTER MODAL HANDLERS */
+  const manageIngBtn = document.getElementById('manageIngredientsBtn');
+  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
+
+  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
+  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
+
+  const dlRmTemplateBtn = document.getElementById('dlRmTemplateBtn');
+  if (dlRmTemplateBtn) dlRmTemplateBtn.onclick = () => downloadRawMaterialsTemplate();
+
+  const processRmExcelBtn = document.getElementById('processRmExcelBtn');
+  if (processRmExcelBtn) {
+    processRmExcelBtn.onclick = () => {
+      const fileInput = document.getElementById('rmExcelInput');
+      if (!fileInput || !fileInput.files[0]) {
+        toast('Please select an Excel or CSV file first.', 'alert-triangle');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(worksheet);
+
+          let addedCount = 0;
+          for (const row of json) {
+            if (row.name) {
+              const id = uid('rm');
+              await db.ref('rawMaterials/' + id).set({
+                id,
+                name: row.name.toString().trim(),
+                vendor: (row.vendor || 'FACTORY').toString().trim(),
+                unit: (row.unit || 'GRM').toString().trim().toUpperCase(),
+                unitPrice: Number(row.unitPrice || row.price || 0)
+              });
+              addedCount++;
+            }
+          }
+
+          toast(`Added ${addedCount} raw materials!`, 'check-circle');
+        } catch (err) {
+          toast('Error reading Excel headers.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
+    };
+  }
+
+  const addRmBtn = document.getElementById('addRmBtn');
+  if (addRmBtn) {
+    addRmBtn.onclick = async () => {
+      const name = document.getElementById('newRmName').value.trim();
+      const vendor = document.getElementById('newRmVendor').value.trim() || 'FACTORY';
+      const unit = document.getElementById('newRmUnit').value;
+      const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
+
+      if (!name) { toast('Enter raw material name.', 'alert-triangle'); return; }
+
+      const newItem = { id: uid('rm'), name, vendor, unit, unitPrice };
+      await db.ref('rawMaterials/' + newItem.id).set(newItem);
+      toast('Raw material saved!', 'check-circle');
+    };
+  }
+
+  document.querySelectorAll('.delete-rm-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      await db.ref('rawMaterials/' + id).remove();
+      toast('Raw material removed.');
+    };
+  });
+
+  /* BASE PREP MASTER HANDLERS */
+  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
+  if (manageBaseBtn) {
+    manageBaseBtn.onclick = () => {
+      session.showBaseRecipesModal = true;
+      if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
+        session.editingBaseRecipeId = DB.baseRecipes[0].id;
+      }
+      render();
+    };
+  }
+
+  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
+  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
+
+  const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
+  if (createNewBaseBtn) {
+    createNewBaseBtn.onclick = async () => {
+      const newBase = {
+        id: uid('br'),
+        name: 'New Base Prep',
+        batchYield: 1,
+        unit: 'GRM',
+        ingredients: []
+      };
+      await db.ref('baseRecipes/' + newBase.id).set(newBase);
+      session.editingBaseRecipeId = newBase.id;
+      render();
+    };
+  }
+
+  document.querySelectorAll('.base-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.editingBaseRecipeId = card.dataset.id;
+      render();
+    };
+  });
+
+  const saveBaseRecipeBtn = document.getElementById('saveBaseRecipeBtn');
+  if (saveBaseRecipeBtn && session.editingBaseRecipeId) {
+    saveBaseRecipeBtn.onclick = async () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.name = document.getElementById('baseName').value.trim();
+        activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
+        activeBase.unit = document.getElementById('baseUnit').value;
+
+        await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
+        toast('Base recipe saved!', 'check-circle');
+      }
+    };
+  }
+
+  const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
+  if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
+    deleteBaseRecipeBtn.onclick = async () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      const name = activeBase ? activeBase.name : 'this base';
+      if (confirm(`Delete "${name}"?`)) {
+        await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
+        session.editingBaseRecipeId = DB.baseRecipes.length > 1 ? DB.baseRecipes.find(b => b.id !== session.editingBaseRecipeId).id : null;
+        render();
+        toast('Base recipe deleted.', 'trash-2');
+      }
+    };
+  }
+
+  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
+  if (addBaseIngRowBtn && session.editingBaseRecipeId) {
+    addBaseIngRowBtn.onclick = () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        if (!activeBase.ingredients) activeBase.ingredients = [];
+        activeBase.ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
+        render();
+      }
+    };
+  }
+
+  document.querySelectorAll('.base-mode-toggle-raw').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].type = 'raw';
+        activeBase.ingredients[idx].isBase = false;
+        activeBase.ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-mode-toggle-base').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].type = 'base';
+        activeBase.ingredients[idx].isBase = true;
+        activeBase.ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-select').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      const val = e.target.value;
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+
+      if (activeBase) {
+        if (val.startsWith('rm_')) {
+          const name = val.replace('rm_', '');
+          const rm = getRawMaterialDetails(name);
+          activeBase.ingredients[idx].name = name;
+          activeBase.ingredients[idx].unit = rm.unit || 'GRM';
+          activeBase.ingredients[idx].uom = rm.unit || 'GRM';
+          activeBase.ingredients[idx].vendor = rm.vendor || 'FACTORY';
+          activeBase.ingredients[idx].unitPrice = rm.unitPrice || 0;
+          activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, rm.unit || 'GRM');
+          activeBase.ingredients[idx].type = 'raw';
+        } else if (val.startsWith('br_')) {
+          const name = val.replace('br_', '');
+          const br = DB.baseRecipes.find(b => b.name === name);
+          if (br) {
+            activeBase.ingredients[idx].name = br.name;
+            activeBase.ingredients[idx].unit = br.unit || 'GRM';
+            activeBase.ingredients[idx].uom = br.unit || 'GRM';
+            activeBase.ingredients[idx].vendor = 'LINKED BASE';
+            activeBase.ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
+            activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, br.unit || 'GRM');
+            activeBase.ingredients[idx].type = 'base';
+          }
+        }
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-unit').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        const newUnit = e.target.value;
+        activeBase.ingredients[idx].unit = newUnit;
+        activeBase.ingredients[idx].uom = newUnit;
+        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(activeBase.ingredients[idx].qty, newUnit);
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-qty').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        const qty = Number(e.target.value) || 0;
+        activeBase.ingredients[idx].qty = qty;
+        activeBase.ingredients[idx].gramsMl = getConvertedGramsMl(qty, activeBase.ingredients[idx].unit);
+
+        const row = input.closest('tr');
+        if (row) {
+          const gramsInput = row.querySelector('.base-ing-grams');
+          if (gramsInput) gramsInput.value = activeBase.ingredients[idx].gramsMl;
+
+          const costCell = row.querySelector('.base-ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
+        }
+        recalculateBaseRecipeTotals();
+      }
+    };
+  });
+
+  document.querySelectorAll('.base-ing-grams').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase && activeBase.ingredients[idx]) {
+        activeBase.ingredients[idx].gramsMl = Number(e.target.value) || 0;
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.base-ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(activeBase.ingredients[idx]));
+        }
+        recalculateBaseRecipeTotals();
+      }
+    };
+  });
+
+  document.querySelectorAll('.remove-base-ing').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.ingredients.splice(idx, 1);
+        render();
+      }
+    };
+  });
+
+  /* MAIN RECIPES EVENT HANDLERS */
+  document.querySelectorAll('.mode-toggle-raw').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = false;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.mode-toggle-base').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].isBase = true;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].name = '';
+        render();
+      }
+    };
+  });
+
+  const recipePortionsInput = document.getElementById('recipePortions');
+  if (recipePortionsInput) {
+    recipePortionsInput.oninput = (e) => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].portions = Number(e.target.value) || 1;
+        recalculateMainRecipeTotals();
+      }
+    };
+  }
+
+  const recipeWastageInput = document.getElementById('recipeWastage');
+  if (recipeWastageInput) {
+    recipeWastageInput.oninput = (e) => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].wastagePercent = Number(e.target.value) || 0;
+        recalculateMainRecipeTotals();
+      }
+    };
+  }
+
+  const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
+  if (addIngredientRowBtn) {
+    addIngredientRowBtn.onclick = () => {
+      if (session.activeRecipeDishId) {
+        if (!DB.recipes[session.activeRecipeDishId]) DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', qty: 1, gramsMl: 1, unit: 'GRM', uom: 'GRM', vendor: 'FACTORY', unitPrice: 0, type: 'raw' });
+        render();
+      }
+    };
+  }
+
+  document.querySelectorAll('.ing-master-select').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      const val = e.target.value;
+      
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        if (val.startsWith('rm_')) {
+          const name = val.replace('rm_', '');
+          const rm = getRawMaterialDetails(name);
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].name = name;
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = rm.unit || 'GRM';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = rm.unit || 'GRM';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = rm.vendor || 'FACTORY';
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = rm.unitPrice || 0;
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, rm.unit || 'GRM');
+          DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'raw';
+        } else if (val.startsWith('br_')) {
+          const name = val.replace('br_', '');
+          const br = DB.baseRecipes.find(b => b.name === name);
+          if (br) {
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].name = br.name;
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = br.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = br.unit || 'GRM';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].vendor = 'LINKED BASE';
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].unitPrice = calculateBaseRecipeCostPerUnit(br);
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, br.unit || 'GRM');
+            DB.recipes[session.activeRecipeDishId].ingredients[idx].type = 'base';
+          }
+        }
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-unit').forEach(select => {
+    select.onchange = (e) => {
+      const idx = Number(select.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        const newUnit = e.target.value;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].unit = newUnit;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].uom = newUnit;
+        DB.recipes[session.activeRecipeDishId].ingredients[idx].gramsMl = getConvertedGramsMl(DB.recipes[session.activeRecipeDishId].ingredients[idx].qty, newUnit);
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.remove-ing-row').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId].ingredients.splice(idx, 1);
+        render();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-qty').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        const qty = Number(e.target.value) || 0;
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.qty = qty;
+        ing.gramsMl = getConvertedGramsMl(qty, ing.unit);
+
+        const row = input.closest('tr');
+        if (row) {
+          const gramsInput = row.querySelector('.ing-grams');
+          if (gramsInput) gramsInput.value = ing.gramsMl;
+
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-grams').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.gramsMl = Number(e.target.value) || 0;
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-price').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        const ing = DB.recipes[session.activeRecipeDishId].ingredients[idx];
+        if (!ing) return;
+
+        ing.unitPrice = Number(e.target.value) || 0;
+
+        const row = input.closest('tr');
+        if (row) {
+          const costCell = row.querySelector('.ing-cost-cell');
+          if (costCell) costCell.textContent = money(calculateIngCost(ing));
+        }
+        recalculateMainRecipeTotals();
+      }
+    };
+  });
+
+  const saveRecipeBtn = document.getElementById('saveRecipeBtn');
+  if (saveRecipeBtn) {
+    saveRecipeBtn.onclick = async () => {
+      if (session.activeRecipeDishId && DB.recipes[session.activeRecipeDishId]) {
+        await db.ref('recipes/' + session.activeRecipeDishId).set(DB.recipes[session.activeRecipeDishId]);
+        toast('Recipe saved cloud-wide!', 'check-circle');
+      }
+    };
+  }
+
+  const deleteMainRecipeBtn = document.getElementById('deleteMainRecipeBtn');
+  if (deleteMainRecipeBtn) {
+    deleteMainRecipeBtn.onclick = async () => {
+      if (session.activeRecipeDishId) {
+        const dish = DB.menu.find(m => m.id === session.activeRecipeDishId);
+        const name = dish ? dish.name : 'this recipe';
+        if (confirm(`Clear recipe sheet for "${name}"?`)) {
+          await db.ref('recipes/' + session.activeRecipeDishId).remove();
+          render();
+          toast('Recipe sheet cleared!', 'trash-2');
+        }
+      }
+    };
+  }
+
+  document.querySelectorAll('.advance-order').forEach(b => b.onclick = async () => {
+    const o = DB.orders.find(x => x.id === b.dataset.id);
+    if (o) {
+      const nextStatus = b.dataset.next;
+      const updates = { status: nextStatus };
+      if (nextStatus === 'served') {
+        updates.completedTs = Date.now();
+        for (const item of (o.items || [])) {
+          if (item.id) {
+            await processBOMDeduction(item.id, item.qty || 1);
+          }
+        }
+      }
+      await db.ref('orders/' + o.id).update(updates);
+      render();
+    }
+  });
+
+  document.querySelectorAll('.stock-toggle').forEach(b => b.onclick = async () => {
+    const kind = b.dataset.kind;
+    const arr = kind === 'menu' ? DB.menu : DB.retail;
+    const it = arr.find(x => x.id === b.dataset.id);
+    it.stock = !it.stock;
+    await db.ref(`${kind}/${it.id}`).update({ stock: it.stock });
+    render(); toast(it.name + ' marked ' + (it.stock ? 'in stock' : 'out of stock'), it.stock ? 'check-circle' : 'ban');
+  });
+
+  document.querySelectorAll('.edit-item').forEach(b => b.onclick = () => {
+    if (b.dataset.kind === 'menu') session.editingDish = b.dataset.id; else session.editingRetail = b.dataset.id;
+    render();
+  });
+
+  document.querySelectorAll('.delete-item').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove this item?')) return;
+    const kind = b.dataset.kind;
+    await db.ref(`${kind}/${b.dataset.id}`).remove();
+    render();
+  });
+
+  const addDish = document.getElementById('addDishBtn'); if (addDish) addDish.onclick = () => { session.editingDish = 'new'; render(); };
+  const addRetail = document.getElementById('addRetailBtn'); if (addRetail) addRetail.onclick = () => { session.editingRetail = 'new'; render(); };
+
+  const saveDish = document.getElementById('saveDishBtn');
+  if (saveDish) saveDish.onclick = async () => {
+    const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(c => c.value);
+    const fileInput = document.getElementById('dImgFile');
+    const existing = saveDish.dataset.id ? DB.menu.find(m => m.id === saveDish.dataset.id) : null;
+    let imgData = existing ? existing.img : '';
+
+    if (fileInput && fileInput.files[0]) {
+      toast('Compressing photo...', 'image');
+      imgData = await compressAndGetBase64(fileInput.files[0]);
+    }
+
+    const payload = {
+      id: saveDish.dataset.id || uid('m'),
+      name: document.getElementById('dName').value.trim(),
+      category: document.getElementById('dCategory').value.trim(),
+      price: Number(document.getElementById('dPrice').value) || 0,
+      img: imgData,
+      desc: document.getElementById('dDesc').value.trim(),
+      badges, stock: true,
+      nutrition: { cal: Number(document.getElementById('dCal').value) || 0, protein: Number(document.getElementById('dProt').value) || 0, carbs: Number(document.getElementById('dCarb').value) || 0, fat: Number(document.getElementById('dFat').value) || 0 }
+    };
+    if (!payload.name) { toast('Please enter a dish name.', 'alert-triangle'); return; }
+
+    await db.ref('menu/' + payload.id).set(payload);
+    session.editingDish = null; render(); toast('Dish saved cloud-wide!');
+  };
+
+  const saveRetail = document.getElementById('saveRetailBtn');
+  if (saveRetail) saveRetail.onclick = async () => {
+    const fileInput = document.getElementById('rImgFile');
+    const existing = saveRetail.dataset.id ? DB.retail.find(m => m.id === saveRetail.dataset.id) : null;
+    let imgData = existing ? existing.img : '';
+
+    if (fileInput && fileInput.files[0]) {
+      toast('Compressing photo...', 'image');
+      imgData = await compressAndGetBase64(fileInput.files[0]);
+    }
+
+    const payload = {
+      id: saveRetail.dataset.id || uid('r'),
+      name: document.getElementById('rName').value.trim(),
+      category: document.getElementById('rCategory').value.trim(),
+      price: Number(document.getElementById('rPrice').value) || 0,
+      size: document.getElementById('rSize').value.trim(),
+      img: imgData,
+      desc: document.getElementById('rDesc').value.trim(),
+      badges: ['100% Organic'],
+      stock: true
+    };
+    if (!payload.name) { toast('Please enter a product name.', 'alert-triangle'); return; }
+
+    await db.ref('retail/' + payload.id).set(payload);
+    session.editingRetail = null; render(); toast('Product saved cloud-wide!');
+  };
 }
 
 function renderKeepFocus(inputId) {
