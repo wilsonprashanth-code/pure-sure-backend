@@ -1601,7 +1601,169 @@ function wireKitchen() {
       localStorage.removeItem('ps_staff');
       session.staff = null; 
       render(); 
-    };
+    };function wireKitchen() {
+  // Use Event Delegation so clicks never break on re-render
+  document.removeEventListener('click', globalClickHandler);
+  document.addEventListener('click', globalClickHandler);
+
+  // Input bindings
+  const dashCafe = document.getElementById('dashCafeSearch');
+  if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
+
+  const dashRetail = document.getElementById('dashRetailSearch');
+  if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
+
+  const dashRm = document.getElementById('dashRmSearch');
+  if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
+
+  const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
+  if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
+}
+
+function globalClickHandler(e) {
+  const target = e.target.closest('button, [data-ktab], .k-tab, .main-recipe-card, .base-recipe-card');
+  if (!target) return;
+
+  // Navigation Tabs
+  const kTab = target.closest('[data-ktab]');
+  if (kTab) {
+    session.kitchenTab = kTab.dataset.ktab;
+    render();
+    return;
+  }
+
+  // Logout
+  if (target.id === 'logoutBtn' || target.closest('#logoutBtn')) {
+    localStorage.removeItem('ps_staff');
+    session.staff = null;
+    render();
+    toast('Logged out successfully', 'log-out');
+    return;
+  }
+
+  // Modal Triggers
+  if (target.id === 'openBillingModalBtn' || target.closest('#openBillingModalBtn')) {
+    session.showBillingModal = true;
+    localStorage.setItem('ps_show_billing', 'true');
+    const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+    session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
+    render();
+    return;
+  }
+
+  if (target.id === 'closeBillingModalBtn' || target.closest('#closeBillingModalBtn')) {
+    session.showBillingModal = false;
+    localStorage.removeItem('ps_show_billing');
+    render();
+    return;
+  }
+
+  if (target.id === 'openPurchaseModalBtn' || target.closest('#openPurchaseModalBtn')) {
+    session.showPurchaseModal = true;
+    localStorage.setItem('ps_show_purchase', 'true');
+    render();
+    return;
+  }
+
+  if (target.id === 'closePurchaseModalBtn' || target.closest('#closePurchaseModalBtn')) {
+    session.showPurchaseModal = false;
+    localStorage.removeItem('ps_show_purchase');
+    render();
+    return;
+  }
+
+  if (target.id === 'openStockTakeModalBtn' || target.closest('#openStockTakeModalBtn')) {
+    session.showStockTakeModal = true;
+    render();
+    return;
+  }
+
+  if (target.id === 'closeStockTakeModalBtn' || target.closest('#closeStockTakeModalBtn')) {
+    session.showStockTakeModal = false;
+    render();
+    return;
+  }
+
+  if (target.id === 'openWastageModalBtn' || target.closest('#openWastageModalBtn')) {
+    session.showWastageModal = true;
+    render();
+    return;
+  }
+
+  if (target.id === 'closeWastageModalBtn' || target.closest('#closeWastageModalBtn')) {
+    session.showWastageModal = false;
+    render();
+    return;
+  }
+
+  // Recipe Costing Master Modals
+  if (target.id === 'openMainRecipesModalBtn' || target.id === 'launchMainMasterBtn' || target.closest('#openMainRecipesModalBtn') || target.closest('#launchMainMasterBtn')) {
+    session.showMainRecipesModal = true;
+    render();
+    return;
+  }
+
+  if (target.id === 'closeMainRecipesModalBtn' || target.closest('#closeMainRecipesModalBtn')) {
+    session.showMainRecipesModal = false;
+    render();
+    return;
+  }
+
+  if (target.id === 'manageIngredientsBtn' || target.closest('#manageIngredientsBtn')) {
+    session.showRawMaterialsModal = true;
+    render();
+    return;
+  }
+
+  if (target.id === 'closeRawMaterialsBtn' || target.closest('#closeRawMaterialsBtn')) {
+    session.showRawMaterialsModal = false;
+    render();
+    return;
+  }
+
+  if (target.id === 'manageBaseRecipesBtn' || target.closest('#manageBaseRecipesBtn')) {
+    session.showBaseRecipesModal = true;
+    if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
+      session.editingBaseRecipeId = DB.baseRecipes[0].id;
+    }
+    render();
+    return;
+  }
+
+  if (target.id === 'closeBaseRecipesBtn' || target.closest('#closeBaseRecipesBtn')) {
+    session.showBaseRecipesModal = false;
+    render();
+    return;
+  }
+
+  // Card selections
+  const mainCard = target.closest('.main-recipe-card');
+  if (mainCard) {
+    session.activeRecipeDishId = mainCard.dataset.id;
+    render();
+    return;
+  }
+
+  const baseCard = target.closest('.base-recipe-card');
+  if (baseCard) {
+    session.editingBaseRecipeId = baseCard.dataset.id;
+    render();
+    return;
+  }
+}// Stable background listeners
+db.ref('menu').on('value', snap => { DB.menu = snap.val() ? Object.values(snap.val()) : []; });
+db.ref('retail').on('value', snap => { DB.retail = snap.val() ? Object.values(snap.val()) : []; });
+db.ref('orders').on('value', snap => { 
+  DB.orders = snap.val() ? Object.values(snap.val()) : []; 
+  if (session.kitchenTab === 'orders' && !session.showBillingModal && !session.showPurchaseModal) render(); 
+});
+db.ref('rawMaterials').on('value', snap => { DB.rawMaterials = snap.val() ? Object.values(snap.val()) : []; });
+db.ref('baseRecipes').on('value', snap => { DB.baseRecipes = snap.val() ? Object.values(snap.val()) : []; });
+db.ref('recipes').on('value', snap => { DB.recipes = snap.val() || {}; });
+db.ref('wastageLogs').on('value', snap => { DB.wastageLogs = snap.val() || []; });
+db.ref('purchases').on('value', snap => { DB.purchases = snap.val() || []; });
+db.ref('paymentModes').on('value', snap => { if (snap.val()) DB.paymentModes = snap.val(); });
+db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.val(); render(); } });
   }
 
   const soundToggle = document.getElementById('soundToggle');
