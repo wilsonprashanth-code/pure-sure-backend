@@ -100,6 +100,7 @@ let session = {
   rmSearch: '',
   stockTakeSearch: '',
   purchaseSearch: '',
+  selectedPurchaseItem: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -957,11 +958,10 @@ function purchaseModal() {
           </div>
 
           <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">🔍 Search &amp; Select Raw Material</label>
-            <input id="purchaseSearchInput" value="${session.purchaseSearch || ''}" placeholder="Filter materials..." class="w-full mb-2 border border-emerald-300 rounded-xl p-2 text-xs bg-white focus:outline-none">
-            <select id="purchaseRmSelect" class="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold bg-white">
-              <option value="">-- Choose Material --</option>
-              ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'}) - Current Rate: ${money(rm.unitPrice)}</option>`).join('')}
+            <label class="text-xs font-bold text-brand-950 block mb-1">🔍 Auto-Suggest Raw Material</label>
+            <input id="purchaseSearchInput" value="${session.purchaseSearch || ''}" placeholder="Type to filter &amp; select..." class="w-full mb-2 border border-emerald-300 rounded-xl p-2 text-xs bg-white focus:outline-none">
+            <select id="purchaseRmSelect" class="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold bg-white" size="5">
+              ${sortedRawMaterials.map(rm => `<option value="${rm.name}" ${session.selectedPurchaseItem === rm.name ? 'selected' : ''}>${rm.name} (${rm.unit || 'GRM'}) — Rate: ${money(rm.unitPrice)}</option>`).join('')}
             </select>
           </div>
 
@@ -972,7 +972,7 @@ function purchaseModal() {
             </div>
             <div>
               <label class="text-xs font-bold text-brand-950 block mb-1">Unit</label>
-              <select id="purchaseUnitSelect" class="w-full border border-emerald-300 rounded-xl p-2 text-xs font-bold bg-white">
+              <select id="purchaseUnitSelect" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white">
                 <option>KG</option><option>GRM</option><option>LITRE</option><option>ML</option><option>PCS</option>
               </select>
             </div>
@@ -2144,7 +2144,19 @@ function wireKitchen() {
   if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
 
   const purchaseSearchInput = document.getElementById('purchaseSearchInput');
-  if (purchaseSearchInput) purchaseSearchInput.oninput = (e) => { session.purchaseSearch = e.target.value; renderKeepFocus('purchaseSearchInput'); };
+  if (purchaseSearchInput) {
+    purchaseSearchInput.oninput = (e) => { 
+      session.purchaseSearch = e.target.value; 
+      renderKeepFocus('purchaseSearchInput'); 
+    };
+  }
+
+  const purchaseRmSelect = document.getElementById('purchaseRmSelect');
+  if (purchaseRmSelect) {
+    purchaseRmSelect.onchange = (e) => {
+      session.selectedPurchaseItem = e.target.value;
+    };
+  }
 
   /* MODAL TRIGGERS */
   const openBillBtn = document.getElementById('openBillingModalBtn');
