@@ -222,6 +222,13 @@ function calculateIngCost(ing) {
   return (gramsMl / 1000) * rate;
 }
 
+function calculateBaseRecipeCostPerUnit(base) {
+  if (!base || !base.ingredients) return 0;
+  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const yieldQty = Number(base.batchYield || 1);
+  return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
+}
+
 function getDishFoodCostPercent(dish) {
   const recipe = DB.recipes[dish.id];
   if (!recipe || !recipe.ingredients) return 0;
@@ -246,7 +253,7 @@ async function processBOMDeduction(dishId, orderedPortions = 1) {
   if (Object.keys(updates).length > 0) await db.ref().update(updates);
 }
 
-// --- EXCEL EXPORTS ---
+// --- EXCEL REPORTS ---
 function exportBillWiseReportToExcel() {
   const data = DB.orders.filter(o => o.status === 'served').map(o => ({
     "Order ID": o.id, "Date": new Date(o.ts).toLocaleDateString(), "Table": o.table, "Customer": o.customerName || 'Guest', "Total (₹)": calculateOrderTotal(o).toFixed(2)
@@ -319,20 +326,20 @@ function render() {
 
 function loginModalHTML() {
   return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+  <div class="fixed inset-0 z-[100] bg-brand-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl modal-fade">
       <div class="flex items-center gap-3 mb-5">
         <img src="${DB.settings.logoUrl}" class="w-10 h-10 rounded-full bg-brand p-1.5 object-contain shadow">
         <div>
           <div class="font-display text-lg font-bold text-brand-950">Staff Portal</div>
-          <div class="text-[10px] text-brand-400 uppercase tracking-wider font-semibold">Kitchen &amp; Console</div>
+          <div class="text-[10px] text-brand-400 uppercase tracking-wider font-semibold">Kitchen &amp; POS Console</div>
         </div>
       </div>
       <div id="loginError" class="hidden text-xs font-semibold text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-3 border border-red-100"></div>
       <label class="text-xs font-bold text-brand-600">Username</label>
-      <input id="loginUser" type="text" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" placeholder="admin">
+      <input id="loginUser" type="text" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400" placeholder="admin">
       <label class="text-xs font-bold text-brand-600">Password</label>
-      <input id="loginPass" type="password" class="w-full mt-1 mb-4 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50" placeholder="••••••••">
+      <input id="loginPass" type="password" class="w-full mt-1 mb-4 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400" placeholder="••••••••">
       <button id="loginSubmit" class="w-full bg-brand hover:bg-brand-600 text-cream font-bold py-3.5 rounded-2xl text-sm transition shadow-md">Log In</button>
     </div>
   </div>`;
@@ -361,6 +368,8 @@ function wireLogin() {
 
 function kitchenShell() {
   const orders = [...DB.orders].filter(o => o.type !== 'retail').sort((a,b) => a.ts - b.ts);
+  const retailOrders = [...DB.orders].filter(o => o.type === 'retail').sort((a,b) => a.ts - b.ts);
+
   return `
   <div class="min-h-screen bg-brand-50 pb-16">
     <header class="sticky top-0 z-30 bg-brand-900 text-cream shadow-md">
@@ -380,18 +389,30 @@ function kitchenShell() {
           <button id="logoutBtn" class="text-xs font-semibold bg-white/10 px-3 py-1.5 rounded-full">Logout</button>
         </div>
       </div>
-      <nav class="max-w-7xl mx-auto px-4 flex gap-2 border-t border-brand-800 py-2">
+      <nav class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto scrollbar-none border-t border-brand-800 py-2">
         ${kTab('orders', 'Active Orders', 'clipboard-list', orders.length)}
         ${kTab('history', 'History & Reports', 'history')}
-        ${kTab('inventory', 'Inventory & Stock', 'package')}
+        ${kTab('retail', 'Retail Req.', 'shopping-basket', retailOrders.length)}
+        ${kTab('inventory', 'Inventory', 'package')}
+        ${kTab('costing', 'Costing & BOM', 'calculator')}
         ${kTab('menueng', 'Menu Engineering', 'pie-chart')}
+        ${kTab('bulk', 'Bulk Import', 'file-spreadsheet')}
+        ${kTab('qr', 'QR Tables', 'qr-code')}
+        ${kTab('brand', 'Brand', 'image')}
+        ${kTab('users', 'Staff & Directory', 'users')}
       </nav>
     </header>
     <main class="max-w-7xl mx-auto px-4 py-5">
       ${session.kitchenTab === 'orders' ? ordersBoard(orders) : ''}
       ${session.kitchenTab === 'history' ? historyPanel() : ''}
+      ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
       ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
+      ${session.kitchenTab === 'costing' ? recipeCostingPanel() : ''}
       ${session.kitchenTab === 'menueng' ? menuEngineeringPanel() : ''}
+      ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
+      ${session.kitchenTab === 'qr' ? qrPanel() : ''}
+      ${session.kitchenTab === 'brand' ? brandPanel() : ''}
+      ${session.kitchenTab === 'users' ? usersPanel() : ''}
     </main>
     ${session.showBillingModal ? billingModalHTML() : ''}
     ${session.showPurchaseModal ? purchaseModalHTML() : ''}
@@ -402,67 +423,76 @@ function kitchenShell() {
 
 function kTab(key, label, icon, count) {
   const active = session.kitchenTab === key;
-  return `<button data-ktab="${key}" class="k-tab flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-xl transition ${active ? 'bg-gold text-white' : 'text-cream/80 hover:bg-white/10'}">
+  return `<button data-ktab="${key}" class="k-tab shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-xl transition ${active ? 'bg-gold text-white shadow' : 'text-cream/80 hover:bg-white/10'}">
     <i data-lucide="${icon}" class="w-4 h-4"></i>${label}
-    ${count !== undefined ? `<span class="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px]">${count}</span>` : ''}
+    ${count ? `<span class="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px] font-bold">${count}</span>` : ''}
   </button>`;
 }
 
 function ordersBoard(orders) {
+  const cols = [ ['received','Received','amber'], ['preparing','Preparing','blue'], ['ready','Ready','green'] ];
   return `
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="bg-white p-4 rounded-2xl shadow-sm">
-      <h4 class="font-bold text-xs uppercase text-amber-600 mb-3">Received Orders (${orders.filter(o=>o.status==='received').length})</h4>
-      <div class="space-y-3">
-        ${orders.filter(o=>o.status==='received').map(o => orderCard(o)).join('') || '<div class="text-xs text-slate-400 py-6 text-center">No orders</div>'}
+    ${cols.map(([key, label, color]) => `
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-brand-100">
+        <h4 class="font-bold text-xs uppercase text-${color}-600 mb-3">${label} Orders (${orders.filter(o=>o.status===key).length})</h4>
+        <div class="space-y-3">
+          ${orders.filter(o=>o.status===key).map(o => orderCard(o)).join('') || '<div class="text-xs text-slate-400 py-8 text-center bg-slate-50 rounded-xl border border-dashed">No orders</div>'}
+        </div>
       </div>
-    </div>
-    <div class="bg-white p-4 rounded-2xl shadow-sm">
-      <h4 class="font-bold text-xs uppercase text-blue-600 mb-3">Preparing (${orders.filter(o=>o.status==='preparing').length})</h4>
-      <div class="space-y-3">
-        ${orders.filter(o=>o.status==='preparing').map(o => orderCard(o)).join('') || '<div class="text-xs text-slate-400 py-6 text-center">No orders</div>'}
-      </div>
-    </div>
-    <div class="bg-white p-4 rounded-2xl shadow-sm">
-      <h4 class="font-bold text-xs uppercase text-green-600 mb-3">Ready / Served (${orders.filter(o=>o.status==='ready' || o.status==='served').length})</h4>
-      <div class="space-y-3">
-        ${orders.filter(o=>o.status==='ready' || o.status==='served').map(o => orderCard(o)).join('') || '<div class="text-xs text-slate-400 py-6 text-center">No orders</div>'}
-      </div>
-    </div>
+    `).join('')}
   </div>`;
 }
 
 function orderCard(o) {
+  const nextMap = { received:'preparing', preparing:'ready', ready:'served' };
+  const nextLabel = { received:'Start Preparing', preparing:'Mark Ready', ready:'Complete' };
   return `
-  <div class="p-3 bg-brand-50/50 rounded-xl border border-brand-100 text-xs">
-    <div class="flex justify-between font-bold text-brand-950 mb-1"><span>#${o.id} · Table ${o.table}</span><span class="text-[10px] text-slate-400">${timeAgo(o.ts)}</span></div>
-    <div class="text-slate-600 mb-2">${(o.items || []).map(i => `${i.qty}x ${i.name}`).join(', ')}</div>
-    <div class="flex gap-2">
-      ${o.status === 'received' ? `<button class="advance-order-btn bg-brand text-cream px-3 py-1.5 rounded-lg font-bold w-full" data-id="${o.id}" data-next="preparing">Start Preparing</button>` : ''}
-      ${o.status === 'preparing' ? `<button class="advance-order-btn bg-brand text-cream px-3 py-1.5 rounded-lg font-bold w-full" data-id="${o.id}" data-next="ready">Mark Ready</button>` : ''}
-      ${o.status === 'ready' ? `<button class="advance-order-btn bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold w-full" data-id="${o.id}" data-next="served">Complete</button>` : ''}
+  <div class="p-3.5 bg-brand-50/40 rounded-xl border border-brand-100 text-xs shadow-sm">
+    <div class="flex justify-between font-bold text-brand-950 mb-1.5"><span>#${o.id} · Table ${o.table}</span><span class="text-[10px] text-slate-400">${timeAgo(o.ts)}</span></div>
+    ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-2">${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
+    <div class="space-y-1 mb-3 bg-white p-2.5 rounded-lg border border-brand-50">
+      ${(o.items || []).map(i => `<div class="flex justify-between text-brand-900 font-medium"><span>${i.qty}× ${i.name}</span><span class="font-mono text-slate-500">${money(i.price * i.qty)}</span></div>`).join('')}
     </div>
+    ${nextMap[o.status] ? `<button class="advance-order-btn w-full bg-brand hover:bg-brand-600 text-cream font-bold py-2 rounded-xl shadow transition" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>` : ''}
   </div>`;
 }
 
 function historyPanel() {
   return `
-  <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
-    <h3 class="font-display text-lg font-bold text-brand-950">Analytics &amp; Excel Reports</h3>
-    <div class="flex flex-wrap gap-2">
-      <button onclick="exportBillWiseReportToExcel()" class="bg-brand text-cream text-xs font-bold px-4 py-2.5 rounded-xl shadow">Bill-Wise Report</button>
-      <button onclick="exportItemWiseReportToExcel()" class="bg-gold text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">Item-Wise Report</button>
-      <button onclick="exportStockReportToExcel()" class="bg-brand-700 text-cream text-xs font-bold px-4 py-2.5 rounded-xl shadow">Stock Report</button>
-      <button onclick="exportPurchaseReportToExcel()" class="bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">Purchase Report</button>
-      <button onclick="exportMonthlyStockReconciliationToExcel()" class="bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">Monthly Reconciliation</button>
+  <div class="space-y-6">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100 space-y-4">
+      <h3 class="font-display text-lg font-bold text-brand-950">Analytics &amp; Excel Reports Suite</h3>
+      <div class="flex flex-wrap gap-2.5">
+        <button onclick="exportBillWiseReportToExcel()" class="bg-brand text-cream text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-1.5"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Bill-Wise Report</button>
+        <button onclick="exportItemWiseReportToExcel()" class="bg-gold text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-1.5"><i data-lucide="bar-chart-3" class="w-4 h-4"></i> Item-Wise Report</button>
+        <button onclick="exportStockReportToExcel()" class="bg-brand-700 text-cream text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-1.5"><i data-lucide="package" class="w-4 h-4"></i> Stock Report</button>
+        <button onclick="exportPurchaseReportToExcel()" class="bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4"></i> Purchase Report</button>
+        <button onclick="exportMonthlyStockReconciliationToExcel()" class="bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-1.5"><i data-lucide="clipboard-list" class="w-4 h-4"></i> Monthly Recon</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function retailBoard(retailOrders) {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-3">Retail Requisitions &amp; Takeaway Orders</h3>
+    <div class="space-y-2.5">
+      ${retailOrders.map(o => `
+        <div class="p-3 bg-brand-50/50 rounded-xl border flex justify-between items-center text-xs">
+          <div><div class="font-bold text-brand-950">#${o.id} · ${o.customerName || 'Takeaway'}</div><div class="text-slate-500">${(o.items||[]).map(i=>i.name).join(', ')}</div></div>
+          <div class="font-mono font-bold text-brand-700">${money(calculateOrderTotal(o))}</div>
+        </div>
+      `).join('') || '<div class="text-xs text-slate-400 py-8 text-center">No active retail requisitions</div>'}
     </div>
   </div>`;
 }
 
 function inventoryPanel() {
   return `
-  <div class="bg-white p-6 rounded-2xl shadow-sm">
-    <h3 class="font-display text-lg font-bold text-brand-950 mb-4">Raw Materials Inventory</h3>
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-4">Raw Materials Inventory &amp; Stock Levels</h3>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-xs">
         <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
@@ -476,25 +506,84 @@ function inventoryPanel() {
               <td class="p-3 text-center font-bold text-brand-700">${(Number(rm.stockGrams || 100000)/1000).toFixed(2)} ${rm.unit || 'GRM'}</td>
               <td class="p-3 text-right font-mono">${money(rm.unitPrice)}</td>
             </tr>
-          `).join('') || `<tr><td colspan="4" class="text-center py-6 text-slate-400">No raw materials registered.</td></tr>`}
+          `).join('') || `<tr><td colspan="4" class="text-center py-8 text-slate-400">No raw materials registered.</td></tr>`}
         </tbody>
       </table>
     </div>
   </div>`;
 }
 
+function recipeCostingPanel() {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100 space-y-4">
+    <h3 class="font-display text-lg font-bold text-brand-950">Recipe Costing &amp; Bill of Materials (BOM)</h3>
+    <p class="text-xs text-slate-500">Manage dish recipes and track precise ingredient cost percentages.</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+      ${DB.menu.map(m => `
+        <div class="p-4 bg-brand-50/50 rounded-xl border border-brand-100 flex flex-col justify-between">
+          <div>
+            <div class="font-bold text-brand-950 text-sm">${m.name}</div>
+            <div class="text-[11px] text-slate-500 mb-2">${m.category} · Price: ${money(m.price)}</div>
+          </div>
+          <div class="text-xs font-bold text-brand-700 font-mono mt-2">Food Cost: ${getDishFoodCostPercent(m).toFixed(1)}%</div>
+        </div>
+      `).join('') || '<div class="text-xs text-slate-400 py-6">No menu items found.</div>'}
+    </div>
+  </div>`;
+}
+
 function menuEngineeringPanel() {
   return `
-  <div class="bg-white p-6 rounded-2xl shadow-sm">
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
     <h3 class="font-display text-lg font-bold text-brand-950 mb-2">Menu Engineering Matrix</h3>
-    <p class="text-xs text-slate-500">Evaluates menu profitability and popularity.</p>
+    <p class="text-xs text-slate-500 mb-4">Evaluates menu profitability (gross margin) and popularity (sales volume).</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="bg-green-50 p-4 rounded-xl border border-green-200"><div class="font-bold text-xs text-green-800">Stars ⭐</div><div class="text-[11px] text-green-600 mt-1">High Profit &amp; High Popularity</div></div>
+      <div class="bg-amber-50 p-4 rounded-xl border border-amber-200"><div class="font-bold text-xs text-amber-800">Plowhorses 🐴</div><div class="text-[11px] text-amber-600 mt-1">Low Profit &amp; High Popularity</div></div>
+      <div class="bg-blue-50 p-4 rounded-xl border border-blue-200"><div class="font-bold text-xs text-blue-800">Puzzles 🧩</div><div class="text-[11px] text-blue-600 mt-1">High Profit &amp; Low Popularity</div></div>
+      <div class="bg-red-50 p-4 rounded-xl border border-red-200"><div class="font-bold text-xs text-red-800">Dogs 🐶</div><div class="text-[11px] text-red-600 mt-1">Low Profit &amp; Low Popularity</div></div>
+    </div>
+  </div>`;
+}
+
+function bulkPanel() {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-2">Bulk Import / Export</h3>
+    <p class="text-xs text-slate-500">Upload CSV or Excel templates to populate inventory and menu catalogs in bulk.</p>
+  </div>`;
+}
+
+function qrPanel() {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-2">QR Table Ordering Generator</h3>
+    <p class="text-xs text-slate-500">Generate printable QR table codes for direct customer self-ordering.</p>
+  </div>`;
+}
+
+function brandPanel() {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-2">Brand &amp; Store Identity</h3>
+    <p class="text-xs text-slate-500">Manage store name, logos, receipts branding, and tagline preferences.</p>
+  </div>`;
+}
+
+function usersPanel() {
+  return `
+  <div class="bg-white p-6 rounded-2xl shadow-sm border border-brand-100">
+    <h3 class="font-display text-lg font-bold text-brand-950 mb-3">Staff &amp; Directory Management</h3>
+    <div class="space-y-2">
+      ${DB.staff.map(s => `<div class="p-3 bg-brand-50/50 rounded-xl border flex justify-between items-center text-xs"><span class="font-bold text-brand-950">${s.username}</span><span class="bg-brand text-cream px-2.5 py-1 rounded-lg font-semibold">${s.role}</span></div>`).join('')}
+    </div>
   </div>`;
 }
 
 function billingModalHTML() {
   const total = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0), 0);
   return `
-  <div class="fixed inset-0 z-50 bg-brand-950/80 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl modal-fade max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
         <h3 class="font-display text-base font-bold text-brand-950">POS Sales Counter</h3>
@@ -502,9 +591,9 @@ function billingModalHTML() {
       </div>
       <div class="space-y-3">
         <label class="text-xs font-bold text-slate-600">Customer Name</label>
-        <input id="salesCustomerNameInput" type="text" value="${session.salesCustomerName}" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50">
-        <div class="font-bold text-sm mt-3">Grand Total: ${money(total)}</div>
-        <button id="completeSalesBillBtn" class="w-full bg-brand hover:bg-brand-600 text-cream font-bold py-3 rounded-xl text-xs shadow mt-4">Complete Bill &amp; Deduct Stock</button>
+        <input id="salesCustomerNameInput" type="text" value="${session.salesCustomerName}" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400">
+        <div class="font-bold text-sm mt-3 text-brand-900">Grand Total: ${money(total)}</div>
+        <button id="completeSalesBillBtn" class="w-full bg-brand hover:bg-brand-600 text-cream font-bold py-3 rounded-xl text-xs shadow mt-4 transition">Complete Bill &amp; Deduct Stock</button>
       </div>
     </div>
   </div>`;
@@ -512,16 +601,16 @@ function billingModalHTML() {
 
 function purchaseModalHTML() {
   return `
-  <div class="fixed inset-0 z-50 bg-brand-950/80 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl modal-fade">
       <div class="flex justify-between items-center mb-4">
         <h3 class="font-display text-base font-bold text-brand-950">Purchase Inward Entry</h3>
-        <button id="closePurchaseModalBtn" class="text-slate-400 hover:text-brand-950 font-bold">✕</button>
+        <button id="closePurchaseModalBtn" class="text-slate-400 hover:text-brand-950 font-bold text-lg">✕</button>
       </div>
       <div class="space-y-3">
-        <label class="text-xs font-bold">Invoice Number</label>
-        <input id="purchaseInvoiceNo" type="text" value="${session.purchaseInvoiceNo}" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50">
-        <button id="validatePurchaseBtn" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl text-xs shadow mt-4">Save Purchase Inward</button>
+        <label class="text-xs font-bold text-slate-600">Invoice Number</label>
+        <input id="purchaseInvoiceNo" type="text" value="${session.purchaseInvoiceNo}" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-400">
+        <button id="validatePurchaseBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-xs shadow mt-4 transition">Save Purchase Inward</button>
       </div>
     </div>
   </div>`;
@@ -529,20 +618,20 @@ function purchaseModalHTML() {
 
 function stockTakeModalHTML() {
   return `
-  <div class="fixed inset-0 z-50 bg-brand-950/80 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl modal-fade max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
         <h3 class="font-display text-base font-bold text-brand-950">Physical Stock Take</h3>
-        <button id="closeStockTakeModalBtn" class="text-slate-400 hover:text-brand-950 font-bold">✕</button>
+        <button id="closeStockTakeModalBtn" class="text-slate-400 hover:text-brand-950 font-bold text-lg">✕</button>
       </div>
       <div class="space-y-3">
         ${DB.rawMaterials.map(rm => `
           <div class="flex justify-between items-center text-xs py-2 border-b">
-            <span class="font-bold">${rm.name}</span>
-            <input type="number" class="physical-count-input w-24 border rounded px-2 py-1 text-right" data-id="${rm.id}" data-unit="${rm.unit || 'GRM'}" value="${(Number(rm.stockGrams || 100000)/1000).toFixed(2)}">
+            <span class="font-bold text-brand-950">${rm.name}</span>
+            <input type="number" class="physical-count-input w-24 border rounded px-2 py-1 text-right focus:outline-none focus:ring-1 focus:ring-brand-400" data-id="${rm.id}" data-unit="${rm.unit || 'GRM'}" value="${(Number(rm.stockGrams || 100000)/1000).toFixed(2)}">
           </div>
         `).join('')}
-        <button id="saveStockTakeBtn" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl text-xs shadow mt-4">Reconcile &amp; Update Stock</button>
+        <button id="saveStockTakeBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs shadow mt-4 transition">Reconcile &amp; Update Stock</button>
       </div>
     </div>
   </div>`;
@@ -550,22 +639,22 @@ function stockTakeModalHTML() {
 
 function wastageModalHTML() {
   return `
-  <div class="fixed inset-0 z-50 bg-brand-950/80 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl modal-fade">
       <div class="flex justify-between items-center mb-4">
         <h3 class="font-display text-base font-bold text-brand-950">Log Wastage / Spoilage</h3>
-        <button id="closeWastageModalBtn" class="text-slate-400 hover:text-brand-950 font-bold">✕</button>
+        <button id="closeWastageModalBtn" class="text-slate-400 hover:text-brand-950 font-bold text-lg">✕</button>
       </div>
       <div class="space-y-3">
-        <label class="text-xs font-bold">Raw Material</label>
-        <select id="wastageRmSelect" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50">
+        <label class="text-xs font-bold text-slate-600">Raw Material</label>
+        <select id="wastageRmSelect" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50 focus:outline-none">
           ${DB.rawMaterials.map(rm => `<option value="${rm.name}">${rm.name}</option>`).join('')}
         </select>
-        <label class="text-xs font-bold">Wasted Quantity</label>
+        <label class="text-xs font-bold text-slate-600">Wasted Quantity</label>
         <input id="wastageQtyInput" type="number" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50" placeholder="1">
-        <label class="text-xs font-bold">Reason</label>
+        <label class="text-xs font-bold text-slate-600">Reason</label>
         <input id="wastageReasonInput" type="text" class="w-full border rounded-xl px-3 py-2 text-xs bg-slate-50" placeholder="Spoilage / Expired">
-        <button id="submitWastageBtn" class="w-full bg-amber-600 text-white font-bold py-3 rounded-xl text-xs shadow mt-4">Submit Wastage</button>
+        <button id="submitWastageBtn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl text-xs shadow mt-4 transition">Submit Wastage</button>
       </div>
     </div>
   </div>`;
