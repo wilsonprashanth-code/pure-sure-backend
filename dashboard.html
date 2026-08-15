@@ -101,6 +101,7 @@ let session = {
   retailSearch: '', 
   rmSearch: '',
   stockTakeSearch: '',
+  purchaseSearch: '',
   activeRecipeDishId: null,
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
@@ -133,6 +134,7 @@ let session = {
   salesCustomerPhone: '',
   salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
   salesPayments: [{ mode: 'Cash', amount: 0 }],
+  newSalesPaymentModeInput: '',
   purchaseItemDiffWarning: null
 };
 
@@ -1112,11 +1114,21 @@ function billingModalBillmaxStyle() {
             </tbody>
           </table>
         </div>
-        <div class="p-2 bg-slate-100 border-t border-slate-300 flex justify-between items-center">
-          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
-          
-          <!-- Split Payment Section (e.g. Cash 200 + UPI 243) -->
-          <div class="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200">
+        
+        <!-- Bottom Grid Controls & Split Payment Management -->
+        <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
+            
+            <!-- Add Custom Payment Mode Input -->
+            <div class="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-300 shadow-sm">
+              <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="Add custom payment mode..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-44">
+              <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-xs font-bold px-3 py-1 rounded shadow hover:bg-brand-600">+ Add Mode</button>
+            </div>
+          </div>
+
+          <!-- Split Payment Modes Rows -->
+          <div class="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200 flex-wrap">
             <span class="text-xs font-bold text-amber-900">Split Payment Modes:</span>
             <div id="paymentSplitsContainer" class="flex items-center gap-1.5 flex-wrap">
               ${payments.map((p, pIdx) => `
@@ -1129,7 +1141,7 @@ function billingModalBillmaxStyle() {
                 </div>
               `).join('')}
             </div>
-            <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2 py-1 rounded shadow">+ Add Mode</button>
+            <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-1 rounded shadow">+ Add Split Line</button>
           </div>
         </div>
       </div>
@@ -1145,7 +1157,7 @@ function billingModalBillmaxStyle() {
         <label class="font-bold text-slate-800">Total Paid:</label>
         <span class="font-mono font-bold text-green-700 text-sm">${money(totalPaid)}</span>
         <label class="font-bold text-slate-800">Balance Due:</label>
-        <span class="font-mono font-bold text-red-600 text-sm">${money(Math.max(0, (totalValue + totalTax) - totalPaid))}</span>
+        <span class="font-mono font-bold text-red-600 text-sm">${money(Math.max(0, grandTotal - totalPaid))}</span>
       </div>
 
       <!-- Financial Totals Summary Boxes Bar -->
@@ -2499,7 +2511,27 @@ function wireKitchen() {
     };
   });
 
-  /* PAYMENT SPLIT WIRING */
+  /* PAYMENT SPLIT WIRING & CUSTOM EDITABLE MODE */
+  const newSalesPaymentModeInput = document.getElementById('newSalesPaymentModeInput');
+  if (newSalesPaymentModeInput) {
+    newSalesPaymentModeInput.oninput = (e) => { session.newSalesPaymentModeInput = e.target.value; };
+  }
+
+  const addNewSalesPaymentModeBtn = document.getElementById('addNewSalesPaymentModeBtn');
+  if (addNewSalesPaymentModeBtn) {
+    addNewSalesPaymentModeBtn.onclick = async () => {
+      const modeName = (session.newSalesPaymentModeInput || '').trim();
+      if (!modeName) { toast('Enter a valid payment mode name.', 'alert-triangle'); return; }
+      if (!DB.paymentModes.includes(modeName)) {
+        DB.paymentModes.push(modeName);
+        session.newSalesPaymentModeInput = '';
+        await db.ref('paymentModes').set(DB.paymentModes);
+        toast(`Added payment mode: ${modeName}`, 'check-circle');
+        renderKeepFocus('salesCustomerNameInput');
+      }
+    };
+  }
+
   document.querySelectorAll('.payment-mode-select').forEach(sel => {
     sel.onchange = (e) => {
       const idx = Number(sel.dataset.idx);
@@ -2524,7 +2556,7 @@ function wireKitchen() {
       const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
       const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
       const remaining = Math.max(0, totalVal - currentPaid);
-      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      session.salesPayments.push({ mode: DB.paymentModes[0] || 'UPI', amount: remaining });
       renderKeepFocus('salesCustomerNameInput');
     };
   }
