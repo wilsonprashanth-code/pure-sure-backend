@@ -1052,98 +1052,94 @@ function billingModalBillmaxStyle() {
         </div>
       </div>
 
-      <!-- Main Item Grid Container - Cleaned up to prevent table header overlap -->
-      <div class="flex-1 bg-white overflow-y-auto flex flex-col">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs min-w-[900px] border-collapse">
-            <thead>
-              <tr class="bg-[#005b82] text-white uppercase font-bold text-[10px]">
-                <th class="p-2 border border-blue-900 w-10 text-center">#</th>
-                <th class="p-2 border border-blue-900 w-32">Barcode</th>
-                <th class="p-2 border border-blue-900 min-w-[240px]">Item Name (Select from Menu)</th>
-                <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
-                <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
-                <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
-                <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
-                <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
-                <th class="p-2 border border-blue-900 text-center w-20">GST</th>
-                <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
-                <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
-                <th class="p-2 border border-blue-900 text-center w-12"></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-200 font-medium">
-              ${cart.map((item, idx) => `
-                <tr class="hover:bg-slate-50">
-                  <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                  <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
-                  <td class="p-2 border border-slate-200">
-                    <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <input type="number" step="0.01" class="sales-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <select class="sales-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                      <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
-                      <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
-                      <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                    </select>
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right">
-                    <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    <select class="sales-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                      <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
-                      <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
-                      <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
-                    </select>
-                  </td>
-                  <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                  <td class="p-2 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
-                  <td class="p-2 border border-slate-200 text-center">
-                    ${cart.length > 1 ? `<button type="button" class="remove-sales-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+      <!-- Action Toolbar (Add Item & Add Payment Mode) - Cleanly placed above table -->
+      <div class="bg-[#e6decc] px-3 py-2 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2 shrink-0">
+        <div class="flex items-center gap-2">
+          <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-3.5 py-1.5 rounded shadow hover:opacity-90 flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i> + Add Item Line</button>
         </div>
-        
-        <!-- Bottom Grid Controls & Split Payment Management -->
-        <div class="p-2.5 bg-slate-100 border-t border-slate-300 flex flex-col gap-2 shrink-0 mt-auto">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
-            
-            <!-- Add Custom Payment Mode Input -->
-            <div class="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-300 shadow-sm">
-              <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="Type new payment mode (e.g. GPay)..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-52 font-medium">
-              <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-xs font-bold px-3 py-1 rounded shadow hover:bg-brand-600">+ Add Mode</button>
-            </div>
-          </div>
+        <div class="flex items-center gap-1.5 bg-white p-1 rounded border border-slate-300 shadow-sm">
+          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode..." class="text-xs border border-slate-300 rounded px-2 py-1 bg-slate-50 w-44 font-medium">
+          <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-xs font-bold px-3 py-1 rounded shadow hover:bg-brand-600">+ Add Mode</button>
+        </div>
+      </div>
 
-          <!-- Split Payment Modes Rows -->
-          <div class="flex items-center gap-2 bg-amber-50 p-2 rounded-lg border border-amber-200 flex-wrap">
-            <span class="text-xs font-bold text-amber-900">Split Payment Modes:</span>
-            <div id="paymentSplitsContainer" class="flex items-center gap-1.5 flex-wrap">
-              ${payments.map((p, pIdx) => `
-                <div class="flex items-center gap-1 bg-white p-1 rounded border border-slate-300">
-                  <select class="payment-mode-select text-xs border-0 font-bold text-slate-800 bg-transparent" data-idx="${pIdx}">
-                    ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+      <!-- Main Scrollable Item Table Container -->
+      <div class="flex-1 bg-white overflow-y-auto">
+        <table class="w-full text-left text-xs min-w-[900px] border-collapse">
+          <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px] sticky top-0 z-20">
+            <tr>
+              <th class="p-2 border border-blue-900 w-10 text-center">#</th>
+              <th class="p-2 border border-blue-900 w-32">Barcode</th>
+              <th class="p-2 border border-blue-900 min-w-[240px]">Item Name (Select from Menu)</th>
+              <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
+              <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
+              <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
+              <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
+              <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
+              <th class="p-2 border border-blue-900 text-center w-20">GST</th>
+              <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
+              <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
+              <th class="p-2 border border-blue-900 text-center w-12"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 font-medium">
+            ${cart.map((item, idx) => `
+              <tr class="hover:bg-slate-50">
+                <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
+                <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
+                <td class="p-2 border border-slate-200">
+                  <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="sales-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="sales-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                    <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                    <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                    <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
                   </select>
-                  <input type="number" step="0.01" class="payment-mode-amount w-20 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-right font-mono font-bold" data-idx="${pIdx}" value="${p.amount}">
-                  ${payments.length > 1 ? `<button type="button" class="remove-payment-line text-red-500 hover:text-red-700 font-bold text-xs px-1" data-idx="${pIdx}">✕</button>` : ''}
-                </div>
-              `).join('')}
+                </td>
+                <td class="p-2 border border-slate-200 text-right">
+                  <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
+                </td>
+                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="sales-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                    <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                    <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                    <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                  </select>
+                </td>
+                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
+                <td class="p-2 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
+                <td class="p-2 border border-slate-200 text-center">
+                  ${cart.length > 1 ? `<button type="button" class="remove-sales-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Split Payment Modes Container (Fixed at bottom) -->
+      <div class="p-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 flex-wrap shrink-0">
+        <span class="text-xs font-bold text-amber-900">Split Payment Modes:</span>
+        <div id="paymentSplitsContainer" class="flex items-center gap-1.5 flex-wrap">
+          ${payments.map((p, pIdx) => `
+            <div class="flex items-center gap-1 bg-white p-1 rounded border border-slate-300">
+              <select class="payment-mode-select text-xs border-0 font-bold text-slate-800 bg-transparent" data-idx="${pIdx}">
+                ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+              </select>
+              <input type="number" step="0.01" class="payment-mode-amount w-20 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-right font-mono font-bold" data-idx="${pIdx}" value="${p.amount}">
+              ${payments.length > 1 ? `<button type="button" class="remove-payment-line text-red-500 hover:text-red-700 font-bold text-xs px-1" data-idx="${pIdx}">✕</button>` : ''}
             </div>
-            <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-1 rounded shadow">+ Add Split Line</button>
-          </div>
+          `).join('')}
         </div>
+        <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-1 rounded shadow">+ Add Split Line</button>
       </div>
 
       <datalist id="menuItemsList">
