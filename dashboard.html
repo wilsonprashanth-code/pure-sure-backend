@@ -707,26 +707,26 @@ function historyPanel() {
           </thead>
           <tbody class="divide-y divide-brand-50 font-medium">
             ${DB.rawMaterials.map(rm => {
-              const opQty = Number(rm.openingQty || 10);
-              const opVal = Number(rm.openingValue || 2000);
-              const purQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
-              const purVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
+              const openingQty = Number(rm.openingQty || 10);
+              const openingVal = Number(rm.openingValue || 2000);
+              const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
+              const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
               const soldQty = 5;
               const soldVal = soldQty * Number(rm.unitPrice || 100);
               const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
               const wasteVal = wasteQty * Number(rm.unitPrice || 100);
-              const closeQty = Math.max(0, opQty + purQty - soldQty - wasteQty);
-              const closeVal = closeQty * Number(rm.unitPrice || 100);
+              const closingQty = Math.max(0, openingQty + purchaseQty - soldQty - wasteQty);
+              const closingVal = closingQty * Number(rm.unitPrice || 100);
 
               return `
               <tr class="hover:bg-brand-50/40">
                 <td class="p-2.5 font-bold text-brand-950">${rm.name}</td>
-                <td class="p-2.5 text-center">${opQty} ${rm.unit} <br><span class="text-[10px] text-brand-500">${money(opVal)}</span></td>
-                <td class="p-2.5 text-center text-emerald-700 font-bold">${purQty} ${rm.unit} <br><span class="text-[10px] text-emerald-600">${money(purVal)}</span></td>
+                <td class="p-2.5 text-center">${openingQty} ${rm.unit} <br><span class="text-[10px] text-brand-500">${money(openingVal)}</span></td>
+                <td class="p-2.5 text-center text-emerald-700 font-bold">${purchaseQty} ${rm.unit} <br><span class="text-[10px] text-emerald-600">${money(purchaseVal)}</span></td>
                 <td class="p-2.5 text-center text-brand-800">${soldQty} ${rm.unit} <br><span class="text-[10px] text-brand-400">${money(soldVal)}</span></td>
                 <td class="p-2.5 text-center text-red-600">${wasteQty} ${rm.unit} <br><span class="text-[10px] text-red-500">${money(wasteVal)}</span></td>
-                <td class="p-2.5 text-center font-bold text-brand-950">${closeQty.toFixed(1)} ${rm.unit}</td>
-                <td class="p-2.5 text-right font-bold text-green-700">${money(closeVal)}</td>
+                <td class="p-2.5 text-center font-bold text-brand-950">${closingQty.toFixed(1)} ${rm.unit}</td>
+                <td class="p-2.5 text-right font-bold text-green-700">${money(closingVal)}</td>
               </tr>`;
             }).join('') || `<tr><td colspan="7" class="text-center py-6 text-brand-400">No raw materials registered for reconciliation.</td></tr>`}
           </tbody>
