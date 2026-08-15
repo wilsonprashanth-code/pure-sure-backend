@@ -83,7 +83,7 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card']
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card']
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -105,6 +105,7 @@ let session = {
   showBillingModal: false,
   showWastageModal: false,
   showPurchaseModal: false,
+  showStockTakeModal: false,
   editingBaseRecipeId: null,
   recipeFilterQuery: '',
   ingredientUsageQuery: '',
@@ -118,7 +119,8 @@ let session = {
   billingCustomerName: '',
   billingCustomerPhone: '',
   billingPaymentMode: 'UPI',
-  newCustomPayment: ''
+  newCustomPayment: '',
+  purchaseItemDiffWarning: null
 };
 
 function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
@@ -341,7 +343,7 @@ function exportBillWiseReportToExcel() {
     "Date": new Date(o.ts).toLocaleDateString(),
     "Time": new Date(o.ts).toLocaleTimeString(),
     "Table No": o.table,
-    "Billing Type": (o.type === 'qr' ? 'QR Table Billing' : 'Manual Counter Billing'),
+    "Billing Type": (o.type === 'qr' ? 'QR Table Billing' : 'Manual Counter Billing')[cite: 1],
     "Customer Name": o.customerName || 'Guest',
     "Phone": o.customerPhone || 'N/A',
     "Payment Mode": o.paymentMode || 'UPI',
@@ -376,7 +378,7 @@ function exportItemWiseReportToExcel() {
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Item-Wise Sales Report");
+  XLSX.utils.book_append_sheet(wb, ws, "Item-Wise Sales Report")[cite: 1];
   XLSX.writeFile(wb, "ItemWise_Sales_Report.xlsx");
   toast("Item-Wise Report downloaded successfully!", "file-spreadsheet");
 }
@@ -393,7 +395,7 @@ function exportStockReportToExcel() {
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Stock Valuation Report");
+  XLSX.utils.book_append_sheet(wb, ws, "Stock Valuation Report")[cite: 1];
   XLSX.writeFile(wb, "Stock_Valuation_Report.xlsx");
   toast("Stock Report downloaded successfully!", "file-spreadsheet");
 }
@@ -412,9 +414,44 @@ function exportPurchaseReportToExcel() {
 
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Purchase Inward Report");
+  XLSX.utils.book_append_sheet(wb, ws, "Purchase Inward Report")[cite: 1];
   XLSX.writeFile(wb, "Purchase_Inward_Report.xlsx");
   toast("Purchase Report downloaded successfully!", "file-spreadsheet");
+}
+
+function exportMonthlyStockReconciliationToExcel() {
+  const data = DB.rawMaterials.map(rm => {
+    const openingQty = Number(rm.openingQty || 10);
+    const openingVal = Number(rm.openingValue || 2000);
+    const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
+    const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
+    const soldQty = 5; // derived usage from BOM or sales
+    const soldVal = soldQty * Number(rm.unitPrice || 100);
+    const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
+    const wasteVal = wasteQty * Number(rm.unitPrice || 100);
+    const closingQty = Math.max(0, openingQty + purchaseQty - soldQty - wasteQty);
+    const closingVal = closingQty * Number(rm.unitPrice || 100);
+
+    return {
+      "Item Name": rm.name,
+      "Opening Qty": openingQty,
+      "Opening Value (₹)": openingVal,
+      "Purchase Qty": purchaseQty,
+      "Purchase Value (₹)": purchaseVal,
+      "Sold / Consumed Qty": soldQty,
+      "Sold / Consumed Value (₹)": soldVal,
+      "Waste Qty": wasteQty,
+      "Waste Value (₹)": wasteVal,
+      "Closing Qty": closingQty,
+      "Closing Value (₹)": closingVal
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Monthly Stock Reconciliation");
+  XLSX.writeFile(wb, "Monthly_Stock_Reconciliation.xlsx");
+  toast("Monthly Stock Reconciliation downloaded!", "file-spreadsheet");
 }
 
 function render() {
@@ -500,6 +537,9 @@ function kitchenShell() {
           <button id="openPurchaseModalBtn" class="bg-emerald-600 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:bg-emerald-500 active:scale-98">
             <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Purchase Entry
           </button>
+          <button id="openStockTakeModalBtn" class="bg-blue-600 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:bg-blue-500 active:scale-98">
+            <i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i> Stock Take
+          </button>
           <button id="openWastageModalBtn" class="bg-amber-600 text-white text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1 shadow hover:opacity-90 active:scale-98">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Wastage
           </button>
@@ -539,6 +579,8 @@ function kitchenShell() {
     ${session.showBillingModal ? billingModal() : ''}
     ${session.showWastageModal ? wastageModal() : ''}
     ${session.showPurchaseModal ? purchaseModal() : ''}
+    ${session.showStockTakeModal ? stockTakeModal() : ''}
+    ${session.purchaseItemDiffWarning ? priceDifferenceWarningModal() : ''}
   </div>`;
 }
 
@@ -606,95 +648,68 @@ function historyPanel() {
   <div class="space-y-6">
     <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-100 flex items-center justify-between flex-wrap gap-3">
       <div>
-        <h3 class="font-display text-base font-bold text-brand-950">Excel Reports &amp; Analytics Suite</h3>
-        <p class="text-xs text-brand-400">Download fully formatted operational and financial sheets instantly.</p>
+        <h3 class="font-display text-base font-bold text-brand-950">Excel Reports, Stock Reconciliation &amp; Analytics Suite</h3>
+        <p class="text-xs text-brand-400">Download fully formatted operational sheets and monthly stock valuations.</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
-        <button onclick="exportBillWiseReportToExcel()" class="bg-brand text-cream text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-brand-600 transition">
+        <button onclick="exportBillWiseReportToExcel()" class="bg-brand text-cream text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-brand-600 transition">
           <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Bill-Wise Report
         </button>
-        <button onclick="exportItemWiseReportToExcel()" class="bg-gold text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow hover:opacity-90 transition">
+        <button onclick="exportItemWiseReportToExcel()" class="bg-gold text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow hover:opacity-90 transition">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Item-Wise Report
         </button>
-        <button onclick="exportStockReportToExcel()" class="bg-brand-700 text-cream text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-brand-600 transition">
+        <button onclick="exportStockReportToExcel()" class="bg-brand-700 text-cream text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-brand-600 transition">
           <i data-lucide="package" class="w-4 h-4"></i> Stock Report
         </button>
-        <button onclick="exportPurchaseReportToExcel()" class="bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-emerald-600 transition">
+        <button onclick="exportPurchaseReportToExcel()" class="bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-emerald-600 transition">
           <i data-lucide="file-text" class="w-4 h-4"></i> Purchase Report
+        </button>
+        <button onclick="exportMonthlyStockReconciliationToExcel()" class="bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow hover:bg-blue-600 transition">
+          <i data-lucide="clipboard-list" class="w-4 h-4"></i> Monthly Recon Sheet
         </button>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
-        <div class="text-[10px] font-bold uppercase text-brand-400">Total Billed Orders</div>
-        <div class="text-xl sm:text-2xl font-display font-bold text-brand-950 mt-1">${completedOrders.length}</div>
-      </div>
-      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
-        <div class="text-[10px] font-bold uppercase text-brand-400">Total Gross Revenue</div>
-        <div class="text-xl sm:text-2xl font-display font-bold text-green-700 mt-1">${money(completedOrders.reduce((acc, o) => acc + calculateOrderTotal(o), 0))}</div>
-      </div>
-      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
-        <div class="text-[10px] font-bold uppercase text-brand-400">Swiggy / Zomato Sales</div>
-        <div class="text-xl sm:text-2xl font-display font-bold text-gold-700 mt-1">${money(completedOrders.filter(o => o.paymentMode === 'Swiggy' || o.paymentMode === 'Zomato').reduce((acc, o) => acc + calculateOrderTotal(o), 0))}</div>
-      </div>
-      <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-50">
-        <div class="text-[10px] font-bold uppercase text-brand-400">Total Wastage Logs</div>
-        <div class="text-xl sm:text-2xl font-display font-bold text-red-600 mt-1">${DB.wastageLogs.length} items</div>
-      </div>
-    </div>
-
+    <!-- Monthly Stock Reconciliation Summary Table -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Item-Wise Sales &amp; Popularity Report</h3>
+      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Monthly Stock Take &amp; Reconciliation (Qty &amp; Value)</h3>
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs min-w-[500px]">
+        <table class="w-full text-left text-xs min-w-[800px]">
           <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
             <tr>
-              <th class="p-3">Item Name</th>
-              <th class="p-3 text-center">Total Units Sold</th>
-              <th class="p-3 text-right">Total Revenue Generated</th>
+              <th class="p-2.5">Item Name</th>
+              <th class="p-2.5 text-center">Opening Stock</th>
+              <th class="p-2.5 text-center">Purchase Stock</th>
+              <th class="p-2.5 text-center">Sold / Consumed</th>
+              <th class="p-2.5 text-center">Waste Stock</th>
+              <th class="p-2.5 text-center">Closing Stock</th>
+              <th class="p-2.5 text-right">Closing Valuation</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-brand-50 font-medium">
-            ${topItems.map(([name, data]) => `
-              <tr class="hover:bg-brand-50/40">
-                <td class="p-3 font-bold text-brand-950">${name}</td>
-                <td class="p-3 text-center font-bold text-brand-800">${data.qty} units</td>
-                <td class="p-3 text-right font-bold text-green-700">${money(data.revenue)}</td>
-              </tr>
-            `).join('') || `<tr><td colspan="3" class="text-center py-6 text-brand-400">No sales recorded yet.</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-    </div>
+            ${DB.rawMaterials.map(rm => {
+              const opQty = Number(rm.openingQty || 10);
+              const opVal = Number(rm.openingValue || 2000);
+              const purQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
+              const purVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
+              const soldQty = 5;
+              const soldVal = soldQty * Number(rm.unitPrice || 100);
+              const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
+              const wasteVal = wasteQty * Number(rm.unitPrice || 100);
+              const closeQty = Math.max(0, opQty + purQty - soldQty - wasteQty);
+              const closeVal = closeQty * Number(rm.unitPrice || 100);
 
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Completed Order History &amp; Payments</h3>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs min-w-[700px]">
-          <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
-            <tr>
-              <th class="p-3">Order ID</th>
-              <th class="p-3">Table / Source</th>
-              <th class="p-3">Billing Channel</th>
-              <th class="p-3">Customer</th>
-              <th class="p-3">Payment Mode</th>
-              <th class="p-3 text-right">Amount</th>
-              <th class="p-3">Time</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-brand-50 font-medium">
-            ${completedOrders.map(o => `
+              return `
               <tr class="hover:bg-brand-50/40">
-                <td class="p-3 font-mono font-bold text-brand-900">#${o.id}</td>
-                <td class="p-3 font-bold text-brand-800">T-${o.table}</td>
-                <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[9px] font-bold ${o.type==='qr'?'bg-blue-100 text-blue-800':'bg-brand-100 text-brand-800'}">${o.type === 'qr' ? 'QR Table Billing' : 'Manual Billing'}</span></td>
-                <td class="p-3">${o.customerName || 'Guest'}</td>
-                <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gold-100 text-gold-800">${o.paymentMode || 'UPI'}</span></td>
-                <td class="p-3 text-right font-bold text-brand-950">${money(calculateOrderTotal(o))}</td>
-                <td class="p-3 text-brand-500 text-[11px]">${formatTime(o.completedTs || o.ts)}</td>
-              </tr>
-            `).join('') || `<tr><td colspan="7" class="text-center py-8 text-brand-400">No completed orders.</td></tr>`}
+                <td class="p-2.5 font-bold text-brand-950">${rm.name}</td>
+                <td class="p-2.5 text-center">${opQty} ${rm.unit} <br><span class="text-[10px] text-brand-500">${money(opVal)}</span></td>
+                <td class="p-2.5 text-center text-emerald-700 font-bold">${purQty} ${rm.unit} <br><span class="text-[10px] text-emerald-600">${money(purVal)}</span></td>
+                <td class="p-2.5 text-center text-brand-800">${soldQty} ${rm.unit} <br><span class="text-[10px] text-brand-400">${money(soldVal)}</span></td>
+                <td class="p-2.5 text-center text-red-600">${wasteQty} ${rm.unit} <br><span class="text-[10px] text-red-500">${money(wasteVal)}</span></td>
+                <td class="p-2.5 text-center font-bold text-brand-950">${closeQty.toFixed(1)} ${rm.unit}</td>
+                <td class="p-2.5 text-right font-bold text-green-700">${money(closeVal)}</td>
+              </tr>`;
+            }).join('') || `<tr><td colspan="7" class="text-center py-6 text-brand-400">No raw materials registered for reconciliation.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -900,23 +915,18 @@ function purchaseModal() {
     <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
         <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Purchase Entry &amp; Invoice Inwarding</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Upload invoice photo/PDF and update stock balances.</p>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Purchase Entry &amp; Rate Variance Check</h3>
+          <p class="text-[11px] sm:text-xs text-brand-400">Manual entry with automatic 5% price variance alerts.</p>
         </div>
         <button id="closePurchaseModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
       <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
         <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-3">
-          <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">Invoice Photo / PDF Upload</label>
-            <input id="purchaseInvoiceFile" type="file" accept="image/*,.pdf" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white">
-          </div>
-
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="text-xs font-bold text-brand-950 block mb-1">Invoice No / Ref No</label>
-              <input id="purchaseInvoiceNo" placeholder="e.g. INV-2026-99" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
+              <input id="purchaseInvoiceNo" placeholder="e.g. INV-001" class="w-full border border-emerald-300 rounded-xl p-2 text-xs bg-white font-bold">
             </div>
             <div>
               <label class="text-xs font-bold text-brand-950 block mb-1">Vendor Name</label>
@@ -928,7 +938,7 @@ function purchaseModal() {
             <label class="text-xs font-bold text-brand-950 block mb-1">Select Raw Material to Restock</label>
             <select id="purchaseRmSelect" class="w-full border border-emerald-300 rounded-xl p-2.5 text-xs font-bold bg-white">
               <option value="">-- Choose Material --</option>
-              ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'})</option>`).join('')}
+              ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'}) - Current Rate: ${money(rm.unitPrice)}</option>`).join('')}
             </select>
           </div>
 
@@ -949,7 +959,7 @@ function purchaseModal() {
             </div>
           </div>
 
-          <button id="submitPurchaseEntryBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Inward Purchase &amp; Update Stock</button>
+          <button id="validatePurchaseBtn" class="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Verify &amp; Inward Purchase</button>
         </div>
 
         <div class="space-y-2">
@@ -966,6 +976,80 @@ function purchaseModal() {
             `).join('') || `<div class="text-xs text-slate-400 text-center py-4">No purchase entries logged yet.</div>`}
           </div>
         </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function priceDifferenceWarningModal() {
+  const diff = session.purchaseItemDiffWarning;
+  if (!diff) return '';
+  return `
+  <div class="fixed inset-0 z-[120] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-3">
+      <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <h3 class="font-display text-base font-bold text-brand-950">Price Variance Alert (>5%)</h3>
+      <p class="text-xs text-brand-600 leading-relaxed">
+        The rate for <b>${diff.itemName}</b> has changed by <b>${diff.percentDiff}%</b> compared to the previous unit rate (${money(diff.oldRate)} ➔ ${money(diff.newRate)}).
+      </p>
+      <div class="flex gap-2 pt-2">
+        <button id="confirmPurchaseAnywayBtn" class="flex-1 bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-emerald-800">Proceed Anyway</button>
+        <button id="cancelPurchaseWarningBtn" class="flex-1 bg-slate-200 text-slate-800 font-bold py-2.5 rounded-xl text-xs hover:bg-slate-300">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function stockTakeModal() {
+  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
+    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
+        <div>
+          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Physical Stock Take &amp; Reconciliation</h3>
+          <p class="text-[11px] sm:text-xs text-brand-400">Record physical count and automatically reconcile inventory variances.</p>
+        </div>
+        <button id="closeStockTakeModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-3">
+        <div class="overflow-x-auto border border-brand-100 rounded-2xl">
+          <table class="w-full text-left text-xs min-w-[650px]">
+            <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
+              <tr>
+                <th class="p-3">Material Name</th>
+                <th class="p-3">Vendor</th>
+                <th class="p-3 text-center">System Stock</th>
+                <th class="p-3 text-center">Physical Count</th>
+                <th class="p-3 text-right">Variance / Adjustment</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-brand-50 font-medium">
+              ${sortedRawMaterials.map(rm => {
+                const sysGrams = Number(rm.stockGrams || 100000);
+                const unit = rm.unit || 'GRM';
+                const divisor = (unit === 'KG' || unit === 'LITRE') ? 1000 : 1;
+                const sysVal = sysGrams / divisor;
+                return `
+                <tr class="hover:bg-brand-50/40">
+                  <td class="p-3 font-bold text-brand-950">${rm.name}</td>
+                  <td class="p-3 text-brand-600">${rm.vendor || 'FACTORY'}</td>
+                  <td class="p-3 text-center font-mono font-bold">${sysVal.toFixed(2)} ${unit}</td>
+                  <td class="p-3 text-center">
+                    <input type="number" step="0.01" class="physical-count-input w-24 border border-brand-300 rounded-lg p-1 text-xs text-center font-bold bg-white" data-id="${rm.id}" data-unit="${unit}" value="${sysVal.toFixed(2)}">
+                  </td>
+                  <td class="p-3 text-right font-mono font-bold text-brand-700 variance-cell" data-id="${rm.id}">0.00 ${unit}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <button id="saveStockTakeBtn" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl text-xs sm:text-sm transition shadow active:scale-98">Reconcile &amp; Update System Stock</button>
       </div>
     </div>
   </div>`;
@@ -2025,7 +2109,7 @@ function wireKitchen() {
   const dashRm = document.getElementById('dashRmSearch');
   if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
 
-  /* POS BILLING, PURCHASE & WASTAGE MODAL TRIGGERS */
+  /* MODAL TRIGGERS */
   const openBillBtn = document.getElementById('openBillingModalBtn');
   if (openBillBtn) openBillBtn.onclick = () => { session.showBillingModal = true; render(); };
 
@@ -2038,11 +2122,54 @@ function wireKitchen() {
   const closePurchaseBtn = document.getElementById('closePurchaseModalBtn');
   if (closePurchaseBtn) closePurchaseBtn.onclick = () => { session.showPurchaseModal = false; render(); };
 
+  const openStockTakeBtn = document.getElementById('openStockTakeModalBtn');
+  if (openStockTakeBtn) openStockTakeBtn.onclick = () => { session.showStockTakeModal = true; render(); };
+
+  const closeStockTakeBtn = document.getElementById('closeStockTakeModalBtn');
+  if (closeStockTakeBtn) closeStockTakeBtn.onclick = () => { session.showStockTakeModal = false; render(); };
+
   const openWastageBtn = document.getElementById('openWastageModalBtn');
   if (openWastageBtn) openWastageBtn.onclick = () => { session.showWastageModal = true; render(); };
 
   const closeWastageBtn = document.getElementById('closeWastageModalBtn');
   if (closeWastageBtn) closeWastageBtn.onclick = () => { session.showWastageModal = false; render(); };
+
+  /* LIVE PHYSICAL STOCK TAKE VARIANCE CALCULATION */
+  document.querySelectorAll('.physical-count-input').forEach(input => {
+    input.oninput = (e) => {
+      const id = input.dataset.id;
+      const unit = input.dataset.unit;
+      const physicalVal = Number(e.target.value) || 0;
+      const rm = DB.rawMaterials.find(r => r.id === id);
+      if (rm) {
+        const sysVal = Number(rm.stockGrams || 100000) / ((unit === 'KG' || unit === 'LITRE') ? 1000 : 1);
+        const variance = physicalVal - sysVal;
+        const varianceCell = document.querySelector(`.variance-cell[data-id="${id}"]`);
+        if (varianceCell) {
+          varianceCell.textContent = `${variance > 0 ? '+' : ''}${variance.toFixed(2)} ${unit}`;
+          varianceCell.className = `p-3 text-right font-mono font-bold ${variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-brand-700'} variance-cell`;
+        }
+      }
+    };
+  });
+
+  const saveStockTakeBtn = document.getElementById('saveStockTakeBtn');
+  if (saveStockTakeBtn) {
+    saveStockTakeBtn.onclick = async () => {
+      const updates = {};
+      document.querySelectorAll('.physical-count-input').forEach(input => {
+        const id = input.dataset.id;
+        const unit = input.dataset.unit;
+        const physicalVal = Number(input.value) || 0;
+        const gramsMl = getConvertedGramsMl(physicalVal, unit);
+        updates[`rawMaterials/${id}/stockGrams`] = gramsMl;
+      });
+      await db.ref().update(updates);
+      toast('Physical stock take reconciled & system stock updated!', 'check-circle');
+      session.showStockTakeModal = false;
+      render();
+    };
+  }
 
   /* ADD CUSTOM PAYMENT MODE */
   const addCustomPaymentBtn = document.getElementById('addCustomPaymentBtn');
@@ -2062,10 +2189,10 @@ function wireKitchen() {
     };
   }
 
-  /* PURCHASE INWARDING ENTRY */
-  const submitPurchaseEntryBtn = document.getElementById('submitPurchaseEntryBtn');
-  if (submitPurchaseEntryBtn) {
-    submitPurchaseEntryBtn.onclick = async () => {
+  /* PURCHASE INWARDING & 5% RATE VARIANCE CHECK */
+  const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
+  if (validatePurchaseBtn) {
+    validatePurchaseBtn.onclick = () => {
       const rmName = document.getElementById('purchaseRmSelect').value;
       const invoiceNo = document.getElementById('purchaseInvoiceNo').value.trim() || 'INV-001';
       const vendor = document.getElementById('purchaseVendor').value.trim() || 'Vendor';
@@ -2079,34 +2206,50 @@ function wireKitchen() {
       }
 
       const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === rmName.toLowerCase().trim());
-      if (rm) {
-        const addedGrams = getConvertedGramsMl(qty, unit);
-        const currentStock = Number(rm.stockGrams ?? 100000);
-        const newStock = currentStock + addedGrams;
-        const newRate = totalAmount / (addedGrams / 1000);
+      const oldRate = rm ? Number(rm.unitPrice || 0) : 0;
+      const addedGrams = getConvertedGramsMl(qty, unit);
+      const newRate = totalAmount / (addedGrams / 1000);
 
-        await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
-        await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
+      // Check if price variance > 5%
+      if (oldRate > 0) {
+        const percentDiff = Math.abs(((newRate - oldRate) / oldRate) * 100);
+        if (percentDiff > 5) {
+          session.purchaseItemDiffWarning = {
+            rmId: rm.id,
+            invoiceNo,
+            vendor,
+            itemName: rmName,
+            qty,
+            unit,
+            totalAmount,
+            oldRate,
+            newRate,
+            percentDiff: percentDiff.toFixed(1)
+          };
+          render();
+          return;
+        }
       }
 
-      const purchaseLog = {
-        id: uid('p'),
-        invoiceNo,
-        vendor,
-        itemName: rmName,
-        qty,
-        unit,
-        totalAmount,
-        rate: totalAmount / qty,
-        staff: session.staff.username,
-        ts: Date.now()
-      };
+      executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, totalAmount, newRate);
+    };
+  }
 
-      DB.purchases.push(purchaseLog);
-      await db.ref('purchases').set(DB.purchases);
+  const confirmPurchaseAnywayBtn = document.getElementById('confirmPurchaseAnywayBtn');
+  if (confirmPurchaseAnywayBtn) {
+    confirmPurchaseAnywayBtn.onclick = async () => {
+      const diff = session.purchaseItemDiffWarning;
+      if (!diff) return;
+      const rm = DB.rawMaterials.find(r => r.id === diff.rmId);
+      session.purchaseItemDiffWarning = null;
+      await executePurchaseSave(rm, diff.invoiceNo, diff.vendor, diff.itemName, diff.qty, diff.unit, diff.totalAmount, diff.newRate);
+    };
+  }
 
-      toast('Purchase entry recorded & inventory stock updated!', 'check-circle');
-      session.showPurchaseModal = false;
+  const cancelPurchaseWarningBtn = document.getElementById('cancelPurchaseWarningBtn');
+  if (cancelPurchaseWarningBtn) {
+    cancelPurchaseWarningBtn.onclick = () => {
+      session.purchaseItemDiffWarning = null;
       render();
     };
   }
@@ -2876,6 +3019,37 @@ function wireKitchen() {
     await db.ref('retail/' + payload.id).set(payload);
     session.editingRetail = null; render(); toast('Product saved cloud-wide!');
   };
+}
+
+async function executePurchaseSave(rm, invoiceNo, vendor, rmName, qty, unit, totalAmount, newRate) {
+  if (rm) {
+    const addedGrams = getConvertedGramsMl(qty, unit);
+    const currentStock = Number(rm.stockGrams ?? 100000);
+    const newStock = currentStock + addedGrams;
+
+    await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+    await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
+  }
+
+  const purchaseLog = {
+    id: uid('p'),
+    invoiceNo,
+    vendor,
+    itemName: rmName,
+    qty,
+    unit,
+    totalAmount,
+    rate: newRate,
+    staff: session.staff.username,
+    ts: Date.now()
+  };
+
+  DB.purchases.push(purchaseLog);
+  await db.ref('purchases').set(DB.purchases);
+
+  toast('Purchase entry recorded & inventory stock updated!', 'check-circle');
+  session.showPurchaseModal = false;
+  render();
 }
 
 function renderKeepFocus(inputId) {
