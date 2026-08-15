@@ -1036,7 +1036,7 @@ function billingModalBillmaxStyle() {
 
       <!-- Top Form Meta with Customer Name & Phone No -->
       <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
-        <div class="md:col-span-5 flex items-center gap-2">
+        <div class="md:col-span-4 flex items-center gap-2">
           <label class="font-bold text-slate-800 w-20 shrink-0">Customer Name</label>
           <input id="salesCustomerNameInput" value="${session.salesCustomerName || ''}" placeholder="Walk-In Customer..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
         </div>
@@ -1044,7 +1044,7 @@ function billingModalBillmaxStyle() {
           <label class="font-bold text-slate-800 shrink-0">Phone No</label>
           <input id="salesCustomerPhoneInput" value="${session.salesCustomerPhone || ''}" placeholder="10-digit mobile" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white">
         </div>
-        <div class="md:col-span-4 flex items-center gap-2 justify-end">
+        <div class="md:col-span-5 flex items-center gap-2 justify-end">
           <label class="font-bold text-slate-800 shrink-0">Doc No</label>
           <input value="${session.salesInvoiceNo || 'S/26-27/290'}" class="w-28 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
           <label class="font-bold text-slate-800 shrink-0">Date</label>
