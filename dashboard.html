@@ -855,6 +855,34 @@ function menuEngineeringPanel() {
   </div>`;
 }
 
+function testingResetPanel() {
+  return `
+  <div class="max-w-2xl bg-white rounded-2xl card-shadow p-5 mx-auto sm:mx-0 space-y-4 border-2 border-red-100 mt-4">
+    <div>
+      <h3 class="font-display text-lg font-bold text-red-600">🧪 Testing &amp; Data Reset Console</h3>
+      <p class="text-xs text-brand-400">Clear test entries during your trial and testing phase.</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+      <button type="button" onclick="if(confirm('Clear all Sales / Orders?')) { db.ref('orders').remove(); toast('Sales orders cleared!', 'trash-2'); }" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold p-3 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+        <i data-lucide="receipt" class="w-4 h-4"></i> Clear All Sales / Orders
+      </button>
+
+      <button type="button" onclick="if(confirm('Clear all Wastage Logs?')) { db.ref('wastageLogs').remove(); DB.wastageLogs=[]; render(); toast('Wastage logs cleared!', 'trash-2'); }" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold p-3 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+        <i data-lucide="trash-2" class="w-4 h-4"></i> Clear All Wastage Logs
+      </button>
+
+      <button type="button" onclick="if(confirm('Clear all Purchase Entries?')) { db.ref('purchases').remove(); DB.purchases=[]; render(); toast('Purchase entries cleared!', 'trash-2'); }" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold p-3 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+        <i data-lucide="file-up" class="w-4 h-4"></i> Clear All Purchases
+      </button>
+
+      <button type="button" onclick="if(confirm('Reset all Stock Balances back to default?')) { DB.rawMaterials.forEach(rm => db.ref('rawMaterials/' + rm.id + '/stockGrams').set(100000)); toast('Stock balances reset!', 'refresh-cw'); }" class="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold p-3 rounded-xl text-xs flex items-center justify-center gap-2 transition">
+        <i data-lucide="package" class="w-4 h-4"></i> Reset Stock Balances
+      </button>
+    </div>
+  </div>`;
+}
+
 function billingModalReferenceStyle() {
   const cart = session.salesItems || [];
   const totalLines = cart.length;
