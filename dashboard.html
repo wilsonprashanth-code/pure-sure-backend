@@ -2173,12 +2173,18 @@ function brandPanel() {
 
 function usersPanel() {
   return `
-  <div class="max-w-xl bg-white rounded-2xl card-shadow p-4 sm:p-5 mx-auto sm:mx-0">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Staff Accounts</h3>
-      <button id="addStaffBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-xl flex items-center gap-1"><i data-lucide="user-plus" class="w-3.5 h-3.5"></i>Add Staff</button>
+  <div class="max-w-3xl bg-white rounded-2xl card-shadow p-5 mx-auto sm:mx-0 space-y-6">
+    <div class="flex items-center justify-between border-b border-brand-100 pb-3">
+      <div>
+        <h3 class="font-display text-lg font-bold text-brand-950">Staff, Suppliers &amp; Customers Master</h3>
+        <p class="text-xs text-brand-400">Manage user accounts, vendor profiles, GSTIN, and customer records.</p>
+      </div>
+      <button id="addStaffBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-xl flex items-center gap-1"><i data-lucide="user-plus" class="w-3.5 h-3.5"></i>Add Staff</button>
     </div>
+
+    <!-- Staff Accounts List -->
     <div class="space-y-2">
+      <div class="text-xs font-bold text-brand-900 uppercase">Staff Accounts (${DB.staff.length})</div>
       ${DB.staff.map(s => `
       <div class="flex items-center gap-3 border border-brand-50 rounded-xl p-2.5 bg-brand-50/20">
         <div class="w-8 h-8 rounded-full bg-brand-100 text-brand-800 font-bold flex items-center justify-center text-xs">${s.username[0].toUpperCase()}</div>
@@ -2187,23 +2193,649 @@ function usersPanel() {
       </div>`).join('')}
     </div>
     ${session.showAddStaff ? addStaffForm() : ''}
+
+    <!-- Suppliers Master Table -->
+    <div class="space-y-3 pt-4 border-t border-brand-100">
+      <div class="flex items-center justify-between">
+        <div class="text-xs font-bold text-brand-900 uppercase">Registered Suppliers (${DB.suppliers.length})</div>
+        <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-xs font-bold bg-posGreen text-white px-3 py-1.5 rounded-lg">+ Add Supplier</button>
+      </div>
+      <div class="overflow-x-auto border border-brand-100 rounded-xl">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
+            <tr>
+              <th class="p-2.5">Company Name</th>
+              <th class="p-2.5">Phone &amp; Address</th>
+              <th class="p-2.5">GSTIN</th>
+              <th class="p-2.5">FSSAI No</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-brand-50 font-medium">
+            ${DB.suppliers.map(sup => `
+              <tr class="hover:bg-brand-50/40">
+                <td class="p-2.5 font-bold text-brand-950">${sup.name}</td>
+                <td class="p-2.5 text-slate-600">${sup.phone} <br><span class="text-[10px] text-slate-400">${sup.address}</span></td>
+                <td class="p-2.5 font-mono uppercase">${sup.gstin || 'N/A'}</td>
+                <td class="p-2.5 font-mono">${sup.fssai || 'N/A'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>`;
 }
 
-function addStaffForm() {
-  return `
-  <div class="mt-4 border-t border-brand-100 pt-3">
-    <div class="grid grid-cols-2 gap-2.5">
-      <div><label class="text-[11px] font-bold text-brand-600">Username</label><input id="newStaffUser" class="w-full mt-1 border border-brand-200 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50"></div>
-      <div><label class="text-[11px] font-bold text-brand-600">Password</label><input id="newStaffPass" type="password" class="w-full mt-1 border border-brand-200 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50"></div>
-      <div class="col-span-2"><label class="text-[11px] font-bold text-brand-600">Role</label>
-        <select id="newStaffRole" class="w-full mt-1 border border-brand-200 rounded-xl px-2.5 py-1.5 text-xs bg-slate-50">
-          <option>Admin</option><option>Kitchen Staff</option>
-        </select>
-      </div>
-    </div>
-    <button id="saveStaffBtn" class="w-full mt-3 bg-brand text-cream font-bold py-2.5 rounded-xl text-xs hover:bg-brand-600 transition shadow">Create Staff Account</button>
-  </div>`;
+function wireKitchen() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => { 
+      localStorage.removeItem('ps_staff');
+      session.staff = null; 
+      render(); 
+    };
+  }
+
+  const soundToggle = document.getElementById('soundToggle');
+  if (soundToggle) {
+    soundToggle.onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
+  }
+
+  document.querySelectorAll('.k-tab').forEach(b => {
+    b.onclick = () => { 
+      session.kitchenTab = b.dataset.ktab; 
+      render(); 
+    };
+  });
+
+  const dashCafe = document.getElementById('dashCafeSearch');
+  if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
+
+  const dashRetail = document.getElementById('dashRetailSearch');
+  if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
+
+  const dashRm = document.getElementById('dashRmSearch');
+  if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
+
+  const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
+  if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
+
+  /* MODAL TRIGGERS */
+  const openBillBtn = document.getElementById('openBillingModalBtn');
+  if (openBillBtn) {
+    openBillBtn.onclick = () => { 
+      session.showBillingModal = true; 
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
+      render(); 
+    };
+  }
+
+  const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
+  if (openPurchaseBtn) {
+    openPurchaseBtn.onclick = () => { 
+      session.showPurchaseModal = true; 
+      render(); 
+    };
+  }
+
+  const openStockTakeBtn = document.getElementById('openStockTakeModalBtn');
+  if (openStockTakeBtn) {
+    openStockTakeBtn.onclick = () => { 
+      session.showStockTakeModal = true; 
+      render(); 
+    };
+  }
+
+  const openWastageBtn = document.getElementById('openWastageModalBtn');
+  if (openWastageBtn) {
+    openWastageBtn.onclick = () => { 
+      session.showWastageModal = true; 
+      render(); 
+    };
+  }
+
+  /* PURCHASE WIRING */
+  const purchaseInvoiceNoInput = document.getElementById('purchaseInvoiceNo');
+  if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
+
+  document.querySelectorAll('.purchase-item-name').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      const val = e.target.value;
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].itemName = val;
+        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === val.toLowerCase().trim());
+        if (matched) {
+          session.purchaseItems[idx].rate = matched.unitPrice || 0;
+          const q = Number(session.purchaseItems[idx].receivedQty || 1);
+          const r = Number(session.purchaseItems[idx].rate || 0);
+          const net = q * r;
+          session.purchaseItems[idx].netValue = net;
+          session.purchaseItems[idx].gstAmt = net * 0.05;
+          renderKeepFocus('purchaseInvoiceNo');
+        }
+      }
+    };
+  });
+
+  const addPurchaseLineBtn = document.getElementById('addPurchaseLineBtn');
+  if (addPurchaseLineBtn) {
+    addPurchaseLineBtn.onclick = () => {
+      if (!session.purchaseItems) session.purchaseItems = [];
+      session.purchaseItems.push({ itemName: '', code: 'ITEM-004', batch: 'B240820', mfgDate: '2026-08-15', expDate: '2027-02-15', unit: 'Pcs', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 100, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 5, netValue: 100, lastRate: 95 });
+      renderKeepFocus('purchaseInvoiceNo');
+    };
+  }
+
+  /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
+  const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
+  if (salesCustomerNameInput) salesCustomerNameInput.onchange = (e) => { session.salesCustomerName = e.target.value; };
+
+  const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
+  if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
+
+  const globalSalesSearchInput = document.getElementById('globalSalesSearchInput');
+  const salesSearchDropdown = document.getElementById('salesSearchDropdown');
+
+  if (globalSalesSearchInput && salesSearchDropdown) {
+    globalSalesSearchInput.oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      session.salesGlobalSearchQuery = e.target.value;
+      if (q.length === 0) {
+        salesSearchDropdown.classList.add('hidden');
+        salesSearchDropdown.innerHTML = '';
+        return;
+      }
+
+      const matches = DB.menu.filter(m => m.name.toLowerCase().includes(q));
+      if (matches.length > 0) {
+        salesSearchDropdown.innerHTML = matches.map(m => `
+          <div class="search-suggestion-item p-2.5 hover:bg-brand-50 cursor-pointer border-b border-slate-100 flex justify-between items-center text-xs" data-name="${m.name}" data-price="${m.price}">
+            <div>
+              <div class="font-bold text-brand-950">${m.name}</div>
+              <div class="text-[10px] text-slate-400">${m.category}</div>
+            </div>
+            <div class="font-mono font-bold text-brand-700">${money(m.price)}</div>
+          </div>
+        `).join('');
+        salesSearchDropdown.classList.remove('hidden');
+
+        document.querySelectorAll('.search-suggestion-item').forEach(el => {
+          el.onclick = () => {
+            const name = el.dataset.name;
+            const price = Number(el.dataset.price);
+            session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: price, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: price * 0.05, netValue: price });
+            session.salesGlobalSearchQuery = '';
+            salesSearchDropdown.classList.add('hidden');
+            renderKeepFocus('globalSalesSearchInput');
+          };
+        });
+      } else {
+        salesSearchDropdown.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No matching items found.</div>`;
+        salesSearchDropdown.classList.remove('hidden');
+      }
+    };
+
+    globalSalesSearchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const matches = DB.menu.filter(m => m.name.toLowerCase().includes(globalSalesSearchInput.value.toLowerCase().trim()));
+        if (matches.length > 0) {
+          const found = matches[0];
+          session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: found.name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: found.price || 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: (found.price || 0) * 0.05, netValue: found.price || 0 });
+          session.salesGlobalSearchQuery = '';
+          salesSearchDropdown.classList.add('hidden');
+          renderKeepFocus('globalSalesSearchInput');
+        }
+      }
+    };
+  }
+
+  document.querySelectorAll('.sales-qty-inc').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty += 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
+
+  document.querySelectorAll('.sales-qty-dec').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx] && session.salesItems[idx].qty > 1) {
+        session.salesItems[idx].qty -= 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
+
+  document.querySelectorAll('.sales-item-qty').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
+
+  document.querySelectorAll('.remove-sales-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesItems.splice(idx, 1);
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const clearSalesCartBtn = document.getElementById('clearSalesCartBtn');
+  if (clearSalesCartBtn) {
+    clearSalesCartBtn.onclick = () => {
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  /* QUICK PAYMENT CARDS */
+  document.querySelectorAll('.quick-pay-card-btn').forEach(btn => {
+    btn.onclick = () => {
+      const mode = btn.dataset.mode;
+      const grandTotal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode, amount: grandTotal }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const toggleSplitPayment = document.getElementById('toggleSplitPayment');
+  if (toggleSplitPayment) {
+    toggleSplitPayment.onchange = (e) => {
+      session.splitPaymentEnabled = e.target.checked;
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  document.querySelectorAll('.payment-mode-select').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.salesPayments[idx]) session.salesPayments[idx].mode = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.payment-mode-amount').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesPayments[idx]) {
+        session.salesPayments[idx].amount = Number(e.target.value) || 0;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
+
+  const addPaymentLineBtn = document.getElementById('addPaymentLineBtn');
+  if (addPaymentLineBtn) {
+    addPaymentLineBtn.onclick = () => {
+      if (!session.salesPayments) session.salesPayments = [];
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const remaining = Math.max(0, totalVal - currentPaid);
+      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  document.querySelectorAll('.remove-payment-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesPayments.splice(idx, 1);
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const addSalesLineBtn = document.getElementById('addSalesLineBtn');
+  if (addSalesLineBtn) {
+    addSalesLineBtn.onclick = () => {
+      if (!session.salesItems) session.salesItems = [];
+      session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
+  if (completeSalesBillBtn) {
+    completeSalesBillBtn.onclick = async () => {
+      const items = session.salesItems || [];
+      if (items.length === 0 || !items[0].itemName) {
+        toast('Please add at least one valid sales item.', 'alert-triangle');
+        return;
+      }
+
+      const orderId = Math.floor(1000 + Math.random() * 9000).toString();
+      const cartFormatted = items.map(i => ({ id: uid('s'), name: i.itemName, price: i.rate, qty: i.qty, kind: 'cafe' }));
+      const primaryPayment = session.salesPayments && session.salesPayments.length > 0 ? session.salesPayments[0].mode : 'Cash';
+
+      const newOrder = {
+        id: orderId,
+        table: session.salesTableNo || 'Table 12',
+        type: session.salesOrderType === 'Takeaway' ? 'retail' : 'cafe',
+        customerName: session.salesCustomerName || 'Walk-In Customer',
+        customerPhone: session.salesCustomerPhone || '',
+        items: cartFormatted,
+        paymentMode: primaryPayment,
+        payments: session.salesPayments,
+        status: 'served',
+        ts: Date.now(),
+        completedTs: Date.now()
+      };
+
+      await db.ref('orders/' + orderId).set(newOrder);
+      for (const item of cartFormatted) {
+        if (item.id) await processBOMDeduction(item.id, item.qty);
+      }
+
+      toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesPayments = [{ mode: 'Cash', amount: 0 }];
+      session.salesCustomerName = 'Walk-In Customer';
+      session.salesCustomerPhone = '9876543210';
+      session.showBillingModal = false;
+      render();
+    };
+  }
+
+  const closeBillingModalBtn = document.getElementById('closeBillingModalBtn');
+  if (closeBillingModalBtn) closeBillingModalBtn.onclick = () => { session.showBillingModal = false; render(); };
+
+  const closePurchaseModalBtn = document.getElementById('closePurchaseModalBtn');
+  if (closePurchaseModalBtn) closePurchaseModalBtn.onclick = () => { session.showPurchaseModal = false; render(); };
+
+  const closeStockTakeModalBtn = document.getElementById('closeStockTakeModalBtn');
+  if (closeStockTakeModalBtn) closeStockTakeModalBtn.onclick = () => { session.showStockTakeModal = false; render(); };
+
+  const closeWastageModalBtn = document.getElementById('closeWastageModalBtn');
+  if (closeWastageModalBtn) closeWastageModalBtn.onclick = () => { session.showWastageModal = false; render(); };
+
+  /* PHYSICAL STOCK TAKE WIRING */
+  document.querySelectorAll('.physical-count-input').forEach(input => {
+    input.oninput = (e) => {
+      const id = input.dataset.id;
+      const unit = input.dataset.unit;
+      const physicalVal = Number(e.target.value) || 0;
+      const rm = DB.rawMaterials.find(r => r.id === id);
+      if (rm) {
+        const sysVal = Number(rm.stockGrams || 100000) / ((unit === 'KG' || unit === 'LITRE') ? 1000 : 1);
+        const variance = physicalVal - sysVal;
+        const varianceCell = document.querySelector(`.variance-cell[data-id="${id}"]`);
+        if (varianceCell) {
+          varianceCell.textContent = `${variance > 0 ? '+' : ''}${variance.toFixed(2)} ${unit}`;
+          varianceCell.className = `p-3 text-right font-mono font-bold ${variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-brand-700'} variance-cell`;
+        }
+      }
+    };
+  });
+
+  const saveStockTakeBtn = document.getElementById('saveStockTakeBtn');
+  if (saveStockTakeBtn) {
+    saveStockTakeBtn.onclick = async () => {
+      const updates = {};
+      document.querySelectorAll('.physical-count-input').forEach(input => {
+        const id = input.dataset.id;
+        const unit = input.dataset.unit;
+        const physicalVal = Number(input.value) || 0;
+        const gramsMl = getConvertedGramsMl(physicalVal, unit);
+        updates[`rawMaterials/${id}/stockGrams`] = gramsMl;
+      });
+      await db.ref().update(updates);
+      toast('Physical stock take reconciled & system stock updated!', 'check-circle');
+      session.showStockTakeModal = false;
+      render();
+    };
+  }
+
+  /* PURCHASE INWARDING WIRING */
+  const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
+  if (validatePurchaseBtn) {
+    validatePurchaseBtn.onclick = async () => {
+      toast('Purchase entry saved successfully!', 'check-circle');
+      session.showPurchaseModal = false;
+      render();
+    };
+  }
+
+  /* WASTAGE LOGGING SUBMISSION */
+  const submitWastageBtn = document.getElementById('submitWastageBtn');
+  if (submitWastageBtn) {
+    submitWastageBtn.onclick = async () => {
+      const rmName = document.getElementById('wastageRmSelect').value;
+      const qty = Number(document.getElementById('wastageQtyInput').value) || 0;
+      const unit = document.getElementById('wastageUnitSelect').value;
+      const reason = document.getElementById('wastageReasonInput').value.trim() || 'General Spoilage';
+
+      if (!rmName || qty <= 0) {
+        toast('Please select a material and enter a valid quantity.', 'alert-triangle');
+        return;
+      }
+
+      const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === rmName.toLowerCase().trim());
+      if (rm) {
+        const wasteGrams = getConvertedGramsMl(qty, unit);
+        const currentStock = Number(rm.stockGrams ?? 100000);
+        const newStock = Math.max(0, currentStock - wasteGrams);
+        await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+      }
+
+      const logEntry = { id: uid('waste'), item: rmName, qty, unit, reason, staff: session.staff.username, ts: Date.now() };
+      DB.wastageLogs.push(logEntry);
+      await db.ref('wastageLogs').set(DB.wastageLogs);
+
+      toast('Wastage logged & raw material inventory updated!', 'trash-2');
+      session.showWastageModal = false;
+      render();
+    };
+  }
+
+  /* MASTER MAIN RECIPES MODAL HANDLERS */
+  const openMainBtn = document.getElementById('openMainRecipesModalBtn');
+  if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+
+  const launchMainBtn = document.getElementById('launchMainMasterBtn');
+  if (launchMainBtn) launchMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+
+  const closeMainModalBtn = document.getElementById('closeMainRecipesModalBtn');
+  if (closeMainModalBtn) closeMainModalBtn.onclick = () => { session.showMainRecipesModal = false; render(); };
+
+  document.querySelectorAll('.main-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.activeRecipeDishId = card.dataset.id;
+      render();
+    };
+  });
+
+  const mainDishSortSelect = document.getElementById('mainDishSortSelect');
+  if (mainDishSortSelect) {
+    mainDishSortSelect.onchange = (e) => {
+      session.recipeSortMode = e.target.value;
+      renderKeepFocus('mainDishSortSelect');
+    };
+  }
+
+  const baseDishSortSelect = document.getElementById('baseDishSortSelect');
+  if (baseDishSortSelect) {
+    baseDishSortSelect.onchange = (e) => {
+      session.baseRecipeSortMode = e.target.value;
+      renderKeepFocus('baseDishSortSelect');
+    };
+  }
+
+  const masterDishNameInput = document.getElementById('masterDishNameInput');
+  if (masterDishNameInput) {
+    masterDishNameInput.oninput = async (e) => {
+      const dishId = masterDishNameInput.dataset.id;
+      const newName = e.target.value.trim();
+      if (!dishId || !newName) return;
+      await db.ref(`menu/${dishId}/name`).set(newName);
+      const menuDish = DB.menu.find(m => m.id === dishId);
+      if (menuDish) menuDish.name = newName;
+    };
+  }
+
+  const liveLetterInput = document.getElementById('liveLetterSearchInput');
+  if (liveLetterInput) {
+    liveLetterInput.oninput = (e) => {
+      session.recipeFilterQuery = e.target.value;
+      renderKeepFocus('liveLetterSearchInput');
+    };
+  }
+
+  const liveIngInput = document.getElementById('liveIngredientSearchInput');
+  if (liveIngInput) {
+    liveIngInput.oninput = (e) => {
+      session.ingredientUsageQuery = e.target.value;
+      renderKeepFocus('liveIngredientSearchInput');
+    };
+  }
+
+  const manageIngBtn = document.getElementById('manageIngredientsBtn');
+  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
+
+  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
+  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
+
+  const addRmBtn = document.getElementById('addRmBtn');
+  if (addRmBtn) {
+    addRmBtn.onclick = async () => {
+      const name = document.getElementById('newRmName').value.trim();
+      const vendor = document.getElementById('newRmVendor').value.trim() || 'FACTORY';
+      const unit = document.getElementById('newRmUnit').value;
+      const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
+
+      if (!name) { toast('Enter raw material name.', 'alert-triangle'); return; }
+
+      const newItem = { id: uid('rm'), name, vendor, unit, unitPrice };
+      await db.ref('rawMaterials/' + newItem.id).set(newItem);
+      toast('Raw material saved!', 'check-circle');
+    };
+  }
+
+  document.querySelectorAll('.delete-rm-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      await db.ref('rawMaterials/' + id).remove();
+      toast('Raw material removed.');
+    };
+  });
+
+  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
+  if (manageBaseBtn) {
+    manageBaseBtn.onclick = () => {
+      session.showBaseRecipesModal = true;
+      if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
+        session.editingBaseRecipeId = DB.baseRecipes[0].id;
+      }
+      render();
+    };
+  }
+
+  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
+  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
+
+  const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
+  if (createNewBaseBtn) {
+    createNewBaseBtn.onclick = async () => {
+      const newBase = { id: uid('br'), name: 'New Base Prep', batchYield: 1, unit: 'GRM', ingredients: [] };
+      await db.ref('baseRecipes/' + newBase.id).set(newBase);
+      session.editingBaseRecipeId = newBase.id;
+      render();
+    };
+  }
+
+  document.querySelectorAll('.base-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.editingBaseRecipeId = card.dataset.id;
+      render();
+    };
+  });
+
+  const saveBaseRecipeBtn = document.getElementById('saveBaseRecipeBtn');
+  if (saveBaseRecipeBtn && session.editingBaseRecipeId) {
+    saveBaseRecipeBtn.onclick = async () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.name = document.getElementById('baseName').value.trim();
+        activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
+        activeBase.unit = document.getElementById('baseUnit').value;
+        await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
+        toast('Base recipe saved!', 'check-circle');
+      }
+    };
+  }
+
+  const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
+  if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
+    deleteBaseRecipeBtn.onclick = async () => {
+      if (confirm('Delete this base prep?')) {
+        await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
+        session.editingBaseRecipeId = null;
+        render();
+      }
+    };
+  }
+}
+
+async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
+  if (rm) {
+    const addedGrams = getConvertedGramsMl(qty, unit);
+    const currentStock = Number(rm.stockGrams ?? 100000);
+    const newStock = currentStock + addedGrams;
+
+    await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+    await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
+  }
+
+  const purchaseLog = {
+    id: uid('p'),
+    invoiceNo,
+    vendor,
+    vendorPhone,
+    vendorGst,
+    itemName: rmName,
+    qty,
+    unit,
+    totalAmount,
+    rate: newRate,
+    staff: session.staff.username,
+    ts: Date.now()
+  };
+
+  DB.purchases.push(purchaseLog);
+  await db.ref('purchases').set(DB.purchases);
+}
+
+function renderKeepFocus(inputId) {
+  const activeEl = document.getElementById(inputId);
+  const start = activeEl ? activeEl.selectionStart : null;
+  const end = activeEl ? activeEl.selectionEnd : null;
+
+  render();
+
+  const el = document.getElementById(inputId);
+  if (el) {
+    el.focus();
+    if (start !== null && end !== null) el.setSelectionRange(start, end);
+  }
 }
 
 db.ref('menu').on('value', snap => {
