@@ -37,8 +37,7 @@
           gold: { DEFAULT:'#D4A359', 50:'#fbf6ee', 100:'#f5e8d2', 200:'#ebd0a4', 300:'#deb26f', 400:'#D4A359', 500:'#c68f3f', 600:'#a97432', 700:'#8a5b2a' },
           cream:'#F9F8F3',
           sheetHeader:'#ECE4D8',
-          billmaxBlue: '#005b82',
-          billmaxHeader: '#1a73a3'
+          posGreen: '#1b6b3b'
         },
         fontFamily: {
           display:['Fraunces','ui-serif','Georgia','serif'],
@@ -85,7 +84,7 @@ let DB = {
     { id:'u1', username:'admin', password:'admin123', role:'Admin' },
     { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
   ],
-  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit', 'EazyDiner']
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato']
 };
 
 const savedStaff = localStorage.getItem('ps_staff');
@@ -122,7 +121,7 @@ let session = {
   billingTable: '1',
   billingCustomerName: '',
   billingCustomerPhone: '',
-  billingPaymentMode: 'UPI',
+  billingPaymentMode: 'Cash',
   newCustomPayment: '',
   purchaseInvoiceNo: 'P/26-27/000016',
   purchaseVendor: '',
@@ -130,13 +129,21 @@ let session = {
   purchaseVendorGst: '',
   purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
   salesInvoiceNo: 'S/26-27/000290',
-  salesCustomerName: '',
-  salesCustomerPhone: '',
+  salesCustomerName: 'Walk-In Customer',
+  salesCustomerPhone: '9876543210',
   salesOrderType: 'Dine-In',
-  salesTableNo: '12',
-  salesItems: [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }],
-  salesPayments: [{ mode: 'Cash', amount: 0 }],
-  newSalesPaymentModeInput: '',
+  salesTableNo: 'Table 12',
+  salesGlobalSearchQuery: '',
+  salesItems: [
+    { id: 'item_1', barcode: '8906123456781', itemName: 'Blueberry Cheesecake', code: 'CAKE-BLUE-001', qty: 1, unit: 'Nos', rate: 320.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 15.24, netValue: 320.00 },
+    { id: 'item_2', barcode: '8906123456798', itemName: 'Iced Americano', code: 'BEV-ICE-002', qty: 2, unit: 'Nos', rate: 140.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 13.33, netValue: 280.00 },
+    { id: 'item_3', barcode: '8906123456804', itemName: 'Peri Peri Fries', code: 'SNK-003', qty: 1, unit: 'Nos', rate: 160.00, discPct: 0, discAmt: 0.00, gstGroup: '5%', gstAmt: 7.62, netValue: 160.00 }
+  ],
+  salesPayments: [
+    { mode: 'Cash', amount: 500.00 },
+    { mode: 'UPI', amount: 296.19 }
+  ],
+  splitPaymentEnabled: true,
   purchaseItemDiffWarning: null
 };
 
@@ -582,7 +589,7 @@ function kitchenShell() {
     ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
     ${session.showBaseRecipesModal ? baseRecipesModal() : ''}
     ${session.showMainRecipesModal ? mainRecipesModal() : ''}
-    ${session.showBillingModal ? billingModalBillmaxStyle() : ''}
+    ${session.showBillingModal ? billingModalReferenceStyle() : ''}
     ${session.showWastageModal ? wastageModal() : ''}
     ${session.showPurchaseModal ? purchaseModalBillmaxStyle() : ''}
     ${session.showStockTakeModal ? stockTakeModal() : ''}
@@ -1015,7 +1022,7 @@ function purchaseModalBillmaxStyle() {
   </div>`;
 }
 
-function billingModalBillmaxStyle() {
+function billingModalReferenceStyle() {
   const cart = session.salesItems || [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
   const payments = session.salesPayments || [{ mode: 'Cash', amount: 0 }];
   const totalLines = cart.length;
@@ -1024,173 +1031,295 @@ function billingModalBillmaxStyle() {
   const totalTax = cart.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
   const grandTotal = totalValue + totalTax;
   const totalPaid = payments.reduce((a, b) => a + Number(b.amount || 0), 0);
-  const payModes = DB.paymentModes || ['UPI', 'Cash', 'Swiggy', 'Zomato', 'Card', 'On Credit', 'R-Credit'];
+  const balanceDue = Math.max(0, grandTotal - totalPaid);
+  const changeDue = Math.max(0, totalPaid - grandTotal);
+  const payModes = DB.paymentModes || ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato'];
 
   return `
   <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[95vh] sm:max-w-[96vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-4 border-[#005b82]">
-      <!-- Header Bar -->
-      <div class="bg-[#005b82] text-white px-4 py-2.5 flex items-center justify-between shrink-0">
-        <h2 class="font-bold text-base tracking-wide flex items-center gap-2">Sales / POS Billing</h2>
-        <div class="text-sm font-semibold">Pure &amp; Sure Organic Cafe</div>
-        <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded font-bold flex items-center justify-center text-lg">✕</button>
+    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-2 border-[#105955]">
+      
+      <!-- Top Navigation & Title Bar matching reference image -->
+      <div class="bg-[#105955] text-white px-4 py-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
+            <span class="w-2.5 h-2.5 rounded-full bg-gold animate-pulse"></span>
+            <h2 class="font-bold text-sm tracking-wide">Sales / POS Billing</h2>
+          </div>
+          <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Cafe</span>
+        </div>
+        
+        <!-- Top Nav Menu Items -->
+        <div class="hidden md:flex items-center gap-5 text-xs font-semibold text-cream/90">
+          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
+          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
+          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="users" class="w-3.5 h-3.5"></i> Customers</button>
+          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
+          <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
+        </div>
+
+        <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
       </div>
 
-      <!-- Top Form Meta with Customer Name & Phone No -->
-      <div class="bg-[#e6decc] p-3 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0">
-        <div class="md:col-span-4 flex items-center gap-2">
-          <label class="font-bold text-slate-800 w-20 shrink-0">Customer</label>
-          <input id="salesCustomerNameInput" value="${session.salesCustomerName || ''}" placeholder="Walk-In Customer..." class="flex-1 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
+      <!-- Top Meta Bar: Customer, Mobile, Bill No, Date, Time -->
+      <div class="bg-white p-3 border-b border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
+        <div class="md:col-span-3 flex items-center gap-2">
+          <label class="font-bold text-slate-700 shrink-0">Customer</label>
+          <div class="relative flex-1">
+            <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium appearance-none">
+              <option value="Walk-In Customer" ${session.salesCustomerName === 'Walk-In Customer' ? 'selected' : ''}>Walk-In Customer</option>
+              <option value="Regular Member" ${session.salesCustomerName === 'Regular Member' ? 'selected' : ''}>Regular Member</option>
+            </select>
+          </div>
         </div>
         <div class="md:col-span-3 flex items-center gap-2">
-          <label class="font-bold text-slate-800 shrink-0">Phone No</label>
-          <input id="salesCustomerPhoneInput" value="${session.salesCustomerPhone || ''}" placeholder="10-digit mobile" class="w-full border border-slate-400 rounded px-2 py-1.5 bg-white">
+          <label class="font-bold text-slate-700 shrink-0">Mobile No</label>
+          <input id="salesCustomerPhoneInput" value="${session.salesCustomerPhone || '9876543210'}" placeholder="Mobile number" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-mono">
         </div>
-        <div class="md:col-span-5 flex items-center gap-2 justify-end">
-          <label class="font-bold text-slate-800 shrink-0">Doc No</label>
-          <input value="${session.salesInvoiceNo || 'S/26-27/290'}" class="w-28 border border-slate-400 rounded px-2 py-1.5 bg-white font-mono font-bold">
-          <label class="font-bold text-slate-800 shrink-0">Date</label>
-          <input type="date" value="2026-08-15" class="w-32 border border-slate-400 rounded px-2 py-1.5 bg-white font-medium">
+        <div class="md:col-span-2 flex items-center gap-2">
+          <label class="font-bold text-slate-700 shrink-0">Bill No</label>
+          <div class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono font-bold text-brand-950">
+            ${session.salesInvoiceNo || 'S/26-27/000290'}
+            <div class="text-[9px] text-slate-400 font-normal">Next: S/26-27/000291</div>
+          </div>
+        </div>
+        <div class="md:col-span-2 flex items-center gap-2">
+          <label class="font-bold text-slate-700 shrink-0">Date</label>
+          <input type="date" value="2026-08-15" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50 font-medium">
+        </div>
+        <div class="md:col-span-2 flex items-center gap-2">
+          <label class="font-bold text-slate-700 shrink-0">Time</label>
+          <input type="text" value="12:34 PM" readonly class="w-full border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50 font-mono text-center font-bold">
         </div>
       </div>
 
-      <!-- Main Item Grid Container (Table headers sit directly below top meta with no overlapping buttons) -->
-      <div class="flex-1 bg-white overflow-y-auto flex flex-col">
-        <table class="w-full text-left text-xs min-w-[900px] border-collapse">
-          <thead class="bg-[#005b82] text-white uppercase font-bold text-[10px] sticky top-0 z-20">
-            <tr>
-              <th class="p-2 border border-blue-900 w-10 text-center">#</th>
-              <th class="p-2 border border-blue-900 w-32">Barcode</th>
-              <th class="p-2 border border-blue-900 min-w-[240px]">Item Name (Select from Menu)</th>
-              <th class="p-2 border border-blue-900 text-center w-24">Quantity</th>
-              <th class="p-2 border border-blue-900 text-center w-20">UOM</th>
-              <th class="p-2 border border-blue-900 text-right w-24">Rate (₹)</th>
-              <th class="p-2 border border-blue-900 text-center w-20">Disc %</th>
-              <th class="p-2 border border-blue-900 text-right w-24">Disc Amt</th>
-              <th class="p-2 border border-blue-900 text-center w-20">GST</th>
-              <th class="p-2 border border-blue-900 text-right w-24">GST Amt</th>
-              <th class="p-2 border border-blue-900 text-right w-28">Net Value</th>
-              <th class="p-2 border border-blue-900 text-center w-12"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-200 font-medium">
-            ${cart.map((item, idx) => `
-              <tr class="hover:bg-slate-50">
-                <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
-                <td class="p-2 border border-slate-200">
-                  <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
-                </td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <input type="number" step="0.01" class="sales-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
-                </td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <select class="sales-item-unit w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                    <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
-                    <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
-                    <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                  </select>
-                </td>
-                <td class="p-2 border border-slate-200 text-right">
-                  <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
-                </td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
-                </td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <select class="sales-item-gst w-full border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                    <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
-                    <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
-                    <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
-                  </select>
-                </td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
-                <td class="p-2 border border-slate-200 text-center">
-                  ${cart.length > 1 ? `<button type="button" class="remove-sales-line text-red-500 hover:text-red-700 font-bold" data-idx="${idx}">✕</button>` : ''}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <!-- Global Search Bar / Barcode Scanner -->
+      <div class="bg-slate-100 p-2.5 border-b border-slate-200 flex items-center gap-3 shrink-0">
+        <div class="relative flex-1">
+          <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+        </div>
+        <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
 
-      <!-- Split Payment Modes Bar -->
-      <div class="p-2.5 bg-amber-50 border-t border-amber-200 flex items-center gap-2 flex-wrap shrink-0">
-        <span class="text-xs font-bold text-amber-900">Split Payment Modes:</span>
-        <div id="paymentSplitsContainer" class="flex items-center gap-1.5 flex-wrap">
-          ${payments.map((p, pIdx) => `
-            <div class="flex items-center gap-1 bg-white p-1 rounded border border-slate-300">
-              <select class="payment-mode-select text-xs border-0 font-bold text-slate-800 bg-transparent" data-idx="${pIdx}">
-                ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
-              </select>
-              <input type="number" step="0.01" class="payment-mode-amount w-20 text-xs border border-slate-300 rounded px-1.5 py-0.5 text-right font-mono font-bold" data-idx="${pIdx}" value="${p.amount}">
-              ${payments.length > 1 ? `<button type="button" class="remove-payment-line text-red-500 hover:text-red-700 font-bold text-xs px-1" data-idx="${pIdx}">✕</button>` : ''}
-            </div>
-          `).join('')}
-        </div>
-        <button type="button" id="addPaymentLineBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-1 rounded shadow">+ Add Split Line</button>
+      <!-- Main Layout Body: Dual Column (Left Table & Right Payment Sidebar) -->
+      <div class="flex-1 bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
         
-        <!-- Add Custom Payment Mode Input -->
-        <div class="flex items-center gap-1.5 bg-white p-1 rounded border border-slate-300 shadow-sm ml-auto">
-          <input id="newSalesPaymentModeInput" value="${session.newSalesPaymentModeInput || ''}" placeholder="New payment mode..." class="text-xs border border-slate-300 rounded px-2 py-0.5 bg-slate-50 w-36 font-medium">
-          <button type="button" id="addNewSalesPaymentModeBtn" class="bg-brand text-cream text-[11px] font-bold px-2.5 py-0.5 rounded shadow">+ Add Mode</button>
+        <!-- Left Column: Items Table & Remarks / Order Type -->
+        <div class="lg:col-span-8 flex flex-col border-r border-slate-200 overflow-hidden">
+          
+          <!-- Table Container -->
+          <div class="flex-1 overflow-y-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
+                <tr>
+                  <th class="p-2.5 border border-teal-900 w-10 text-center">#</th>
+                  <th class="p-2.5 border border-teal-900 min-w-[200px]">Item Name</th>
+                  <th class="p-2.5 border border-teal-900 w-32">Barcode</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-28">Qty</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-16">UOM</th>
+                  <th class="p-2.5 border border-teal-900 text-right w-24">Rate (₹)</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-16">Disc</th>
+                  <th class="p-2.5 border border-teal-900 text-right w-24">Disc Amt</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-16">GST</th>
+                  <th class="p-2.5 border border-teal-900 text-right w-24">GST Amt</th>
+                  <th class="p-2.5 border border-teal-900 text-right w-24">Amount</th>
+                  <th class="p-2.5 border border-teal-900 text-center w-16">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-medium">
+                ${cart.map((item, idx) => `
+                  <tr class="hover:bg-brand-50/30 transition">
+                    <td class="p-2.5 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
+                    <td class="p-2.5 border border-slate-200">
+                      <div class="font-bold text-slate-900">${item.itemName || 'Select Item'}</div>
+                      <div class="text-[10px] text-slate-400 font-mono">${item.code || 'CODE-001'}</div>
+                    </td>
+                    <td class="p-2.5 border border-slate-200 font-mono text-slate-600">${item.barcode || '—'}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">
+                      <div class="inline-flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
+                        <button type="button" class="sales-qty-dec px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">−</button>
+                        <input type="number" step="0.01" class="sales-item-qty w-12 text-center text-xs font-bold border-0 focus:outline-none bg-transparent" data-idx="${idx}" value="${item.qty}">
+                        <button type="button" class="sales-qty-inc px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">+</button>
+                      </div>
+                    </td>
+                    <td class="p-2.5 border border-slate-200 text-center text-slate-600">${item.unit || 'Nos'}</td>
+                    <td class="p-2.5 border border-slate-200 text-right font-mono font-semibold">${Number(item.rate || 0).toFixed(2)}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">${item.discPct || 0}</td>
+                    <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">${item.gstGroup || '5%'}</td>
+                    <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
+                    <td class="p-2.5 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">
+                      <div class="flex items-center justify-center gap-1.5">
+                        <button type="button" class="text-blue-600 hover:text-blue-800 p-1" title="Edit"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                        <button type="button" class="remove-sales-line text-red-500 hover:text-red-700 p-1" title="Delete" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Table Footer / Cart Controls -->
+          <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+            <button type="button" id="clearSalesCartBtn" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Cart
+            </button>
+            <div class="flex items-center gap-4 text-xs font-bold text-slate-700">
+              <span>Total Items: <span class="text-brand-900">${totalLines}</span></span>
+              <span>Total Qty: <span class="text-brand-900">${totalQty.toFixed(2)}</span></span>
+            </div>
+          </div>
+
+          <!-- Bottom Left: Remarks & Order Type / Table -->
+          <div class="p-3 bg-cream border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+            <div>
+              <label class="text-[11px] font-bold text-slate-700 uppercase block mb-1">Remarks</label>
+              <textarea id="salesRemarksInput" placeholder="Order remarks..." rows="2" class="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white focus:outline-none"></textarea>
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] font-bold text-slate-700 uppercase">Order Type / Table</label>
+                <select id="salesTableSelect" class="border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold bg-white">
+                  <option ${session.salesTableNo === 'Table 12' ? 'selected' : ''}>Table 12</option>
+                  <option ${session.salesTableNo === 'Table 01' ? 'selected' : ''}>Table 01</option>
+                  <option ${session.salesTableNo === 'Table 02' ? 'selected' : ''}>Table 02</option>
+                  <option ${session.salesTableNo === 'Takeaway' ? 'selected' : ''}>Takeaway</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Dine-In' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
+                  <i data-lucide="coffee" class="w-3.5 h-3.5"></i> Dine-In
+                </button>
+                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Takeaway' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
+                  <i data-lucide="shopping-bag" class="w-3.5 h-3.5"></i> Takeaway
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Payment Mode Cards & Split Payment Sidebar -->
+        <div class="lg:col-span-4 bg-slate-50 p-4 flex flex-col justify-between overflow-y-auto">
+          <div class="space-y-4">
+            <div>
+              <div class="text-xs font-bold text-slate-800 uppercase mb-2">Payment Mode</div>
+              <div class="grid grid-cols-5 gap-2">
+                ${payModes.map(mode => `
+                  <button type="button" class="quick-pay-card-btn p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition shadow-sm ${payments.some(p=>p.mode===mode && p.amount>0) ? 'bg-posGreen text-white border-posGreen' : 'bg-white text-slate-800 border-slate-200 hover:border-brand-500'}" data-mode="${mode}">
+                    <i data-lucide="${mode==='Cash'?'banknote':mode==='UPI'?'qr-code':mode==='Card'?'credit-card':'utensils'}" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-bold">${mode}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Split Payment Section -->
+            <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-800 uppercase">Split Payment</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="toggleSplitPayment" value="" class="sr-only peer" ${session.splitPaymentEnabled ? 'checked' : ''}>
+                  <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-posGreen"></div>
+                </label>
+              </div>
+
+              <div class="space-y-2">
+                <div class="text-[10px] font-bold text-slate-400 uppercase grid grid-cols-12 gap-1 px-1">
+                  <span class="col-span-7">Mode</span>
+                  <span class="col-span-4 text-right">Amount (₹)</span>
+                  <span class="col-span-1"></span>
+                </div>
+                <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  ${payments.map((p, pIdx) => `
+                    <div class="grid grid-cols-12 gap-1.5 items-center bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                      <select class="payment-mode-select col-span-7 text-xs border border-slate-300 rounded-lg p-1.5 font-bold bg-white text-slate-800" data-idx="${pIdx}">
+                        ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
+                      </select>
+                      <input type="number" step="0.01" class="payment-mode-amount col-span-4 text-xs border border-slate-300 rounded-lg p-1.5 text-right font-mono font-bold bg-white" data-idx="${pIdx}" value="${p.amount}">
+                      <button type="button" class="remove-payment-line col-span-1 text-red-500 hover:text-red-700 font-bold text-center" data-idx="${pIdx}">✕</button>
+                    </div>
+                  `).join('')}
+                </div>
+                <button type="button" id="addPaymentLineBtn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 rounded-xl text-xs transition">+ Add Payment Mode</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Financial Totals Summary Sidebar Box -->
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2 mt-4">
+            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
+              <span>Sub Total</span>
+              <span class="font-mono">${money(totalValue)}</span>
+            </div>
+            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
+              <span>Discount</span>
+              <span class="font-mono text-emerald-600">₹0.00</span>
+            </div>
+            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
+              <span>Taxable Amount</span>
+              <span class="font-mono">${money(totalValue)}</span>
+            </div>
+            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
+              <span>Total GST</span>
+              <span class="font-mono">${money(totalTax)}</span>
+            </div>
+            <div class="flex justify-between text-sm font-bold text-white bg-posGreen p-2.5 rounded-xl shadow-sm">
+              <span>Grand Total (₹)</span>
+              <span class="font-mono text-base">${money(grandTotal)}</span>
+            </div>
+
+            <div class="space-y-1.5 pt-2 text-xs font-bold">
+              <div class="flex justify-between text-slate-800">
+                <span>Total Paid</span>
+                <span class="font-mono text-green-700">${money(totalPaid)}</span>
+              </div>
+              <div class="flex justify-between text-slate-800">
+                <span>Balance Due</span>
+                <span class="font-mono text-red-600">${money(balanceDue)}</span>
+              </div>
+              <div class="flex justify-between text-slate-800 border-t border-slate-100 pt-1">
+                <span>Change Due</span>
+                <span class="font-mono text-blue-700">${money(changeDue)}</span>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <datalist id="menuItemsList">
-        ${DB.menu.map(m => `<option value="${m.name}">`).join('')}
-      </datalist>
+      <!-- Bottom Action Toolbar matching reference image -->
+      <div class="bg-[#10344a] p-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        <div class="flex items-center gap-2">
+          <button id="completeSalesBillBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
+            <i data-lucide="printer" class="w-4 h-4"></i> Complete &amp; Print (F9)
+          </button>
+          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i> Save Draft (F5)
+          </button>
+          <button id="closeBillingModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Clear (F4)
+          </button>
+        </div>
 
-      <!-- Remarks & Footer Meta Bar -->
-      <div class="bg-[#e6decc] p-2 border-t border-slate-300 flex items-center gap-3 text-xs shrink-0">
-        <label class="font-bold text-slate-800">Remarks</label>
-        <input id="salesRemarksInput" placeholder="Order remarks..." class="flex-1 border border-slate-400 rounded px-2 py-1 bg-white">
-        <label class="font-bold text-slate-800">Total Paid:</label>
-        <span class="font-mono font-bold text-green-700 text-sm">${money(totalPaid)}</span>
-        <label class="font-bold text-slate-800">Balance Due:</label>
-        <span class="font-mono font-bold text-red-600 text-sm">${money(Math.max(0, grandTotal - totalPaid))}</span>
-      </div>
-
-      <!-- Financial Totals Summary Boxes Bar -->
-      <div class="bg-[#f2edd9] p-2 border-t border-slate-400 grid grid-cols-6 gap-2 text-xs shrink-0">
-        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">Billing Address</span>
-          <span class="font-semibold text-slate-800 truncate">Dining Area</span>
-        </div>
-        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Lines</span>
-          <span class="font-bold text-base text-slate-900">${totalLines}</span>
-        </div>
-        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-center">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Qty</span>
-          <span class="font-bold text-base text-brand-700">${totalQty.toFixed(2)}</span>
-        </div>
-        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Value</span>
-          <span class="font-bold text-base font-mono text-slate-900">${money(totalValue)}</span>
-        </div>
-        <div class="bg-white border border-slate-400 rounded p-1.5 flex flex-col justify-center text-right">
-          <span class="text-[10px] font-bold text-slate-500 uppercase">Total Tax (5%)</span>
-          <span class="font-bold text-base font-mono text-slate-900">${money(totalTax)}</span>
-        </div>
-        <div class="bg-[#005b82] text-white border border-blue-900 rounded p-1.5 flex flex-col justify-center text-right">
-          <span class="text-[10px] font-bold text-blue-200 uppercase">Net Value</span>
-          <span class="font-bold text-lg font-mono text-gold-300">${money(grandTotal)}</span>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[11px] font-bold text-cream/70 mr-1">Quick Payment:</span>
+          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="500">₹500</button>
+          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="1000">₹1000</button>
+          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="2000">₹2000</button>
+          <button type="button" class="bg-white/20 hover:bg-white/30 text-cream text-xs font-bold px-3 py-2 rounded-lg">Other</button>
         </div>
       </div>
 
-      <!-- Bottom Billmaxo Style POS Toolbar -->
-      <div class="bg-[#10344a] p-2 flex items-center justify-between gap-1 overflow-x-auto scrollbar-none shrink-0">
-        <div class="flex items-center gap-1.5 shrink-0">
-          <button id="completeSalesBillBtn" class="bg-[#005b82] hover:bg-[#1a73a3] text-white font-bold px-4 py-2 rounded flex items-center gap-1 text-xs shadow"><i data-lucide="check-circle" class="w-4 h-4"></i> Complete &amp; Print</button>
-          <button id="closeBillingModalBtn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded text-xs">Clear</button>
-        </div>
-        <div class="flex items-center gap-1 shrink-0 text-white text-[11px] font-bold">
-          ${payModes.map((mode, i) => `<span class="bg-blue-900 px-2 py-1.5 rounded">${i+1}.${mode}</span>`).join('')}
-        </div>
+      <!-- Bottom Status Bar -->
+      <div class="bg-brand-950 text-cream/70 px-4 py-1.5 flex items-center justify-between text-[11px] font-medium shrink-0">
+        <div class="flex items-center gap-2"><i data-lucide="user" class="w-3 h-3 text-gold-400"></i> Cashier: <span class="text-white font-bold">${session.staff ? session.staff.username : 'Wilson'}</span></div>
+        <div class="flex items-center gap-2"><i data-lucide="monitor" class="w-3 h-3 text-gold-400"></i> Terminal: <span class="text-white font-bold">POS-01</span></div>
+        <div class="flex items-center gap-2"><i data-lucide="wallet" class="w-3 h-3 text-gold-400"></i> Opening Balance: <span class="text-gold-300 font-mono font-bold">₹2,000.00</span></div>
       </div>
+
     </div>
   </div>`;
 }
@@ -2401,43 +2530,63 @@ function wireKitchen() {
 
   /* SALES WIRING WITH AUTO-NEW-LINE & INSTANT RECALC */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
-  if (salesCustomerNameInput) salesCustomerNameInput.oninput = (e) => { session.salesCustomerName = e.target.value; };
+  if (salesCustomerNameInput) salesCustomerNameInput.onchange = (e) => { session.salesCustomerName = e.target.value; };
 
   const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
   if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
 
-  document.querySelectorAll('.sales-item-barcode').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.salesItems[idx]) session.salesItems[idx].barcode = e.target.value;
+  const globalSalesSearchInput = document.getElementById('globalSalesSearchInput');
+  if (globalSalesSearchInput) {
+    globalSalesSearchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const query = globalSalesSearchInput.value.toLowerCase().trim();
+        const found = DB.menu.find(m => m.name.toLowerCase().includes(query));
+        if (found) {
+          const lastItem = session.salesItems[session.salesItems.length - 1];
+          if (!lastItem.itemName) {
+            lastItem.itemName = found.name;
+            lastItem.code = 'CAKE-001';
+            lastItem.barcode = '8906123456781';
+            lastItem.rate = found.price || 0;
+            lastItem.netValue = found.price || 0;
+            lastItem.gstAmt = (found.price || 0) * 0.05;
+          } else {
+            session.salesItems.push({ barcode: '8906123456782', itemName: found.name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: found.price || 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: (found.price || 0) * 0.05, netValue: found.price || 0 });
+          }
+          session.salesGlobalSearchQuery = '';
+          renderKeepFocus('globalSalesSearchInput');
+        } else {
+          toast('Item not found in menu.', 'alert-triangle');
+        }
+      }
+    };
+  }
+
+  document.querySelectorAll('.sales-qty-inc').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty += 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
     };
   });
 
-  document.querySelectorAll('.sales-item-name').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      const val = e.target.value;
-      if (session.salesItems[idx]) {
-        session.salesItems[idx].itemName = val;
-        const found = DB.menu.find(m => m.name.toLowerCase() === val.toLowerCase().trim());
-        if (found) {
-          session.salesItems[idx].rate = found.price || 0;
-          const q = Number(session.salesItems[idx].qty || 1);
-          const r = Number(found.price || 0);
-          const dp = Number(session.salesItems[idx].discPct || 0);
-          const da = (q * r) * (dp / 100);
-          session.salesItems[idx].discAmt = da;
-          const net = (q * r) - da;
-          session.salesItems[idx].netValue = net;
-          const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
-          session.salesItems[idx].gstAmt = net * (gstRate / 100);
-
-          if (idx === session.salesItems.length - 1 && val.trim().length > 0) {
-            session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
-            renderKeepFocus('salesCustomerNameInput');
-            return;
-          }
-        }
+  document.querySelectorAll('.sales-qty-dec').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx] && session.salesItems[idx].qty > 1) {
+        session.salesItems[idx].qty -= 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
       }
     };
   });
@@ -2449,74 +2598,44 @@ function wireKitchen() {
         session.salesItems[idx].qty = Number(e.target.value) || 0;
         const q = Number(session.salesItems[idx].qty || 0);
         const r = Number(session.salesItems[idx].rate || 0);
-        const dp = Number(session.salesItems[idx].discPct || 0);
-        const da = (q * r) * (dp / 100);
-        session.salesItems[idx].discAmt = da;
-        const net = (q * r) - da;
-        session.salesItems[idx].netValue = net;
-        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
-        session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerNameInput');
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
       }
     };
   });
 
-  document.querySelectorAll('.sales-item-rate').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.salesItems[idx]) {
-        session.salesItems[idx].rate = Number(e.target.value) || 0;
-        const q = Number(session.salesItems[idx].qty || 0);
-        const r = Number(session.salesItems[idx].rate || 0);
-        const dp = Number(session.salesItems[idx].discPct || 0);
-        const da = (q * r) * (dp / 100);
-        session.salesItems[idx].discAmt = da;
-        const net = (q * r) - da;
-        session.salesItems[idx].netValue = net;
-        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
-        session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerNameInput');
-      }
+  document.querySelectorAll('.remove-sales-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesItems.splice(idx, 1);
+      renderKeepFocus('globalSalesSearchInput');
     };
   });
 
-  document.querySelectorAll('.sales-item-disc-pct').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.salesItems[idx]) {
-        session.salesItems[idx].discPct = Number(e.target.value) || 0;
-        const q = Number(session.salesItems[idx].qty || 0);
-        const r = Number(session.salesItems[idx].rate || 0);
-        const dp = Number(session.salesItems[idx].discPct || 0);
-        const da = (q * r) * (dp / 100);
-        session.salesItems[idx].discAmt = da;
-        const net = (q * r) - da;
-        session.salesItems[idx].netValue = net;
-        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
-        session.salesItems[idx].gstAmt = net * (gstRate / 100);
-        renderKeepFocus('salesCustomerNameInput');
-      }
+  const clearSalesCartBtn = document.getElementById('clearSalesCartBtn');
+  if (clearSalesCartBtn) {
+    clearSalesCartBtn.onclick = () => {
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      renderKeepFocus('globalSalesSearchInput');
     };
-  });
-
-  /* PAYMENT SPLIT WIRING & CUSTOM EDITABLE MODE */
-  const newSalesPaymentModeInput = document.getElementById('newSalesPaymentModeInput');
-  if (newSalesPaymentModeInput) {
-    newSalesPaymentModeInput.oninput = (e) => { session.newSalesPaymentModeInput = e.target.value; };
   }
 
-  const addNewSalesPaymentModeBtn = document.getElementById('addNewSalesPaymentModeBtn');
-  if (addNewSalesPaymentModeBtn) {
-    addNewSalesPaymentModeBtn.onclick = async () => {
-      const modeName = (session.newSalesPaymentModeInput || '').trim();
-      if (!modeName) { toast('Enter a valid payment mode name.', 'alert-triangle'); return; }
-      if (!DB.paymentModes.includes(modeName)) {
-        DB.paymentModes.push(modeName);
-        session.newSalesPaymentModeInput = '';
-        await db.ref('paymentModes').set(DB.paymentModes);
-        toast(`Added payment mode: ${modeName}`, 'check-circle');
-        renderKeepFocus('salesCustomerNameInput');
-      }
+  /* QUICK PAYMENT CARDS */
+  document.querySelectorAll('.quick-pay-card-btn').forEach(btn => {
+    btn.onclick = () => {
+      const mode = btn.dataset.mode;
+      const grandTotal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode, amount: grandTotal }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const toggleSplitPayment = document.getElementById('toggleSplitPayment');
+  if (toggleSplitPayment) {
+    toggleSplitPayment.onchange = (e) => {
+      session.splitPaymentEnabled = e.target.checked;
+      renderKeepFocus('globalSalesSearchInput');
     };
   }
 
@@ -2528,22 +2647,11 @@ function wireKitchen() {
   });
 
   document.querySelectorAll('.payment-mode-amount').forEach(inp => {
-    inp.onfocus = () => {
-      const idx = Number(inp.dataset.idx);
-      const currentPaid = session.salesPayments.reduce((a, p, pIdx) => pIdx !== idx ? a + Number(p.amount || 0) : a, 0);
-      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
-      const remaining = Math.max(0, totalVal - currentPaid);
-      if (Number(inp.value || 0) === 0) {
-        session.salesPayments[idx].amount = remaining;
-        renderKeepFocus('salesCustomerNameInput');
-      }
-    };
-
     inp.oninput = (e) => {
       const idx = Number(inp.dataset.idx);
       if (session.salesPayments[idx]) {
         session.salesPayments[idx].amount = Number(e.target.value) || 0;
-        renderKeepFocus('salesCustomerNameInput');
+        renderKeepFocus('globalSalesSearchInput');
       }
     };
   });
@@ -2555,8 +2663,8 @@ function wireKitchen() {
       const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
       const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
       const remaining = Math.max(0, totalVal - currentPaid);
-      session.salesPayments.push({ mode: DB.paymentModes[0] || 'UPI', amount: remaining });
-      renderKeepFocus('salesCustomerNameInput');
+      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      renderKeepFocus('globalSalesSearchInput');
     };
   }
 
@@ -2564,7 +2672,7 @@ function wireKitchen() {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
       session.salesPayments.splice(idx, 1);
-      renderKeepFocus('salesCustomerNameInput');
+      renderKeepFocus('globalSalesSearchInput');
     };
   });
 
@@ -2573,17 +2681,9 @@ function wireKitchen() {
     addSalesLineBtn.onclick = () => {
       if (!session.salesItems) session.salesItems = [];
       session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
-      renderKeepFocus('salesCustomerNameInput');
+      renderKeepFocus('globalSalesSearchInput');
     };
   }
-
-  document.querySelectorAll('.remove-sales-line').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      session.salesItems.splice(idx, 1);
-      renderKeepFocus('salesCustomerNameInput');
-    };
-  });
 
   const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
   if (completeSalesBillBtn) {
@@ -2600,8 +2700,8 @@ function wireKitchen() {
 
       const newOrder = {
         id: orderId,
-        table: 'Counter',
-        type: 'manual',
+        table: session.salesTableNo || 'Table 12',
+        type: session.salesOrderType === 'Takeaway' ? 'retail' : 'cafe',
         customerName: session.salesCustomerName || 'Walk-In Customer',
         customerPhone: session.salesCustomerPhone || '',
         items: cartFormatted,
@@ -2620,8 +2720,8 @@ function wireKitchen() {
       toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
       session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
       session.salesPayments = [{ mode: 'Cash', amount: 0 }];
-      session.salesCustomerName = '';
-      session.salesCustomerPhone = '';
+      session.salesCustomerName = 'Walk-In Customer';
+      session.salesCustomerPhone = '9876543210';
       session.showBillingModal = false;
       render();
     };
@@ -2637,7 +2737,7 @@ function wireKitchen() {
   };
 
   const closeBillBtn = document.getElementById('closeBillingModalBtn');
-  if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; render(); };
+  if (closeBillBtn) closeBillingModalBtn.onclick = () => { session.showBillingModal = false; render(); };
 
   const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
   if (openPurchaseBtn) openPurchaseBtn.onclick = () => { 
