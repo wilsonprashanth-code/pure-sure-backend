@@ -112,7 +112,7 @@ let session = {
   showRawMaterialsModal: false,
   showBaseRecipesModal: false,
   showMainRecipesModal: false,
-  showBillingModal: false,
+  showBillingModal: localStorage.getItem('ps_show_billing') === 'true',
   showWastageModal: false,
   showPurchaseModal: false,
   showStockTakeModal: false,
@@ -884,11 +884,11 @@ function billingModalReferenceStyle() {
         
         <!-- Active Nav Tabs -->
         <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Customers</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
+          <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
+          <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
+          <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Customers</button>
+          <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
+          <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
         </div>
 
         <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
@@ -1198,11 +1198,11 @@ function purchaseModalReferenceStyle() {
         
         <!-- Active Nav Tabs -->
         <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Purchase List</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Suppliers</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
+          <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
+          <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Purchase List</button>
+          <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Suppliers</button>
+          <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
+          <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
         </div>
 
         <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
@@ -1550,7 +1550,7 @@ function wastageModal() {
         <div class="space-y-2">
           <div class="text-xs font-bold text-brand-900 uppercase">Recent Wastage History (${DB.wastageLogs.length})</div>
           <div class="space-y-1.5 max-h-48 overflow-y-auto">
-            ${DB.wastageLogs.slice(-10).reverse().map(log => `
+            ${DB.wastageLogs.log?.slice(-10).reverse().map(log => `
               <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs flex justify-between items-center">
                 <div>
                   <div class="font-bold text-red-700">${log.qty} ${log.unit} of ${log.item}</div>
@@ -2557,6 +2557,7 @@ function wireKitchen() {
   if (openBillBtn) {
     openBillBtn.onclick = () => { 
       session.showBillingModal = true; 
+      localStorage.setItem('ps_show_billing', 'true');
       const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
       session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
       render(); 
@@ -2567,6 +2568,7 @@ function wireKitchen() {
   if (openPurchaseBtn) {
     openPurchaseBtn.onclick = () => { 
       session.showPurchaseModal = true; 
+      localStorage.setItem('ps_show_purchase', 'true');
       render(); 
     };
   }
@@ -2853,15 +2855,28 @@ function wireKitchen() {
       session.salesCustomerName = 'Walk-In Customer';
       session.salesCustomerPhone = '9876543210';
       session.showBillingModal = false;
+      localStorage.removeItem('ps_show_billing');
       render();
     };
   }
 
   const closeBillingModalBtn = document.getElementById('closeBillingModalBtn');
-  if (closeBillingModalBtn) closeBillingModalBtn.onclick = () => { session.showBillingModal = false; render(); };
+  if (closeBillingModalBtn) {
+    closeBillingModalBtn.onclick = () => { 
+      session.showBillingModal = false; 
+      localStorage.removeItem('ps_show_billing');
+      render(); 
+    };
+  }
 
   const closePurchaseModalBtn = document.getElementById('closePurchaseModalBtn');
-  if (closePurchaseModalBtn) closePurchaseModalBtn.onclick = () => { session.showPurchaseModal = false; render(); };
+  if (closePurchaseModalBtn) {
+    closePurchaseModalBtn.onclick = () => { 
+      session.showPurchaseModal = false; 
+      localStorage.removeItem('ps_show_purchase');
+      render(); 
+    };
+  }
 
   const closeStockTakeModalBtn = document.getElementById('closeStockTakeModalBtn');
   if (closeStockTakeModalBtn) closeStockTakeModalBtn.onclick = () => { session.showStockTakeModal = false; render(); };
@@ -2912,6 +2927,7 @@ function wireKitchen() {
     validatePurchaseBtn.onclick = async () => {
       toast('Purchase entry saved successfully!', 'check-circle');
       session.showPurchaseModal = false;
+      localStorage.removeItem('ps_show_purchase');
       render();
     };
   }
