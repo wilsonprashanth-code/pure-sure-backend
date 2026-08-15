@@ -1036,21 +1036,21 @@ function billingModalReferenceStyle() {
   const payModes = DB.paymentModes || ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato'];
 
   return `
-  <div class="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-xl flex flex-col overflow-hidden shadow-2xl border-2 border-[#105955]">
+  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
+    <div class="modal-fade bg-[#f2edd9] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       
-      <!-- Top Navigation & Title Bar matching reference image -->
-      <div class="bg-[#105955] text-white px-4 py-3 flex items-center justify-between shrink-0">
+      <!-- Top Title Header matching reference image -->
+      <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
         <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg">
-            <span class="w-2.5 h-2.5 rounded-full bg-gold animate-pulse"></span>
-            <h2 class="font-bold text-sm tracking-wide">Sales / POS Billing</h2>
+          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h2 class="font-bold text-sm tracking-wide text-white">Sales / POS Billing</h2>
           </div>
           <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Cafe</span>
         </div>
         
-        <!-- Top Nav Menu Items -->
-        <div class="hidden md:flex items-center gap-5 text-xs font-semibold text-cream/90">
+        <!-- Top Nav Menu Items matching reference image -->
+        <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
           <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
           <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
           <button class="flex items-center gap-1.5 hover:text-white"><i data-lucide="users" class="w-3.5 h-3.5"></i> Customers</button>
@@ -1062,11 +1062,11 @@ function billingModalReferenceStyle() {
       </div>
 
       <!-- Top Meta Bar: Customer, Mobile, Bill No, Date, Time -->
-      <div class="bg-white p-3 border-b border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
+      <div class="bg-white p-3.5 border-b border-slate-300 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
         <div class="md:col-span-3 flex items-center gap-2">
           <label class="font-bold text-slate-700 shrink-0">Customer</label>
           <div class="relative flex-1">
-            <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium appearance-none">
+            <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium">
               <option value="Walk-In Customer" ${session.salesCustomerName === 'Walk-In Customer' ? 'selected' : ''}>Walk-In Customer</option>
               <option value="Regular Member" ${session.salesCustomerName === 'Regular Member' ? 'selected' : ''}>Regular Member</option>
             </select>
@@ -1094,21 +1094,21 @@ function billingModalReferenceStyle() {
       </div>
 
       <!-- Global Search Bar / Barcode Scanner -->
-      <div class="bg-slate-100 p-2.5 border-b border-slate-200 flex items-center gap-3 shrink-0">
+      <div class="bg-[#f2edd9] p-3 border-b border-slate-300 flex items-center gap-3 shrink-0">
         <div class="relative flex-1">
           <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
         </div>
-        <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
+        <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
 
-      <!-- Main Layout Body: Dual Column (Left Table & Right Payment Sidebar) -->
+      <!-- Main Dual-Column Layout Body -->
       <div class="flex-1 bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
         
-        <!-- Left Column: Items Table & Remarks / Order Type -->
-        <div class="lg:col-span-8 flex flex-col border-r border-slate-200 overflow-hidden">
+        <!-- Left Column: Items Table & Footer Elements -->
+        <div class="lg:col-span-8 flex flex-col border-r border-slate-200 overflow-hidden bg-white">
           
-          <!-- Table Container -->
+          <!-- Scrollable Table -->
           <div class="flex-1 overflow-y-auto">
             <table class="w-full text-left text-xs border-collapse">
               <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
@@ -1129,13 +1129,12 @@ function billingModalReferenceStyle() {
               </thead>
               <tbody class="divide-y divide-slate-100 font-medium">
                 ${cart.map((item, idx) => `
-                  <tr class="hover:bg-brand-50/30 transition">
+                  <tr class="hover:bg-brand-50/20 transition">
                     <td class="p-2.5 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
                     <td class="p-2.5 border border-slate-200">
-                      <div class="font-bold text-slate-900">${item.itemName || 'Select Item'}</div>
-                      <div class="text-[10px] text-slate-400 font-mono">${item.code || 'CODE-001'}</div>
+                      <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
                     </td>
-                    <td class="p-2.5 border border-slate-200 font-mono text-slate-600">${item.barcode || '—'}</td>
+                    <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
                     <td class="p-2.5 border border-slate-200 text-center">
                       <div class="inline-flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
                         <button type="button" class="sales-qty-dec px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">−</button>
@@ -1143,11 +1142,27 @@ function billingModalReferenceStyle() {
                         <button type="button" class="sales-qty-inc px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">+</button>
                       </div>
                     </td>
-                    <td class="p-2.5 border border-slate-200 text-center text-slate-600">${item.unit || 'Nos'}</td>
-                    <td class="p-2.5 border border-slate-200 text-right font-mono font-semibold">${Number(item.rate || 0).toFixed(2)}</td>
-                    <td class="p-2.5 border border-slate-200 text-center">${item.discPct || 0}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">
+                      <select class="sales-item-unit border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                        <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                        <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                        <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                      </select>
+                    </td>
+                    <td class="p-2.5 border border-slate-200 text-right">
+                      <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
+                    </td>
+                    <td class="p-2.5 border border-slate-200 text-center">
+                      <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
+                    </td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                    <td class="p-2.5 border border-slate-200 text-center">${item.gstGroup || '5%'}</td>
+                    <td class="p-2.5 border border-slate-200 text-center">
+                      <select class="sales-item-gst border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                        <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                        <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                        <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                      </select>
+                    </td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
                     <td class="p-2.5 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
                     <td class="p-2.5 border border-slate-200 text-center">
@@ -1162,19 +1177,23 @@ function billingModalReferenceStyle() {
             </table>
           </div>
 
-          <!-- Table Footer / Cart Controls -->
+          <datalist id="menuItemsList">
+            ${DB.menu.map(m => `<option value="${m.name}">`).join('')}
+          </datalist>
+
+          <!-- Table Bottom Bar: Clear Cart & Totals -->
           <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
             <button type="button" id="clearSalesCartBtn" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Cart
             </button>
-            <div class="flex items-center gap-4 text-xs font-bold text-slate-700">
-              <span>Total Items: <span class="text-brand-900">${totalLines}</span></span>
-              <span>Total Qty: <span class="text-brand-900">${totalQty.toFixed(2)}</span></span>
+            <div class="flex items-center gap-5 text-xs font-bold text-slate-700">
+              <span>Total Items: <span class="text-brand-900 font-mono">${totalLines}</span></span>
+              <span>Total Qty: <span class="text-brand-900 font-mono">${totalQty.toFixed(2)}</span></span>
             </div>
           </div>
 
-          <!-- Bottom Left: Remarks & Order Type / Table -->
-          <div class="p-3 bg-cream border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
+          <!-- Remarks & Order Type / Table Section -->
+          <div class="p-3.5 bg-cream border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
             <div>
               <label class="text-[11px] font-bold text-slate-700 uppercase block mb-1">Remarks</label>
               <textarea id="salesRemarksInput" placeholder="Order remarks..." rows="2" class="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white focus:outline-none"></textarea>
@@ -1201,8 +1220,8 @@ function billingModalReferenceStyle() {
           </div>
         </div>
 
-        <!-- Right Column: Payment Mode Cards & Split Payment Sidebar -->
-        <div class="lg:col-span-4 bg-slate-50 p-4 flex flex-col justify-between overflow-y-auto">
+        <!-- Right Column: Payment Sidebar matching reference design -->
+        <div class="lg:col-span-4 bg-[#f8fafc] p-4 flex flex-col justify-between overflow-y-auto">
           <div class="space-y-4">
             <div>
               <div class="text-xs font-bold text-slate-800 uppercase mb-2">Payment Mode</div>
@@ -1216,7 +1235,7 @@ function billingModalReferenceStyle() {
               </div>
             </div>
 
-            <!-- Split Payment Section -->
+            <!-- Split Payment Sidebar Section -->
             <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-800 uppercase">Split Payment</span>
@@ -1248,8 +1267,8 @@ function billingModalReferenceStyle() {
             </div>
           </div>
 
-          <!-- Financial Totals Summary Sidebar Box -->
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2 mt-4">
+          <!-- Financial Totals Summary Sidebar Box matching reference image -->
+          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5 mt-4">
             <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
               <span>Sub Total</span>
               <span class="font-mono">${money(totalValue)}</span>
@@ -1271,18 +1290,18 @@ function billingModalReferenceStyle() {
               <span class="font-mono text-base">${money(grandTotal)}</span>
             </div>
 
-            <div class="space-y-1.5 pt-2 text-xs font-bold">
+            <div class="space-y-2 pt-2 text-xs font-bold border-t border-slate-200">
               <div class="flex justify-between text-slate-800">
                 <span>Total Paid</span>
-                <span class="font-mono text-green-700">${money(totalPaid)}</span>
+                <span class="font-mono text-green-700 text-sm">${money(totalPaid)}</span>
               </div>
               <div class="flex justify-between text-slate-800">
                 <span>Balance Due</span>
-                <span class="font-mono text-red-600">${money(balanceDue)}</span>
+                <span class="font-mono text-red-600 text-sm">${money(balanceDue)}</span>
               </div>
-              <div class="flex justify-between text-slate-800 border-t border-slate-100 pt-1">
+              <div class="flex justify-between text-slate-800 border-t border-slate-100 pt-1.5">
                 <span>Change Due</span>
-                <span class="font-mono text-blue-700">${money(changeDue)}</span>
+                <span class="font-mono text-blue-700 text-sm">${money(changeDue)}</span>
               </div>
             </div>
           </div>
@@ -1315,7 +1334,7 @@ function billingModalReferenceStyle() {
 
       <!-- Bottom Status Bar -->
       <div class="bg-brand-950 text-cream/70 px-4 py-1.5 flex items-center justify-between text-[11px] font-medium shrink-0">
-        <div class="flex items-center gap-2"><i data-lucide="user" class="w-3 h-3 text-gold-400"></i> Cashier: <span class="text-white font-bold">${session.staff ? session.staff.username : 'Wilson'}</span></div>
+        <div class="flex items-center gap-2"><i data-lucide="user" class="w-3 h-3 text-gold-400"></i> Cashier: <span class="text-white font-bold">${session.staff ? session.staff.username : 'admin'}</span></div>
         <div class="flex items-center gap-2"><i data-lucide="monitor" class="w-3 h-3 text-gold-400"></i> Terminal: <span class="text-white font-bold">POS-01</span></div>
         <div class="flex items-center gap-2"><i data-lucide="wallet" class="w-3 h-3 text-gold-400"></i> Opening Balance: <span class="text-gold-300 font-mono font-bold">₹2,000.00</span></div>
       </div>
@@ -2663,7 +2682,7 @@ function wireKitchen() {
       const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
       const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
       const remaining = Math.max(0, totalVal - currentPaid);
-      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      session.salesPayments.push({ mode: DB.paymentModes[0] || 'UPI', amount: remaining });
       renderKeepFocus('globalSalesSearchInput');
     };
   }
@@ -2737,7 +2756,7 @@ function wireKitchen() {
   };
 
   const closeBillBtn = document.getElementById('closeBillingModalBtn');
-  if (closeBillBtn) closeBillingModalBtn.onclick = () => { session.showBillingModal = false; render(); };
+  if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; render(); };
 
   const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
   if (openPurchaseBtn) openPurchaseBtn.onclick = () => { 
