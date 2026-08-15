@@ -860,1582 +860,578 @@ function menuEngineeringPanel() {
   </div>`;
 }
 
-function billingModalReferenceStyle() {
-  const cart = session.salesItems || [];
-  const totalLines = cart.length;
-  const totalQty = cart.reduce((a, b) => a + Number(b.qty || 0), 0);
-  const totalValue = cart.reduce((a, b) => a + Number(b.netValue || 0), 0);
-  const totalTax = cart.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
-  const grandTotal = totalValue + totalTax;
-  const payments = session.salesPayments || [{ mode: 'Cash', amount: grandTotal }];
-  const totalPaid = payments.reduce((a, b) => a + Number(b.amount || 0), 0);
-  const balanceDue = Math.max(0, grandTotal - totalPaid);
-  const changeDue = Math.max(0, totalPaid - grandTotal);
-  const payModes = DB.paymentModes || ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato'];
-
-  return `
-  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
-      
-      <!-- Top Title Header matching screenshot with active nav buttons -->
-      <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <h2 class="font-bold text-sm tracking-wide text-white">Sales / POS Billing</h2>
-          </div>
-          <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Cafe</span>
-        </div>
-        
-        <!-- Active Nav Tabs -->
-        <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Customers</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
-          <button type="button" onclick="session.showBillingModal=false; session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
-        </div>
-
-        <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
-      </div>
-
-      <!-- Top Meta Bar: Customer, Mobile, Bill No, Date, Time -->
-      <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
-        <div class="md:col-span-3 flex items-center gap-2">
-          <label class="font-bold text-slate-700 shrink-0">Customer</label>
-          <div class="relative flex-1 flex items-center gap-1">
-            <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium">
-              ${DB.customers.map(c => `<option value="${c.name}" ${session.salesCustomerName === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
-            </select>
-            <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); render(); toast('Customer added!', 'check-circle'); }" class="bg-posGreen text-white text-[10px] font-bold px-2 py-1.5 rounded-lg shrink-0" title="Add New Customer">+ New</button>
-          </div>
-        </div>
-        <div class="md:col-span-3 flex items-center gap-2">
-          <label class="font-bold text-slate-700 shrink-0">Mobile No</label>
-          <input id="salesCustomerPhoneInput" value="${session.salesCustomerPhone || '9876543210'}" placeholder="Mobile number" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-mono">
-        </div>
-        <div class="md:col-span-2 flex items-center gap-2">
-          <label class="font-bold text-slate-700 shrink-0">Bill No</label>
-          <div class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono font-bold text-brand-950">
-            ${session.salesInvoiceNo || 'S/26-27/000290'}
-            <div class="text-[9px] text-slate-400 font-normal">Next: S/26-27/000291</div>
-          </div>
-        </div>
-        <div class="md:col-span-2 flex items-center gap-2">
-          <label class="font-bold text-slate-700 shrink-0">Date</label>
-          <input type="date" value="2026-08-15" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50 font-medium">
-        </div>
-        <div class="md:col-span-2 flex items-center gap-2">
-          <label class="font-bold text-slate-700 shrink-0">Time</label>
-          <input type="text" value="12:34 PM" readonly class="w-full border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50 font-mono text-center font-bold">
-        </div>
-      </div>
-
-      <!-- Global Search Bar / Barcode Scanner with Autocomplete Dropdown -->
-      <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center gap-3 shrink-0 relative">
-        <div class="relative flex-1">
-          <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
-          
-          <!-- Autocomplete Dropdown suggestions container -->
-          <div id="salesSearchDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto z-50"></div>
-        </div>
-        <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
-      </div>
-
-      <!-- Main Dual-Column Layout Body -->
-      <div class="flex-1 bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
-        
-        <!-- Left Column: Items Table & Footer Elements -->
-        <div class="lg:col-span-8 flex flex-col border-r border-slate-200 overflow-hidden bg-white">
-          
-          <!-- Scrollable Table -->
-          <div class="flex-1 overflow-y-auto">
-            <table class="w-full text-left text-xs border-collapse">
-              <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
-                <tr>
-                  <th class="p-2.5 border border-teal-900 w-10 text-center">#</th>
-                  <th class="p-2.5 border border-teal-900 min-w-[200px]">Item Name</th>
-                  <th class="p-2.5 border border-teal-900 w-32">Barcode</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-28">Qty</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-16">UOM</th>
-                  <th class="p-2.5 border border-teal-900 text-right w-24">Rate (₹)</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-16">Disc %</th>
-                  <th class="p-2.5 border border-teal-900 text-right w-24">Disc Amt</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-16">GST</th>
-                  <th class="p-2.5 border border-teal-900 text-right w-24">GST Amt</th>
-                  <th class="p-2.5 border border-teal-900 text-right w-24">Amount</th>
-                  <th class="p-2.5 border border-teal-900 text-center w-16">Action</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 font-medium">
-                ${cart.map((item, idx) => `
-                  <tr class="hover:bg-brand-50/20 transition">
-                    <td class="p-2.5 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                    <td class="p-2.5 border border-slate-200">
-                      <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
-                    </td>
-                    <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <div class="inline-flex items-center border border-slate-300 rounded-lg bg-white overflow-hidden shadow-sm">
-                        <button type="button" class="sales-qty-dec px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">−</button>
-                        <input type="number" step="0.01" class="sales-item-qty w-12 text-center text-xs font-bold border-0 focus:outline-none bg-transparent" data-idx="${idx}" value="${item.qty}">
-                        <button type="button" class="sales-qty-inc px-2 py-1 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs" data-idx="${idx}">+</button>
-                      </div>
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <select class="sales-item-unit border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                        <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
-                        <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
-                        <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                      </select>
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-right">
-                      <input type="number" step="0.01" class="sales-item-rate w-full border border-slate-300 rounded p-1 text-xs text-right font-bold bg-white" data-idx="${idx}" value="${item.rate}">
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <input type="number" step="0.01" class="sales-item-disc-pct w-full border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct}">
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <select class="sales-item-gst border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
-                        <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
-                        <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
-                        <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
-                      </select>
-                    </td>
-                    <td class="p-2.5 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                    <td class="p-2.5 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
-                    <td class="p-2.5 border border-slate-200 text-center">
-                      <div class="flex items-center justify-center gap-1.5">
-                        <button type="button" class="text-blue-600 hover:text-blue-800 p-1" title="Edit"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                        <button type="button" class="remove-sales-line text-red-500 hover:text-red-700 p-1" title="Delete" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                      </div>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Table Bottom Bar: Clear Cart & Totals -->
-          <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-            <button type="button" id="clearSalesCartBtn" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Cart
-            </button>
-            <div class="flex items-center gap-5 text-xs font-bold text-slate-700">
-              <span>Total Items: <span class="text-brand-900 font-mono">${totalLines}</span></span>
-              <span>Total Qty: <span class="text-brand-900 font-mono">${totalQty.toFixed(2)}</span></span>
-            </div>
-          </div>
-
-          <!-- Remarks & Order Type / Table Section -->
-          <div class="p-3.5 bg-cream border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
-            <div>
-              <label class="text-[11px] font-bold text-slate-700 uppercase block mb-1">Remarks</label>
-              <textarea id="salesRemarksInput" placeholder="Order remarks..." rows="2" class="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white focus:outline-none"></textarea>
-            </div>
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <label class="text-[11px] font-bold text-slate-700 uppercase">Order Type / Table</label>
-                <select id="salesTableSelect" class="border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold bg-white">
-                  <option ${session.salesTableNo === 'Table 12' ? 'selected' : ''}>Table 12</option>
-                  <option ${session.salesTableNo === 'Table 01' ? 'selected' : ''}>Table 01</option>
-                  <option ${session.salesTableNo === 'Table 02' ? 'selected' : ''}>Table 02</option>
-                  <option ${session.salesTableNo === 'Takeaway' ? 'selected' : ''}>Takeaway</option>
-                </select>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Dine-In' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
-                  <i data-lucide="coffee" class="w-3.5 h-3.5"></i> Dine-In
-                </button>
-                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Takeaway' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
-                  <i data-lucide="shopping-bag" class="w-3.5 h-3.5"></i> Takeaway
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Payment Sidebar matching reference design -->
-        <div class="lg:col-span-4 bg-[#f8fafc] p-4 flex flex-col justify-between overflow-y-auto">
-          <div class="space-y-4">
-            <div>
-              <div class="text-xs font-bold text-slate-800 uppercase mb-2">Payment Mode</div>
-              <div class="grid grid-cols-5 gap-2">
-                ${payModes.map(mode => `
-                  <button type="button" class="quick-pay-card-btn p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition shadow-sm ${payments.some(p=>p.mode===mode && p.amount>0) ? 'bg-posGreen text-white border-posGreen' : 'bg-white text-slate-800 border-slate-200 hover:border-brand-500'}" data-mode="${mode}">
-                    <i data-lucide="${mode==='Cash'?'banknote':mode==='UPI'?'qr-code':mode==='Card'?'credit-card':'utensils'}" class="w-4 h-4"></i>
-                    <span class="text-[10px] font-bold">${mode}</span>
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-
-            <!-- Split Payment Sidebar Section -->
-            <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-800 uppercase">Split Payment</span>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" id="toggleSplitPayment" value="" class="sr-only peer" ${session.splitPaymentEnabled ? 'checked' : ''}>
-                  <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-posGreen"></div>
-                </label>
-              </div>
-
-              <div class="space-y-2">
-                <div class="text-[10px] font-bold text-slate-400 uppercase grid grid-cols-12 gap-1 px-1">
-                  <span class="col-span-7">Mode</span>
-                  <span class="col-span-4 text-right">Amount (₹)</span>
-                  <span class="col-span-1"></span>
-                </div>
-                <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  ${payments.map((p, pIdx) => `
-                    <div class="grid grid-cols-12 gap-1.5 items-center bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                      <select class="payment-mode-select col-span-7 text-xs border border-slate-300 rounded-lg p-1.5 font-bold bg-white text-slate-800" data-idx="${pIdx}">
-                        ${payModes.map(m => `<option value="${m}" ${p.mode === m ? 'selected' : ''}>${m}</option>`).join('')}
-                      </select>
-                      <input type="number" step="0.01" class="payment-mode-amount col-span-4 text-xs border border-slate-300 rounded-lg p-1.5 text-right font-mono font-bold bg-white" data-idx="${pIdx}" value="${p.amount}">
-                      <button type="button" class="remove-payment-line col-span-1 text-red-500 hover:text-red-700 font-bold text-center" data-idx="${pIdx}">✕</button>
-                    </div>
-                  `).join('')}
-                </div>
-                <button type="button" id="addPaymentLineBtn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 rounded-xl text-xs transition">+ Add Payment Mode</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Financial Totals Summary Sidebar Box matching reference image -->
-          <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5 mt-4">
-            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
-              <span>Sub Total</span>
-              <span class="font-mono">${money(totalValue)}</span>
-            </div>
-            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
-              <span>Discount</span>
-              <span class="font-mono text-emerald-600">₹0.00</span>
-            </div>
-            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
-              <span>Taxable Amount</span>
-              <span class="font-mono">${money(totalValue)}</span>
-            </div>
-            <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
-              <span>Total GST</span>
-              <span class="font-mono">${money(totalTax)}</span>
-            </div>
-            <div class="flex justify-between text-sm font-bold text-white bg-posGreen p-2.5 rounded-xl shadow-sm">
-              <span>Grand Total (₹)</span>
-              <span class="font-mono text-base">${money(grandTotal)}</span>
-            </div>
-
-            <div class="space-y-2 pt-2 text-xs font-bold border-t border-slate-200">
-              <div class="flex justify-between text-slate-800">
-                <span>Total Paid</span>
-                <span class="font-mono text-green-700 text-sm">${money(totalPaid)}</span>
-              </div>
-              <div class="flex justify-between text-slate-800">
-                <span>Balance Due</span>
-                <span class="font-mono text-red-600 text-sm">${money(balanceDue)}</span>
-              </div>
-              <div class="flex justify-between text-slate-800 border-t border-slate-100 pt-1.5">
-                <span>Change Due</span>
-                <span class="font-mono text-blue-700 text-sm">${money(changeDue)}</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Bottom Action Toolbar matching reference image -->
-      <div class="bg-[#10344a] p-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
-        <div class="flex items-center gap-2">
-          <button id="completeSalesBillBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
-            <i data-lucide="printer" class="w-4 h-4"></i> Complete &amp; Print (F9)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
-            <i data-lucide="save" class="w-4 h-4"></i> Save Draft (F5)
-          </button>
-          <button id="closeBillingModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
-            <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Clear (F4)
-          </button>
-        </div>
-
-        <div class="flex items-center gap-1.5">
-          <span class="text-[11px] font-bold text-cream/70 mr-1">Quick Payment:</span>
-          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="500">₹500</button>
-          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="1000">₹1000</button>
-          <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="2000">₹2000</button>
-          <button type="button" class="bg-white/20 hover:bg-white/30 text-cream text-xs font-bold px-3 py-2 rounded-lg">Other</button>
-        </div>
-      </div>
-
-      <!-- Bottom Status Bar -->
-      <div class="bg-brand-950 text-cream/70 px-4 py-1.5 flex items-center justify-between text-[11px] font-medium shrink-0">
-        <div class="flex items-center gap-2"><i data-lucide="user" class="w-3 h-3 text-gold-400"></i> Cashier: <span class="text-white font-bold">${session.staff ? session.staff.username : 'admin'}</span></div>
-        <div class="flex items-center gap-2"><i data-lucide="monitor" class="w-3 h-3 text-gold-400"></i> Terminal: <span class="text-white font-bold">POS-01</span></div>
-        <div class="flex items-center gap-2"><i data-lucide="wallet" class="w-3 h-3 text-gold-400"></i> Opening Balance: <span class="text-gold-300 font-mono font-bold">₹2,000.00</span></div>
-      </div>
-
-    </div>
-  </div>`;
-}
-
-function purchaseModalReferenceStyle() {
-  const items = session.purchaseItems || [];
-  const totalLines = items.length;
-  const subTotal = items.reduce((a, b) => a + Number(b.netValue || 0), 0);
-  const totalTax = items.reduce((a, b) => a + Number(b.gstAmt || 0), 0);
-  const netPayable = subTotal + totalTax;
-
-  return `
-  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
-      
-      <!-- Top Title Header matching screenshot with active nav buttons -->
-      <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
-        <div class="flex items-center gap-4">
-          <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <h2 class="font-bold text-sm tracking-wide text-white">Purchase Entry</h2>
-          </div>
-          <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Store</span>
-        </div>
-        
-        <!-- Active Nav Tabs -->
-        <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Purchase List</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='users'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="users" class="w-3.5 h-3.5"></i> Suppliers</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="bar-chart" class="w-3.5 h-3.5"></i> Reports</button>
-          <button type="button" onclick="session.showPurchaseModal=false; session.kitchenTab='brand'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="settings" class="w-3.5 h-3.5"></i> Settings</button>
-        </div>
-
-        <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
-      </div>
-
-      <!-- Top Supplier & Meta Grid -->
-      <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs shrink-0 shadow-sm">
-        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-          <div class="flex items-center justify-between">
-            <label class="font-bold text-slate-700 block">Supplier *</label>
-            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
-          </div>
-          <select id="purchaseSupplierSelect" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-bold text-slate-900">
-            ${DB.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
-          </select>
-          <div class="text-[10px] text-slate-500 space-y-0.5 pt-1">
-            <div><b>GSTIN:</b> ${session.purchaseSupplierGstin}</div>
-            <div><b>Phone:</b> ${session.purchaseSupplierPhone}</div>
-            <div><b>Address:</b> ${session.purchaseSupplierAddress}</div>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Supplier Invoice No. *</label>
-            <input id="purchaseInvoiceNo" value="${session.purchaseInvoiceNo}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Terms</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>15 Days</option><option>30 Days</option><option>Immediate</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Invoice Date *</label>
-            <input type="date" value="${session.purchaseInvoiceDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Due Date</label>
-            <input type="date" value="${session.purchaseDueDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Purchase No. *</label>
-            <div class="bg-slate-100 border border-slate-300 rounded-lg p-2 font-mono font-bold text-brand-950">
-              ${session.purchaseNo}
-              <div class="text-[9px] text-slate-400 font-normal">Next No: P/26-27/00002</div>
-            </div>
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Mode</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>Credit</option><option>Bank Transfer</option><option>Cash</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Received Date *</label>
-            <input type="date" value="${session.purchaseReceivedDate}" class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Payment Status</label>
-            <div class="pt-1"><span class="bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-full border border-amber-300">Pending</span></div>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Purchase Type</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-medium">
-              <option>Regular Purchase</option><option>Return</option><option>Sample</option>
-            </select>
-          </div>
-          <div>
-            <label class="font-bold text-slate-700 block mb-1">Receiving Location *</label>
-            <select class="w-full border border-slate-300 rounded-lg p-2 bg-white font-bold text-brand-900">
-              <option>Factory Warehouse</option><option>Jayanagar Cafe</option><option>Vajarahalli Store</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Barcode / Item Search Bar -->
-      <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
-        <div class="relative flex-1">
-          <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
-        </div>
-        <div class="flex items-center gap-4 text-xs font-semibold text-slate-700">
-          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked class="accent-brand"> Show last purchase rate</label>
-          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="accent-brand"> Show inactive items</label>
-        </div>
-        <button type="button" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
-      </div>
-
-      <!-- Main Item Table Container -->
-      <div class="flex-1 bg-white overflow-y-auto">
-        <table class="w-full text-left text-xs border-collapse min-w-[1200px]">
-          <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
-            <tr>
-              <th class="p-2 border border-teal-900 w-10 text-center">#</th>
-              <th class="p-2 min-w-[200px] border border-teal-900">Item Name (Code)</th>
-              <th class="p-2 w-28 border border-teal-900">Batch / Lot No.</th>
-              <th class="p-2 w-24 border border-teal-900">Mfg Date</th>
-              <th class="p-2 w-24 border border-teal-900">Expiry Date</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">UOM</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Ordered Qty</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Received Qty</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Short / Excess</th>
-              <th class="p-2 w-20 border border-teal-900 text-center">Damaged Qty</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Rate (₹)</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">Disc %</th>
-              <th class="p-2 w-20 border border-teal-900 text-right">Disc Amt</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">GST %</th>
-              <th class="p-2 w-20 border border-teal-900 text-right">GST Amt</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Net Value (₹)</th>
-              <th class="p-2 w-24 border border-teal-900 text-right">Last Purchase Rate</th>
-              <th class="p-2 w-16 border border-teal-900 text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 font-medium">
-            ${items.map((item, idx) => `
-              <tr class="hover:bg-slate-50">
-                <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                <td class="p-2 border border-slate-200">
-                  <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
-                </td>
-                <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.expDate}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.unit}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.orderedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold text-emerald-700">${item.receivedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold ${item.shortQty < 0 ? 'text-red-600' : 'text-slate-700'}">${item.shortQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.damagedQty}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-semibold">${money(item.rate)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.discPct}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.gstGroup}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono text-slate-500">${money(item.lastRate)}</td>
-                <td class="p-2 border border-slate-200 text-center">
-                  <div class="flex items-center justify-center gap-1">
-                    <button type="button" class="text-blue-600 hover:text-blue-800 p-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                    <button type="button" class="text-red-500 hover:text-red-700 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-
-      <datalist id="rawMaterialsList">
-        ${DB.rawMaterials.map(rm => `<option value="${rm.name}">`).join('')}
-      </datalist>
-
-      <!-- Add Item Line button -->
-      <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
-        <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded-lg shadow hover:bg-brand-600">+ Add Item Line</button>
-      </div>
-
-      <!-- Bottom Three-Column Summary Section -->
-      <div class="bg-[#f4f7f6] p-3 border-t border-slate-300 grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs shrink-0">
-        
-        <!-- Left: Remarks -->
-        <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-          <label class="font-bold text-slate-800 mb-1">Remarks</label>
-          <textarea placeholder="Add invoice remarks..." rows="3" class="w-full flex-1 border border-slate-300 rounded-xl p-2 text-xs bg-slate-50 focus:outline-none"></textarea>
-        </div>
-
-        <!-- Middle: Item Summary -->
-        <div class="lg:col-span-4 grid grid-cols-1 gap-2">
-          <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
-            <div class="text-[11px] font-bold text-slate-400 uppercase border-b border-slate-100 pb-1">Item Summary</div>
-            <div class="flex justify-between font-medium"><span>Total Items</span><span class="font-bold">3</span></div>
-            <div class="flex justify-between font-medium"><span>Total Ordered Qty</span><span class="font-bold">13</span></div>
-            <div class="flex justify-between font-medium"><span>Total Received Qty</span><span class="font-bold text-emerald-700">12</span></div>
-            <div class="flex justify-between font-medium"><span>Total Shortage Qty</span><span class="font-bold text-red-600">-1</span></div>
-            <div class="flex justify-between font-medium"><span>Total Damaged Qty</span><span class="font-bold">0</span></div>
-          </div>
-        </div>
-
-        <!-- Right: Amount Summary & Payment Summary -->
-        <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Sub Total</span><span class="font-mono">${money(subTotal)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Item Discount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Taxable Value</span><span class="font-mono">${money(subTotal)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Total GST</span><span class="font-mono">${money(totalTax)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>TCS Amount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Round Off</span><span class="font-mono">₹0.16</span></div>
-          <div class="flex justify-between text-sm font-bold text-white bg-posGreen p-2.5 rounded-xl shadow-sm">
-            <span>Net Payable</span>
-            <span class="font-mono text-base">${money(netPayable)}</span>
-          </div>
-
-          <div class="pt-2 space-y-1.5 text-xs font-bold border-t border-slate-200">
-            <div class="flex justify-between text-slate-800"><span>Total Payable</span><span class="font-mono">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800 items-center">
-              <span>Paid Amount</span>
-              <input type="number" value="0.00" class="w-28 border border-slate-300 rounded-lg p-1 text-right font-mono font-bold bg-slate-50">
-            </div>
-            <div class="flex justify-between text-slate-800"><span>Outstanding Amount</span><span class="font-mono text-red-600">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800"><span>Due Date</span><span class="font-mono">30-08-2026</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Bottom Action Toolbar -->
-      <div class="bg-[#10344a] p-3 flex items-center justify-between shrink-0 flex-wrap gap-2">
-        <div class="flex items-center gap-2">
-          <button id="validatePurchaseBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
-            <i data-lucide="save" class="w-4 h-4"></i> Save Purchase (F10)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="printer" class="w-4 h-4"></i> Save &amp; Print (F11)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="file-plus" class="w-4 h-4"></i> Save &amp; New (F12)
-          </button>
-        </div>
-        <button id="closePurchaseModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-5 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-          <i data-lucide="trash-2" class="w-4 h-4"></i> Clear
-        </button>
-      </div>
-
-    </div>
-  </div>`;
-}
-
-function stockTakeModal() {
-  const query = (session.stockTakeSearch || '').toLowerCase().trim();
-  const sortedRawMaterials = [...DB.rawMaterials]
-    .filter(rm => !query || rm.name.toLowerCase().includes(query) || (rm.vendor && rm.vendor.toLowerCase().includes(query)))
-    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Physical Stock Take &amp; Reconciliation</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Record physical count and automatically reconcile inventory variances.</p>
-        </div>
-        <button id="closeStockTakeModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-3">
-        <div class="relative mb-2">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-          <input id="stockTakeSearchInput" value="${session.stockTakeSearch || ''}" placeholder="Search raw materials..." class="w-full bg-slate-50 border border-brand-200 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400">
-        </div>
-
-        <div class="overflow-x-auto border border-brand-100 rounded-2xl">
-          <table class="w-full text-left text-xs min-w-[650px]">
-            <thead class="bg-brand-50 text-brand-800 uppercase font-bold text-[10px]">
-              <tr>
-                <th class="p-3">Material Name</th>
-                <th class="p-3">Vendor</th>
-                <th class="p-3 text-center">System Stock</th>
-                <th class="p-3 text-center">Physical Count</th>
-                <th class="p-3 text-right">Variance / Adjustment</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-brand-50 font-medium">
-              ${sortedRawMaterials.map(rm => {
-                const sysGrams = Number(rm.stockGrams || 100000);
-                const unit = rm.unit || 'GRM';
-                const divisor = (unit === 'KG' || unit === 'LITRE') ? 1000 : 1;
-                const sysVal = sysGrams / divisor;
-                return `
-                <tr class="hover:bg-brand-50/40">
-                  <td class="p-3 font-bold text-brand-950">${rm.name}</td>
-                  <td class="p-3 text-brand-600">${rm.vendor || 'FACTORY'}</td>
-                  <td class="p-3 text-center font-mono font-bold">${sysVal.toFixed(2)} ${unit}</td>
-                  <td class="p-3 text-center">
-                    <input type="number" step="0.01" class="physical-count-input w-24 border border-brand-300 rounded-lg p-1 text-xs text-center font-bold bg-white" data-id="${rm.id}" data-unit="${unit}" value="${sysVal.toFixed(2)}">
-                  </td>
-                  <td class="p-3 text-right font-mono font-bold text-brand-700 variance-cell" data-id="${rm.id}">0.00 ${unit}</td>
-                </tr>`;
-              }).join('') || `<tr><td colspan="5" class="text-center py-6 text-brand-400">No matching items found.</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-
-        <button id="saveStockTakeBtn" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl text-xs sm:text-sm transition shadow active:scale-98">Reconcile &amp; Update System Stock</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function wastageModal() {
-  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Stock Wastage &amp; Shrinkage Log</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Record spoiled, spilled, or expired inventory items.</p>
-        </div>
-        <button id="closeWastageModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
-        <div class="bg-amber-50 p-3.5 rounded-xl border border-amber-200 space-y-3">
-          <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">Select Raw Material / Ingredient</label>
-            <select id="wastageRmSelect" class="w-full border border-brand-300 rounded-xl p-2.5 text-xs font-bold bg-white">
-              <option value="">-- Choose Material --</option>
-              ${sortedRawMaterials.map(rm => `<option value="${rm.name}">${rm.name} (${rm.unit || 'GRM'}) - Rate: ${money(rm.unitPrice)}/kg</option>`).join('')}
-            </select>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Quantity Wasted</label>
-              <input id="wastageQtyInput" type="number" step="0.01" placeholder="e.g. 500" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white font-bold">
-            </div>
-            <div>
-              <label class="text-xs font-bold text-brand-950 block mb-1">Unit</label>
-              <select id="wastageUnitSelect" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white">
-                <option>GRM</option><option>ML</option><option>KG</option><option>LITRE</option><option>PCS</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="text-xs font-bold text-brand-950 block mb-1">Reason for Wastage / Spoilage</label>
-            <input id="wastageReasonInput" placeholder="e.g. Expired shelf-life, container spill" class="w-full border border-brand-300 rounded-xl p-2 text-xs bg-white">
-          </div>
-
-          <button id="submitWastageBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Log Wastage &amp; Deduct Stock</button>
-        </div>
-
-        <div class="space-y-2">
-          <div class="text-xs font-bold text-brand-900 uppercase">Recent Wastage History (${DB.wastageLogs.length})</div>
-          <div class="space-y-1.5 max-h-48 overflow-y-auto">
-            ${DB.wastageLogs.slice(-10).reverse().map(log => `
-              <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs flex justify-between items-center">
-                <div>
-                  <div class="font-bold text-red-700">${log.qty} ${log.unit} of ${log.item}</div>
-                  <div class="text-[10px] text-slate-500">${log.reason} · By ${log.staff}</div>
-                </div>
-                <div class="font-mono text-[10px] text-slate-400">${formatTime(log.ts)}</div>
-              </div>
-            `).join('') || `<div class="text-xs text-slate-400 text-center py-4">No wastage logged yet.</div>`}
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function recipeCostingPanel() {
-  return `
-  <div class="space-y-4 sm:space-y-6">
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5 flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Recipe Costing &amp; Profit Calculator</h3>
-        <p class="text-xs text-brand-400">Manage cafe recipes, base preps, batch scaling, and food cost margins.</p>
-      </div>
-      <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-        <button id="openMainRecipesModalBtn" class="flex-1 sm:flex-none text-xs font-bold bg-brand text-cream px-4 py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-brand-600 transition shadow active:scale-98">
-          <i data-lucide="utensils" class="w-4 h-4"></i> Main Recipe Master
-        </button>
-        <button id="manageIngredientsBtn" class="flex-1 sm:flex-none text-xs font-bold bg-brand-50 text-brand-800 border border-brand-200 px-3.5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-brand-100 transition">
-          <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i> Materials (${DB.rawMaterials.length})
-        </button>
-        <button id="manageBaseRecipesBtn" class="flex-1 sm:flex-none text-xs font-bold bg-gold text-white px-3.5 py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition">
-          <i data-lucide="chef-hat" class="w-4 h-4"></i> Base Preps (${DB.baseRecipes.length})
-        </button>
-      </div>
-    </div>
-
-    <div class="bg-brand-50 p-6 sm:p-10 rounded-2xl border border-brand-100 text-center space-y-3">
-      <div class="w-14 h-14 bg-brand text-cream rounded-2xl flex items-center justify-center mx-auto shadow-md">
-        <i data-lucide="calculator" class="w-7 h-7"></i>
-      </div>
-      <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Bill of Materials (BOM) &amp; Recipe Master</h3>
-      <p class="text-xs text-brand-500 max-w-md mx-auto leading-relaxed">Access full ingredient breakdowns, multi-level recipe linking, and automated stock cascading.</p>
-      <button id="launchMainMasterBtn" class="w-full sm:w-auto bg-brand text-cream font-bold px-6 py-3.5 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition inline-flex items-center justify-center gap-2 shadow-md active:scale-98">
-        <i data-lucide="sliders" class="w-4 h-4"></i> Launch Master Costing Workspace
-      </button>
-    </div>
-  </div>`;
-}
-
-function mainRecipesModal() {
-  if (!session.activeRecipeDishId && DB.menu.length > 0) {
-    session.activeRecipeDishId = DB.menu[0].id;
+function wireKitchen() {
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => { 
+      localStorage.removeItem('ps_staff');
+      session.staff = null; 
+      render(); 
+    };
   }
-  const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
-  const activeRecipe = session.activeRecipeDishId ? (DB.recipes[session.activeRecipeDishId] || { portions: 1, wastagePercent: 10, ingredients: [] }) : null;
 
-  let rawTotalCost = 0;
-  if (activeRecipe) {
-    rawTotalCost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const soundToggle = document.getElementById('soundToggle');
+  if (soundToggle) {
+    soundToggle.onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   }
-  
-  const wastageCost = rawTotalCost * ((activeRecipe?.wastagePercent || 10) / 100);
-  const totalProductionCost = rawTotalCost + wastageCost;
-  const costPerPortion = activeRecipe?.portions ? (totalProductionCost / activeRecipe.portions) : 0;
 
-  const sellingPrice = selectedDish ? Number(selectedDish.price || 0) : 0;
-  const profitMargin = sellingPrice - costPerPortion;
-  const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
-  const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
-
-  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-  const recipeFilterQuery = (session.recipeFilterQuery || '').toLowerCase().trim();
-  let filteredMenu = DB.menu.filter(m => {
-    if (!recipeFilterQuery) return true;
-    return (m.name || '').toLowerCase().includes(recipeFilterQuery);
+  document.querySelectorAll('.k-tab').forEach(b => {
+    b.onclick = () => { 
+      session.kitchenTab = b.dataset.ktab; 
+      render(); 
+    };
   });
 
-  if (session.recipeSortMode === 'cost') {
-    filteredMenu.sort((a, b) => getDishFoodCostPercent(b) - getDishFoodCostPercent(a));
-  } else {
-    filteredMenu.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }
+  const dashCafe = document.getElementById('dashCafeSearch');
+  if (dashCafe) dashCafe.oninput = (e) => { session.cafeSearch = e.target.value; renderKeepFocus('dashCafeSearch'); };
 
-  let matchingUsage = [];
-  const ingQuery = (session.ingredientUsageQuery || '').toLowerCase().trim();
-  if (ingQuery.length >= 2) {
-    for (const dishId in DB.recipes) {
-      const rec = DB.recipes[dishId];
-      const dishObj = DB.menu.find(m => m.id === dishId);
-      const dishName = dishObj ? dishObj.name : `Dish (${dishId})`;
-      const usesItem = (rec.ingredients || []).some(i => (i.name || '').toLowerCase().includes(ingQuery));
-      if (usesItem) matchingUsage.push(`[MAIN DISH] ${dishName}`);
-    }
-    DB.baseRecipes.forEach(br => {
-      const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(ingQuery));
-      if (usesItem) matchingUsage.push(`[BASE PREP] ${br.name}`);
-    });
-  }
+  const dashRetail = document.getElementById('dashRetailSearch');
+  if (dashRetail) dashRetail.oninput = (e) => { session.retailSearch = e.target.value; renderKeepFocus('dashRetailSearch'); };
 
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-7xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Main Dish Recipe &amp; BOM Master</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Track raw ingredient costs, BOM cascades, portions, and margins.</p>
-        </div>
-        <button id="closeMainRecipesModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
+  const dashRm = document.getElementById('dashRmSearch');
+  if (dashRm) dashRm.oninput = (e) => { session.rmSearch = e.target.value; renderKeepFocus('dashRmSearch'); };
 
-      <div class="bg-brand-50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-brand-100 mb-3 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
-        <div class="font-bold text-brand-900 flex items-center gap-1.5">
-          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-600"></i> Excel Upload
-        </div>
-        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
-          <button id="dlMainRecipesTemplateBtn" class="font-bold text-brand-700 underline text-xs">Template</button>
-          <input id="mainRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
-          <button id="triggerMainRecipeExcelBtn" class="bg-brand text-cream font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-brand-600 transition">Upload</button>
-          <button id="bulkDeleteMainRecipesBtn" class="bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-red-200 transition">Bulk Delete</button>
-        </div>
-      </div>
+  const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
+  if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
 
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 flex-1 overflow-y-auto min-h-0">
-        <div class="bg-brand-50/60 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 border border-brand-100 space-y-2.5 overflow-y-auto max-h-48 md:max-h-full">
-          <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200 shadow-sm">
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Filter Dishes</label>
-              <input id="liveLetterSearchInput" type="text" value="${session.recipeFilterQuery || ''}" placeholder="Filter menu items..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Reverse Item Lookup</label>
-              <input id="liveIngredientSearchInput" type="text" value="${session.ingredientUsageQuery || ''}" placeholder="Type ingredient name..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-400">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">⚡ Sort Main Dishes</label>
-              <select id="mainDishSortSelect" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-brand-900 focus:outline-none focus:ring-2 focus:ring-brand-400">
-                <option value="alpha" ${session.recipeSortMode === 'alpha' ? 'selected' : ''}>Alphabetical (A ➔ Z)</option>
-                <option value="cost" ${session.recipeSortMode === 'cost' ? 'selected' : ''}>Cost % (High ➔ Low)</option>
-              </select>
-            </div>
-            ${ingQuery.length >= 2 ? `
-              <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded-lg max-h-28 overflow-y-auto leading-relaxed">
-                ${matchingUsage.length === 0 ? `<b>No usage found for "${ingQuery}".</b>` : `<b>Used in (${matchingUsage.length}):</b><br>` + matchingUsage.map(d => `• ${d}`).join('<br>')}
-              </div>
-            ` : ''}
-          </div>
+  /* PURCHASE WIRING */
+  const purchaseInvoiceNoInput = document.getElementById('purchaseInvoiceNo');
+  if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
 
-          <div class="flex items-center justify-between border-b border-brand-100 pb-1.5">
-            <span class="text-xs font-bold text-brand-800">Menu Dishes (${filteredMenu.length})</span>
-          </div>
-          <div class="space-y-1.5">
-            ${filteredMenu.map(m => {
-              const cp = getDishFoodCostPercent(m);
-              return `
-              <div class="main-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.activeRecipeDishId === m.id ? 'bg-brand text-cream border-brand shadow' : 'bg-white text-brand-900 border-brand-100 hover:border-brand-300'}" data-id="${m.id}">
-                <div class="font-bold truncate">${m.name}</div>
-                <div class="text-[10px] opacity-80 mt-0.5 flex justify-between"><span>${money(m.price)}</span><span>Cost: ${cp.toFixed(1)}%</span></div>
-              </div>`;
-            }).join('') || `<div class="text-xs text-brand-400 text-center py-6">No matching dishes.</div>`}
-          </div>
-        </div>
-
-        <div class="md:col-span-3 space-y-4 overflow-y-auto pr-0.5">
-          ${selectedDish ? `
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 bg-cream p-3 sm:p-3.5 rounded-xl border border-brand-100 shadow-sm">
-              <div>
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Edit Dish Name (Syncs with Menu)</label>
-                <input id="masterDishNameInput" type="text" value="${selectedDish.name}" data-id="${selectedDish.id}" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-brand-950 bg-white focus:ring-2 focus:ring-brand-400 focus:outline-none">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Portions Yielded</label>
-                <input id="recipePortions" type="number" min="1" value="${activeRecipe?.portions || 1}" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white focus:ring-2 focus:ring-brand-400 focus:outline-none">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Overhead / Wastage (%)</label>
-                <input id="recipeWastage" type="number" min="0" value="${activeRecipe?.wastagePercent || 10}" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white focus:ring-2 focus:ring-brand-400 focus:outline-none">
-              </div>
-            </div>
-
-            <div class="border border-amber-200 rounded-xl bg-amber-50/20 overflow-x-auto shadow-sm">
-              <div class="p-2.5 bg-sheetHeader flex justify-between items-center border-b border-amber-200 sticky left-0">
-                <span class="text-xs font-bold text-brand-950 uppercase tracking-wide">BOM Ingredients &amp; Sub-Preps Breakdown</span>
-                <button id="addIngredientRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-lg hover:bg-brand-600 transition shadow-sm flex items-center gap-1">+ Add Line</button>
-              </div>
-
-              <table class="w-full text-left text-xs min-w-[650px]">
-                <thead class="bg-sheetHeader text-brand-950 font-bold text-[10px] uppercase border-b border-amber-200">
-                  <tr>
-                    <th class="p-2 w-8 text-center border-r border-amber-200">#</th>
-                    <th class="p-2 min-w-[200px] border-r border-amber-200">Ingredient / Base Prep</th>
-                    <th class="p-2 w-16 border-r border-amber-200 text-center">Qty</th>
-                    <th class="p-2 w-20 border-r border-amber-200">Unit</th>
-                    <th class="p-2 w-20 border-r border-amber-200 text-center">G/ML</th>
-                    <th class="p-2 w-20 border-r border-amber-200">Vendor</th>
-                    <th class="p-2 w-20 border-r border-amber-200 text-right">Rate</th>
-                    <th class="p-2 w-20 text-right">Cost</th>
-                    <th class="p-2 w-8 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-amber-200/80 font-medium">
-                  ${(activeRecipe?.ingredients || []).map((ing, idx) => {
-                    const isBase = ing.type === 'base' || ing.isBase;
-                    let vendor = 'FACTORY';
-                    let unitPrice = 0;
-
-                    if (isBase) {
-                      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
-                      vendor = 'LINKED BASE';
-                      unitPrice = baseObj ? calculateBaseRecipeCostPerUnit(baseObj) : 0;
-                    } else {
-                      const masterDetails = getRawMaterialDetails(ing.name);
-                      vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
-                      unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
-                    }
-
-                    const computedGrams = getConvertedGramsMl(ing.qty, ing.unit);
-
-                    return `
-                    <tr class="hover:bg-amber-100/30 transition">
-                      <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx + 1}</td>
-                      <td class="p-2 border-r border-amber-200 space-y-1">
-                        <div class="flex items-center gap-1 bg-brand-50 p-0.5 rounded border border-brand-100 mb-1">
-                          <button type="button" class="mode-toggle-raw flex-1 py-0.5 text-[8px] font-bold rounded ${!isBase ? 'bg-brand text-cream shadow' : 'text-brand-700'}" data-idx="${idx}">Raw Mat.</button>
-                          <button type="button" class="mode-toggle-base flex-1 py-0.5 text-[8px] font-bold rounded ${isBase ? 'bg-gold text-white shadow' : 'text-gold-700'}" data-idx="${idx}">⭐ Base</button>
-                        </div>
-                        <select class="ing-master-select w-full border border-amber-200 bg-white rounded p-1 text-xs font-semibold focus:outline-none" data-idx="${idx}">
-                          <option value="">-- Choose Item --</option>
-                          ${isBase ? 
-                            sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ ${br.name}</option>`).join('') :
-                            sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')
-                          }
-                        </select>
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="ing-qty w-full border border-amber-200 bg-white rounded p-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <select class="ing-unit w-full border border-amber-200 bg-white rounded p-1 text-xs font-semibold" data-idx="${idx}">
-                          <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
-                          <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
-                          <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
-                          <option ${ing.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                          <option ${ing.unit === 'TSP' ? 'selected' : ''}>TSP</option>
-                          <option ${ing.unit === 'TBSP' ? 'selected' : ''}>TBSP</option>
-                          <option ${ing.unit === 'PCS' ? 'selected' : ''}>PCS</option>
-                        </select>
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="ing-grams w-full border border-amber-200 bg-white rounded p-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || computedGrams}">
-                      </td>
-                      <td class="p-2 border-r border-amber-200 font-semibold text-brand-700 truncate text-[11px]">
-                        ${vendor}
-                      </td>
-                      <td class="p-2 border-r border-amber-200 text-right">
-                        <input type="number" step="0.01" class="ing-price w-full border border-amber-200 bg-white rounded p-1 text-xs text-right font-bold" data-idx="${idx}" value="${unitPrice}" ${isBase ? 'readonly' : ''}>
-                      </td>
-                      <td class="p-2 text-right font-bold text-brand-950 ing-cost-cell">
-                        ${money(calculateIngCost({ ...ing, gramsMl: ing.gramsMl || computedGrams, unitPrice }))}
-                      </td>
-                      <td class="p-2 text-center">
-                        <button class="remove-ing-row text-red-500 hover:text-red-700 p-1" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
-                      </td>
-                    </tr>
-                  `;}).join('') || `<tr><td colspan="9" class="text-center py-6 text-brand-400">No ingredients added yet.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
-
-            <div class="bg-brand-50/80 p-3.5 rounded-xl border border-brand-100 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div class="space-y-1 font-medium">
-                <div class="flex justify-between text-brand-700"><span>Menu Selling Price:</span><span class="font-bold text-brand-950">${money(sellingPrice)}</span></div>
-                <div class="flex justify-between text-brand-700"><span>Raw Materials:</span><span class="font-bold text-brand-900" id="summaryRawCost">${money(rawTotalCost)}</span></div>
-                <div class="flex justify-between text-brand-700"><span>Overhead Allowance:</span><span class="font-bold text-amber-700" id="summaryWastageCost">${money(wastageCost)}</span></div>
-                <div class="flex justify-between text-brand-700 border-t border-brand-200 pt-1"><span>Batch Total:</span><span class="font-bold text-red-600" id="summaryTotalCost">${money(totalProductionCost)}</span></div>
-              </div>
-              <div class="space-y-1.5 bg-white p-3 rounded-lg border border-brand-200 flex flex-col justify-center shadow-sm">
-                <div class="flex justify-between font-bold text-xs sm:text-sm text-brand-950">
-                  <span>Cost / Portion:</span>
-                  <span class="text-red-700" id="summaryCostPerPortion">${money(costPerPortion)}</span>
-                </div>
-                <div class="flex justify-between font-bold text-xs sm:text-sm text-brand-950">
-                  <span>Profit Margin:</span>
-                  <span class="${profitMargin >= 0 ? 'text-green-700' : 'text-red-600'}" id="summaryProfitMargin">${money(profitMargin)}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 pt-1 text-center font-bold">
-                  <div class="bg-brand-50 p-1 rounded border border-brand-100">
-                    <div class="text-[8px] text-brand-500 uppercase">Food Cost %</div>
-                    <div class="text-xs ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'}" id="summaryFoodCostPct">${foodCostPercent.toFixed(1)}%</div>
-                  </div>
-                  <div class="bg-gold-50 p-1 rounded border border-gold-200">
-                    <div class="text-[8px] text-gold-700 uppercase">Gross Margin %</div>
-                    <div class="text-xs text-gold-800" id="summaryGrossMarginPct">${grossMarginPercent.toFixed(1)}%</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex gap-2 pb-2">
-              <button id="saveRecipeBtn" class="flex-1 bg-brand hover:bg-brand-600 text-cream font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Save Recipe &amp; Food Costing</button>
-              <button id="deleteMainRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-3 rounded-xl text-xs hover:bg-red-100 transition flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear</button>
-            </div>
-          ` : `<div class="text-xs text-brand-400 text-center py-16">No menu dish selected.</div>`}
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
-function baseRecipesModal() {
-  const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-  const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0) : 0;
-  const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
-  const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-
-  const baseFilterQuery = (session.baseRecipeFilterQuery || '').toLowerCase().trim();
-  let filteredBaseRecipes = DB.baseRecipes.filter(br => {
-    if (!baseFilterQuery) return true;
-    return (br.name || '').toLowerCase().includes(baseFilterQuery);
+  document.querySelectorAll('.purchase-item-name').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      const val = e.target.value;
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].itemName = val;
+        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === val.toLowerCase().trim());
+        if (matched) {
+          session.purchaseItems[idx].rate = matched.unitPrice || 0;
+          const q = Number(session.purchaseItems[idx].receivedQty || 1);
+          const r = Number(session.purchaseItems[idx].rate || 0);
+          const net = q * r;
+          session.purchaseItems[idx].netValue = net;
+          session.purchaseItems[idx].gstAmt = net * 0.05;
+          renderKeepFocus('purchaseInvoiceNo');
+        }
+      }
+    };
   });
 
-  if (session.baseRecipeSortMode === 'cost') {
-    filteredBaseRecipes.sort((a, b) => calculateBaseRecipeCostPerUnit(b) - calculateBaseRecipeCostPerUnit(a));
-  } else {
-    filteredBaseRecipes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const addPurchaseLineBtn = document.getElementById('addPurchaseLineBtn');
+  if (addPurchaseLineBtn) {
+    addPurchaseLineBtn.onclick = () => {
+      if (!session.purchaseItems) session.purchaseItems = [];
+      session.purchaseItems.push({ itemName: '', code: 'ITEM-004', batch: 'B240820', mfgDate: '2026-08-15', expDate: '2027-02-15', unit: 'Pcs', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 100, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 5, netValue: 100, lastRate: 95 });
+      renderKeepFocus('purchaseInvoiceNo');
+    };
   }
 
-  let matchingBaseUsage = [];
-  const baseIngQuery = (session.baseIngredientUsageQuery || '').toLowerCase().trim();
-  if (baseIngQuery.length >= 2) {
-    DB.baseRecipes.forEach(br => {
-      const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
-      if (usesItem) matchingBaseUsage.push(`[BASE PREP] ${br.name}`);
-    });
-    for (const dishId in DB.recipes) {
-      const rec = DB.recipes[dishId];
-      const dishObj = DB.menu.find(m => m.id === dishId);
-      const dishName = dishObj ? dishObj.name : `Dish (${dishId})`;
-      const usesItem = (rec.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
-      if (usesItem) matchingBaseUsage.push(`[MAIN DISH] ${dishName}`);
-    }
+  /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
+  const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
+  if (salesCustomerNameInput) {
+    salesCustomerNameInput.onchange = (e) => { 
+      session.salesCustomerName = e.target.value; 
+      const foundCust = DB.customers.find(c => c.name === e.target.value);
+      if (foundCust && foundCust.phone) {
+        session.salesCustomerPhone = foundCust.phone;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
   }
 
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-6xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Base Recipes &amp; Batch Prep Master</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Manage large batch bases, sauces, and doughs.</p>
-        </div>
-        <button id="closeBaseRecipesBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
+  const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
+  if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
 
-      <div class="bg-gold-50 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-gold-200 mb-3 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
-        <div class="font-bold text-brand-900 flex items-center gap-1.5">
-          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Excel Upload
-        </div>
-        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
-          <button id="dlBaseRecipesTemplateBtn" class="font-bold text-gold-700 underline text-xs">Template</button>
-          <input id="baseRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
-          <button id="triggerBaseRecipeExcelBtn" class="bg-gold text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:opacity-90 transition">Upload</button>
-          <button id="bulkDeleteBaseRecipesBtn" class="bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-red-200 transition">Bulk Delete</button>
-        </div>
-      </div>
+  const globalSalesSearchInput = document.getElementById('globalSalesSearchInput');
+  const salesSearchDropdown = document.getElementById('salesSearchDropdown');
 
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 flex-1 overflow-y-auto min-h-0">
-        <div class="bg-brand-50/60 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 border border-brand-100 space-y-2.5 overflow-y-auto max-h-48 md:max-h-full">
-          <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200 shadow-sm">
+  if (globalSalesSearchInput && salesSearchDropdown) {
+    globalSalesSearchInput.oninput = (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      session.salesGlobalSearchQuery = e.target.value;
+      if (q.length === 0) {
+        salesSearchDropdown.classList.add('hidden');
+        salesSearchDropdown.innerHTML = '';
+        return;
+      }
+
+      const matches = DB.menu.filter(m => m.name.toLowerCase().includes(q));
+      if (matches.length > 0) {
+        salesSearchDropdown.innerHTML = matches.map(m => `
+          <div class="search-suggestion-item p-2.5 hover:bg-brand-50 cursor-pointer border-b border-slate-100 flex justify-between items-center text-xs" data-name="${m.name}" data-price="${m.price}">
             <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Filter Base Preps</label>
-              <input id="baseLetterSearchInput" type="text" value="${session.baseRecipeFilterQuery || ''}" placeholder="Filter preps..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gold-400">
+              <div class="font-bold text-brand-950">${m.name}</div>
+              <div class="text-[10px] text-slate-400">${m.category}</div>
             </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Usage Lookup</label>
-              <input id="baseIngredientSearchInput" type="text" value="${session.baseIngredientUsageQuery || ''}" placeholder="Find where used..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gold-400">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">⚡ Sort Base Preps</label>
-              <select id="baseDishSortSelect" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-brand-900 focus:outline-none focus:ring-2 focus:ring-gold-400">
-                <option value="alpha" ${session.baseRecipeSortMode === 'alpha' ? 'selected' : ''}>Alphabetical (A ➔ Z)</option>
-                <option value="cost" ${session.baseRecipeSortMode === 'cost' ? 'selected' : ''}>Cost % (High ➔ Low)</option>
-              </select>
-            </div>
-            ${baseIngQuery.length >= 2 ? `
-              <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded-lg max-h-28 overflow-y-auto leading-relaxed">
-                ${matchingBaseUsage.length === 0 ? `<b>No usage found for "${baseIngQuery}".</b>` : `<b>Used in (${matchingBaseUsage.length}):</b><br>` + matchingBaseUsage.map(d => `• ${d}`).join('<br>')}
-              </div>
-            ` : ''}
+            <div class="font-mono font-bold text-brand-700">${money(m.price)}</div>
           </div>
+        `).join('');
+        salesSearchDropdown.classList.remove('hidden');
 
-          <div class="flex items-center justify-between border-b border-brand-100 pb-1.5">
-            <span class="text-xs font-bold text-brand-800">Saved Preps (${filteredBaseRecipes.length})</span>
-            <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New</button>
-          </div>
-          <div class="space-y-1.5">
-            ${filteredBaseRecipes.map(br => {
-              const cpu = calculateBaseRecipeCostPerUnit(br);
-              return `
-              <div class="base-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.editingBaseRecipeId === br.id ? 'bg-brand text-cream border-brand shadow' : 'bg-white text-brand-900 border-brand-100 hover:border-brand-300'}" data-id="${br.id}">
-                <div class="font-bold truncate">${br.name}</div>
-                <div class="text-[10px] opacity-80 mt-0.5">${br.batchYield} ${br.unit} · ${money(cpu)}/${br.unit}</div>
-              </div>`;
-            }).join('') || `<div class="text-xs text-brand-400 text-center py-6">No base preps found.</div>`}
-          </div>
-        </div>
+        document.querySelectorAll('.search-suggestion-item').forEach(el => {
+          el.onclick = () => {
+            const name = el.dataset.name;
+            const price = Number(el.dataset.price);
+            session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: price, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: price * 0.05, netValue: price });
+            session.salesGlobalSearchQuery = '';
+            salesSearchDropdown.classList.add('hidden');
+            renderKeepFocus('globalSalesSearchInput');
+          };
+        });
+      } else {
+        salesSearchDropdown.innerHTML = `<div class="p-3 text-xs text-slate-400 text-center">No matching items found.</div>`;
+        salesSearchDropdown.classList.remove('hidden');
+      }
+    };
 
-        <div class="md:col-span-3 space-y-3 overflow-y-auto pr-0.5">
-          ${activeBase ? `
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 bg-cream p-3 sm:p-3.5 rounded-xl border border-brand-100 shadow-sm">
-              <div class="sm:col-span-1">
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Prep Name</label>
-                <input id="baseName" value="${activeBase.name}" placeholder="e.g. TOMATO GRAVY BASE" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white focus:ring-2 focus:ring-gold-400 focus:outline-none">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Batch Yield</label>
-                <input id="baseYield" type="number" step="0.01" value="${activeBase.batchYield || 1}" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white focus:ring-2 focus:ring-gold-400 focus:outline-none">
-              </div>
-              <div>
-                <label class="text-[10px] font-bold uppercase text-brand-700 block">Unit</label>
-                <select id="baseUnit" class="w-full mt-1 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white focus:ring-2 focus:ring-gold-400 focus:outline-none">
-                  <option ${activeBase.unit === 'GRM' ? 'selected' : ''}>GRM</option>
-                  <option ${activeBase.unit === 'KG' ? 'selected' : ''}>KG</option>
-                  <option ${activeBase.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                  <option ${activeBase.unit === 'PCS' ? 'selected' : ''}>PCS</option>
-                </select>
-              </div>
-            </div>
+    globalSalesSearchInput.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const matches = DB.menu.filter(m => m.name.toLowerCase().includes(globalSalesSearchInput.value.toLowerCase().trim()));
+        if (matches.length > 0) {
+          const found = matches[0];
+          session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: found.name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: found.price || 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: (found.price || 0) * 0.05, netValue: found.price || 0 });
+          session.salesGlobalSearchQuery = '';
+          salesSearchDropdown.classList.add('hidden');
+          renderKeepFocus('globalSalesSearchInput');
+        }
+      }
+    };
+  }
 
-            <div class="border border-amber-200 rounded-xl bg-amber-50/20 overflow-x-auto shadow-sm">
-              <div class="p-2.5 bg-sheetHeader flex justify-between items-center border-b border-amber-200 sticky left-0">
-                <span class="text-xs font-bold text-brand-950 uppercase tracking-wide">Raw Ingredients in Batch</span>
-                <button id="addBaseIngRowBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-lg hover:bg-brand-600 transition shadow-sm">+ Add Item</button>
-              </div>
-              
-              <table class="w-full text-left text-xs min-w-[650px]">
-                <thead class="bg-sheetHeader text-brand-950 font-bold text-[10px] uppercase border-b border-amber-200">
-                  <tr>
-                    <th class="p-2 text-center w-8 border-r border-amber-200">#</th>
-                    <th class="p-2 min-w-[200px] border-r border-amber-200">Ingredient / Base Prep</th>
-                    <th class="p-2 w-16 border-r border-amber-200 text-center">Qty</th>
-                    <th class="p-2 w-20 border-r border-amber-200">Unit</th>
-                    <th class="p-2 w-20 border-r border-amber-200 text-center">G/ML</th>
-                    <th class="p-2 w-20 border-r border-amber-200">Vendor</th>
-                    <th class="p-2 w-20 border-r border-amber-200 text-right">Rate</th>
-                    <th class="p-2 w-20 text-right">Cost</th>
-                    <th class="p-2 w-8 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-amber-200/80 font-medium">
-                  ${(activeBase.ingredients || []).map((ing, idx) => {
-                    const isBase = ing.type === 'base' || ing.isBase;
-                    let vendor = 'FACTORY';
-                    let unitPrice = 0;
+  document.querySelectorAll('.sales-qty-inc').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty += 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
 
-                    if (isBase) {
-                      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
-                      vendor = 'LINKED BASE';
-                      unitPrice = baseObj ? calculateBaseRecipeCostPerUnit(baseObj) : 0;
-                    } else {
-                      const masterDetails = getRawMaterialDetails(ing.name);
-                      vendor = ing.vendor || masterDetails.vendor || 'FACTORY';
-                      unitPrice = Number(ing.unitPrice) || masterDetails.unitPrice || 0;
-                    }
+  document.querySelectorAll('.sales-qty-dec').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      if (session.salesItems[idx] && session.salesItems[idx].qty > 1) {
+        session.salesItems[idx].qty -= 1;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
 
-                    const computedGrams = getConvertedGramsMl(ing.qty, ing.unit);
+  document.querySelectorAll('.sales-item-qty').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
 
-                    return `
-                    <tr class="hover:bg-amber-100/30 transition">
-                      <td class="p-2 text-center font-bold text-brand-700 border-r border-amber-200">${idx+1}</td>
-                      <td class="p-2 border-r border-amber-200 space-y-1">
-                        <div class="flex items-center gap-1 bg-brand-50 p-0.5 rounded border border-brand-100 mb-1">
-                          <button type="button" class="base-mode-toggle-raw flex-1 py-0.5 text-[8px] font-bold rounded ${!isBase ? 'bg-brand text-cream shadow' : 'text-brand-700'}" data-idx="${idx}">Raw Mat.</button>
-                          <button type="button" class="base-mode-toggle-base flex-1 py-0.5 text-[8px] font-bold rounded ${isBase ? 'bg-gold text-white shadow' : 'text-gold-700'}" data-idx="${idx}">⭐ Base</button>
-                        </div>
-                        <select class="base-ing-select w-full border border-amber-200 rounded p-1 text-xs font-semibold bg-white" data-idx="${idx}">
-                          <option value="">-- Choose Item --</option>
-                          ${isBase ?
-                            sortedBaseRecipes.filter(b => b.id !== activeBase.id).map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ ${br.name}</option>`).join('') :
-                            sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')
-                          }
-                        </select>
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="base-ing-qty w-full border border-amber-200 bg-white rounded p-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.qty || 1}">
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <select class="base-ing-unit w-full border border-amber-200 bg-white rounded p-1 text-xs font-semibold" data-idx="${idx}">
-                          <option ${ing.unit === 'GRM' ? 'selected' : ''}>GRM</option>
-                          <option ${ing.unit === 'ML' ? 'selected' : ''}>ML</option>
-                          <option ${ing.unit === 'KG' ? 'selected' : ''}>KG</option>
-                          <option ${ing.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
-                          <option ${ing.unit === 'TSP' ? 'selected' : ''}>TSP</option>
-                          <option ${ing.unit === 'TBSP' ? 'selected' : ''}>TBSP</option>
-                          <option ${ing.unit === 'PCS' ? 'selected' : ''}>PCS</option>
-                        </select>
-                      </td>
-                      <td class="p-2 border-r border-amber-200">
-                        <input type="number" step="0.01" class="base-ing-grams w-full border border-amber-200 bg-white rounded p-1 text-xs text-center font-bold" data-idx="${idx}" value="${ing.gramsMl || computedGrams}">
-                      </td>
-                      <td class="p-2 border-r border-amber-200 font-semibold text-brand-700 truncate text-[11px]">
-                        ${vendor}
-                      </td>
-                      <td class="p-2 border-r border-amber-200 text-right font-bold">
-                        ${money(unitPrice)}
-                      </td>
-                      <td class="p-2 text-right font-bold text-brand-950 base-ing-cost-cell">
-                        ${money(calculateIngCost({ ...ing, gramsMl: ing.gramsMl || computedGrams, unitPrice }))}
-                      </td>
-                      <td class="p-2 text-center">
-                        <button class="remove-base-ing text-red-500 hover:text-red-700 p-1" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
-                      </td>
-                    </tr>
-                  `;}).join('') || `<tr><td colspan="9" class="text-center py-4 text-brand-400">No ingredients in this batch yet.</td></tr>`}
-                </tbody>
-              </table>
-            </div>
+  document.querySelectorAll('.remove-sales-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesItems.splice(idx, 1);
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
 
-            <div class="flex items-center justify-between bg-gold-50/90 p-3 rounded-xl border border-gold-200 text-xs font-bold text-brand-950">
-              <span>Total Batch: <span id="baseSummaryTotalCost">${money(totalCost)}</span></span>
-              <span class="text-gold-900">Unit Rate: <span id="baseSummaryUnitRate">${money(costPerUnit)}</span> / ${activeBase.unit}</span>
-            </div>
+  const clearSalesCartBtn = document.getElementById('clearSalesCartBtn');
+  if (clearSalesCartBtn) {
+    clearSalesCartBtn.onclick = () => {
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
 
-            <div class="flex gap-2 pb-2">
-              <button id="saveBaseRecipeBtn" class="flex-1 bg-brand hover:bg-brand-600 text-cream font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Save Base Prep</button>
-              <button id="deleteBaseRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-3 rounded-xl text-xs hover:bg-red-100 transition flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</button>
-            </div>
-          ` : `<div class="text-xs text-brand-400 text-center py-16">Select or create a base prep on the left.</div>`}
-        </div>
-      </div>
-    </div>
-  </div>`;
+  /* QUICK PAYMENT CARDS */
+  document.querySelectorAll('.quick-pay-card-btn').forEach(btn => {
+    btn.onclick = () => {
+      const mode = btn.dataset.mode;
+      const grandTotal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode, amount: grandTotal }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const toggleSplitPayment = document.getElementById('toggleSplitPayment');
+  if (toggleSplitPayment) {
+    toggleSplitPayment.onchange = (e) => {
+      session.splitPaymentEnabled = e.target.checked;
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  document.querySelectorAll('.payment-mode-select').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.salesPayments[idx]) session.salesPayments[idx].mode = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.payment-mode-amount').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesPayments[idx]) {
+        session.salesPayments[idx].amount = Number(e.target.value) || 0;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
+
+  const addPaymentLineBtn = document.getElementById('addPaymentLineBtn');
+  if (addPaymentLineBtn) {
+    addPaymentLineBtn.onclick = () => {
+      if (!session.salesPayments) session.salesPayments = [];
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
+      const remaining = Math.max(0, totalVal - currentPaid);
+      session.salesPayments.push({ mode: 'UPI', amount: remaining });
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  document.querySelectorAll('.remove-payment-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.salesPayments.splice(idx, 1);
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
+
+  const addSalesLineBtn = document.getElementById('addSalesLineBtn');
+  if (addSalesLineBtn) {
+    addSalesLineBtn.onclick = () => {
+      if (!session.salesItems) session.salesItems = [];
+      session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  }
+
+  const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
+  if (completeSalesBillBtn) {
+    completeSalesBillBtn.onclick = async () => {
+      const items = session.salesItems || [];
+      if (items.length === 0 || !items[0].itemName) {
+        toast('Please add at least one valid sales item.', 'alert-triangle');
+        return;
+      }
+
+      const orderId = Math.floor(1000 + Math.random() * 9000).toString();
+      const cartFormatted = items.map(i => ({ id: uid('s'), name: i.itemName, price: i.rate, qty: i.qty, kind: 'cafe' }));
+      const primaryPayment = session.salesPayments && session.salesPayments.length > 0 ? session.salesPayments[0].mode : 'Cash';
+
+      const newOrder = {
+        id: orderId,
+        table: session.salesTableNo || 'Table 12',
+        type: session.salesOrderType === 'Takeaway' ? 'retail' : 'cafe',
+        customerName: session.salesCustomerName || 'Walk-In Customer',
+        customerPhone: session.salesCustomerPhone || '',
+        items: cartFormatted,
+        paymentMode: primaryPayment,
+        payments: session.salesPayments,
+        status: 'served',
+        ts: Date.now(),
+        completedTs: Date.now()
+      };
+
+      await db.ref('orders/' + orderId).set(newOrder);
+      for (const item of cartFormatted) {
+        if (item.id) await processBOMDeduction(item.id, item.qty);
+      }
+
+      toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
+      session.salesItems = [{ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 }];
+      session.salesPayments = [{ mode: 'Cash', amount: 0 }];
+      session.salesCustomerName = 'Walk-In Customer';
+      session.salesCustomerPhone = '9876543210';
+      session.showBillingModal = false;
+      render();
+    };
+  }
+
+  /* PHYSICAL STOCK TAKE WIRING */
+  document.querySelectorAll('.physical-count-input').forEach(input => {
+    input.oninput = (e) => {
+      const id = input.dataset.id;
+      const unit = input.dataset.unit;
+      const physicalVal = Number(e.target.value) || 0;
+      const rm = DB.rawMaterials.find(r => r.id === id);
+      if (rm) {
+        const sysVal = Number(rm.stockGrams || 100000) / ((unit === 'KG' || unit === 'LITRE') ? 1000 : 1);
+        const variance = physicalVal - sysVal;
+        const varianceCell = document.querySelector(`.variance-cell[data-id="${id}"]`);
+        if (varianceCell) {
+          varianceCell.textContent = `${variance > 0 ? '+' : ''}${variance.toFixed(2)} ${unit}`;
+          varianceCell.className = `p-3 text-right font-mono font-bold ${variance < 0 ? 'text-red-600' : variance > 0 ? 'text-green-600' : 'text-brand-700'} variance-cell`;
+        }
+      }
+    };
+  });
+
+  const saveStockTakeBtn = document.getElementById('saveStockTakeBtn');
+  if (saveStockTakeBtn) {
+    saveStockTakeBtn.onclick = async () => {
+      const updates = {};
+      document.querySelectorAll('.physical-count-input').forEach(input => {
+        const id = input.dataset.id;
+        const unit = input.dataset.unit;
+        const physicalVal = Number(input.value) || 0;
+        const gramsMl = getConvertedGramsMl(physicalVal, unit);
+        updates[`rawMaterials/${id}/stockGrams`] = gramsMl;
+      });
+      await db.ref().update(updates);
+      toast('Physical stock take reconciled & system stock updated!', 'check-circle');
+      session.showStockTakeModal = false;
+      render();
+    };
+  }
+
+  /* PURCHASE INWARDING WIRING */
+  const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
+  if (validatePurchaseBtn) {
+    validatePurchaseBtn.onclick = async () => {
+      toast('Purchase entry saved successfully!', 'check-circle');
+      session.showPurchaseModal = false;
+      render();
+    };
+  }
+
+  /* WASTAGE LOGGING SUBMISSION */
+  const submitWastageBtn = document.getElementById('submitWastageBtn');
+  if (submitWastageBtn) {
+    submitWastageBtn.onclick = async () => {
+      const rmName = document.getElementById('wastageRmSelect').value;
+      const qty = Number(document.getElementById('wastageQtyInput').value) || 0;
+      const unit = document.getElementById('wastageUnitSelect').value;
+      const reason = document.getElementById('wastageReasonInput').value.trim() || 'General Spoilage';
+
+      if (!rmName || qty <= 0) {
+        toast('Please select a material and enter a valid quantity.', 'alert-triangle');
+        return;
+      }
+
+      const rm = DB.rawMaterials.find(r => r.name.toLowerCase().trim() === rmName.toLowerCase().trim());
+      if (rm) {
+        const wasteGrams = getConvertedGramsMl(qty, unit);
+        const currentStock = Number(rm.stockGrams ?? 100000);
+        const newStock = Math.max(0, currentStock - wasteGrams);
+        await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+      }
+
+      const logEntry = { id: uid('waste'), item: rmName, qty, unit, reason, staff: session.staff.username, ts: Date.now() };
+      DB.wastageLogs.push(logEntry);
+      await db.ref('wastageLogs').set(DB.wastageLogs);
+
+      toast('Wastage logged & raw material inventory updated!', 'trash-2');
+      session.showWastageModal = false;
+      render();
+    };
+  }
+
+  /* MASTER MAIN RECIPES MODAL HANDLERS */
+  const openMainBtn = document.getElementById('openMainRecipesModalBtn');
+  if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+
+  const launchMainBtn = document.getElementById('launchMainMasterBtn');
+  if (launchMainBtn) launchMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+
+  const closeMainModalBtn = document.getElementById('closeMainRecipesModalBtn');
+  if (closeMainModalBtn) closeMainModalBtn.onclick = () => { session.showMainRecipesModal = false; render(); };
+
+  document.querySelectorAll('.main-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.activeRecipeDishId = card.dataset.id;
+      render();
+    };
+  });
+
+  const mainDishSortSelect = document.getElementById('mainDishSortSelect');
+  if (mainDishSortSelect) {
+    mainDishSortSelect.onchange = (e) => {
+      session.recipeSortMode = e.target.value;
+      renderKeepFocus('mainDishSortSelect');
+    };
+  }
+
+  const baseDishSortSelect = document.getElementById('baseDishSortSelect');
+  if (baseDishSortSelect) {
+    baseDishSortSelect.onchange = (e) => {
+      session.baseRecipeSortMode = e.target.value;
+      renderKeepFocus('baseDishSortSelect');
+    };
+  }
+
+  const masterDishNameInput = document.getElementById('masterDishNameInput');
+  if (masterDishNameInput) {
+    masterDishNameInput.oninput = async (e) => {
+      const dishId = masterDishNameInput.dataset.id;
+      const newName = e.target.value.trim();
+      if (!dishId || !newName) return;
+      await db.ref(`menu/${dishId}/name`).set(newName);
+      const menuDish = DB.menu.find(m => m.id === dishId);
+      if (menuDish) menuDish.name = newName;
+    };
+  }
+
+  const liveLetterInput = document.getElementById('liveLetterSearchInput');
+  if (liveLetterInput) {
+    liveLetterInput.oninput = (e) => {
+      session.recipeFilterQuery = e.target.value;
+      renderKeepFocus('liveLetterSearchInput');
+    };
+  }
+
+  const liveIngInput = document.getElementById('liveIngredientSearchInput');
+  if (liveIngInput) {
+    liveIngInput.oninput = (e) => {
+      session.ingredientUsageQuery = e.target.value;
+      renderKeepFocus('liveIngredientSearchInput');
+    };
+  }
+
+  const manageIngBtn = document.getElementById('manageIngredientsBtn');
+  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
+
+  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
+  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
+
+  const addRmBtn = document.getElementById('addRmBtn');
+  if (addRmBtn) {
+    addRmBtn.onclick = async () => {
+      const name = document.getElementById('newRmName').value.trim();
+      const vendor = document.getElementById('newRmVendor').value.trim() || 'FACTORY';
+      const unit = document.getElementById('newRmUnit').value;
+      const unitPrice = Number(document.getElementById('newRmPrice').value) || 0;
+
+      if (!name) { toast('Enter raw material name.', 'alert-triangle'); return; }
+
+      const newItem = { id: uid('rm'), name, vendor, unit, unitPrice };
+      await db.ref('rawMaterials/' + newItem.id).set(newItem);
+      toast('Raw material saved!', 'check-circle');
+    };
+  }
+
+  document.querySelectorAll('.delete-rm-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      await db.ref('rawMaterials/' + id).remove();
+      toast('Raw material removed.');
+    };
+  });
+
+  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
+  if (manageBaseBtn) {
+    manageBaseBtn.onclick = () => {
+      session.showBaseRecipesModal = true;
+      if (!session.editingBaseRecipeId && DB.baseRecipes.length > 0) {
+        session.editingBaseRecipeId = DB.baseRecipes[0].id;
+      }
+      render();
+    };
+  }
+
+  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
+  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
+
+  const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
+  if (createNewBaseBtn) {
+    createNewBaseBtn.onclick = async () => {
+      const newBase = { id: uid('br'), name: 'New Base Prep', batchYield: 1, unit: 'GRM', ingredients: [] };
+      await db.ref('baseRecipes/' + newBase.id).set(newBase);
+      session.editingBaseRecipeId = newBase.id;
+      render();
+    };
+  }
+
+  document.querySelectorAll('.base-recipe-card').forEach(card => {
+    card.onclick = () => {
+      session.editingBaseRecipeId = card.dataset.id;
+      render();
+    };
+  });
+
+  const saveBaseRecipeBtn = document.getElementById('saveBaseRecipeBtn');
+  if (saveBaseRecipeBtn && session.editingBaseRecipeId) {
+    saveBaseRecipeBtn.onclick = async () => {
+      const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (activeBase) {
+        activeBase.name = document.getElementById('baseName').value.trim();
+        activeBase.batchYield = Number(document.getElementById('baseYield').value) || 1;
+        activeBase.unit = document.getElementById('baseUnit').value;
+        await db.ref('baseRecipes/' + activeBase.id).set(activeBase);
+        toast('Base recipe saved!', 'check-circle');
+      }
+    };
+  }
+
+  const deleteBaseRecipeBtn = document.getElementById('deleteBaseRecipeBtn');
+  if (deleteBaseRecipeBtn && session.editingBaseRecipeId) {
+    deleteBaseRecipeBtn.onclick = async () => {
+      if (confirm('Delete this base prep?')) {
+        await db.ref('baseRecipes/' + session.editingBaseRecipeId).remove();
+        session.editingBaseRecipeId = null;
+        render();
+      }
+    };
+  }
 }
 
-function rawMaterialsModal() {
-  const query = (session.rmSearch || '').toLowerCase().trim();
-  const filteredRm = DB.rawMaterials
-    .filter(rm => {
-      if (!query) return true;
-      const nameMatch = (rm.name || '').toLowerCase().includes(query);
-      const vendorMatch = (rm.vendor || '').toLowerCase().includes(query);
-      return nameMatch || vendorMatch;
-    })
-    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
+  if (rm) {
+    const addedGrams = getConvertedGramsMl(qty, unit);
+    const currentStock = Number(rm.stockGrams ?? 100000);
+    const newStock = currentStock + addedGrams;
 
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-5xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <div>
-          <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Raw Material Master Database</h3>
-          <p class="text-[11px] sm:text-xs text-brand-400">Manage wholesale ingredient costs and suppliers.</p>
-        </div>
-        <button id="closeRawMaterialsBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
+    await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+    await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
+  }
 
-      <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
-        <div class="bg-gold-50 p-3 sm:p-4 rounded-xl border border-gold-200 space-y-2">
-          <div class="flex items-center justify-between">
-            <div class="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel Upload
-            </div>
-            <button id="dlRmTemplateBtn" class="text-xs font-bold text-gold-700 underline">Template</button>
-          </div>
-          <div class="flex gap-2">
-            <input id="rmExcelInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gold file:text-white">
-            <button id="processRmExcelBtn" class="bg-brand text-cream font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 hover:bg-brand-600 transition">Upload</button>
-          </div>
-        </div>
+  const purchaseLog = {
+    id: uid('p'),
+    invoiceNo,
+    vendor,
+    vendorPhone,
+    vendorGst,
+    itemName: rmName,
+    qty,
+    unit,
+    totalAmount,
+    rate: newRate,
+    staff: session.staff.username,
+    ts: Date.now()
+  };
 
-        <div class="bg-brand-50/70 p-3.5 rounded-xl border border-brand-100">
-          <div class="text-xs font-bold text-brand-900 mb-2">Add Single Material Item</div>
-          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <input id="newRmName" placeholder="Item Name (e.g. TOMATO)" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
-            <input id="newRmVendor" placeholder="Vendor (e.g. AD VEGETABLES)" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
-            <select id="newRmUnit" class="border border-brand-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
-              <option value="GRM">GRM</option>
-              <option value="ML">ML</option>
-              <option value="KG">KG</option>
-              <option value="LITRE">LITRE</option>
-              <option value="PCS">PCS</option>
-            </select>
-            <input id="newRmPrice" type="number" step="0.01" placeholder="Rate / KG (₹)" class="border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none">
-          </div>
-          <button id="addRmBtn" class="w-full mt-2 bg-brand text-cream font-bold py-2 rounded-lg text-xs hover:bg-brand-600 transition shadow-sm">Add Material</button>
-        </div>
-
-        <div class="relative">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-          <input id="dashRmSearch" value="${session.rmSearch || ''}" placeholder="Filter raw materials..." class="w-full bg-white border border-brand-200 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400">
-        </div>
-
-        <div class="overflow-x-auto border border-brand-100 rounded-xl">
-          <table class="w-full text-left text-xs min-w-[500px]">
-            <thead class="bg-brand-50 text-brand-800 font-bold uppercase text-[10px]">
-              <tr>
-                <th class="p-2.5">Material Name</th>
-                <th class="p-2.5">Vendor</th>
-                <th class="p-2.5 w-16">Unit</th>
-                <th class="p-2.5 w-24 text-right">Rate (₹)</th>
-                <th class="p-2.5 w-12 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-brand-50 font-medium">
-              ${filteredRm.map(rm => `
-                <tr class="hover:bg-brand-50/40">
-                  <td class="p-2.5 font-bold text-brand-950">${rm.name}</td>
-                  <td class="p-2.5 text-brand-600 font-semibold">${rm.vendor || 'FACTORY'}</td>
-                  <td class="p-2.5 uppercase text-brand-600">${rm.unit || 'GRM'}</td>
-                  <td class="p-2.5 text-right font-bold text-brand-950">${money(rm.unitPrice)}</td>
-                  <td class="p-2.5 text-center">
-                    <button class="delete-rm-btn text-red-500 hover:text-red-700 p-1" data-id="${rm.id}"><i data-lucide="trash-2" class="w-3.5 h-3.5 mx-auto"></i></button>
-                  </td>
-                </tr>
-              `).join('') || `<tr><td colspan="5" class="text-center py-6 text-brand-400">No raw materials match.</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  DB.purchases.push(purchaseLog);
+  await db.ref('purchases').set(DB.purchases);
 }
 
-function inventoryPanel() {
-  const cafeQuery = (session.cafeSearch || '').toLowerCase().trim();
-  const retailQuery = (session.retailSearch || '').toLowerCase().trim();
+function renderKeepFocus(inputId) {
+  const activeEl = document.getElementById(inputId);
+  const start = activeEl ? activeEl.selectionStart : null;
+  const end = activeEl ? activeEl.selectionEnd : null;
 
-  const filteredCafe = DB.menu.filter(item => 
-    item.name.toLowerCase().includes(cafeQuery) || 
-    (item.category && item.category.toLowerCase().includes(cafeQuery))
-  );
+  render();
 
-  const filteredRetail = DB.retail.filter(item => 
-    item.name.toLowerCase().includes(retailQuery) || 
-    (item.category && item.category.toLowerCase().includes(retailQuery))
-  );
-
-  return `
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Cafe Menu (${filteredCafe.length})</h3>
-        <button id="addDishBtn" class="text-xs font-bold bg-brand text-cream px-3 py-1.5 rounded-xl flex items-center gap-1 hover:bg-brand-600 transition shadow active:scale-98"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Dish</button>
-      </div>
-
-      <div class="relative mb-3">
-        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-        <input id="dashCafeSearch" value="${session.cafeSearch || ''}" placeholder="Filter dishes..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
-      </div>
-
-      <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-        ${filteredCafe.map(inventoryRow.bind(null, 'menu')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching dishes.</div>`}
-      </div>
-    </div>
-
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Retail Store (${filteredRetail.length})</h3>
-        <button id="addRetailBtn" class="text-xs font-bold bg-gold text-white px-3 py-1.5 rounded-xl flex items-center gap-1 hover:opacity-90 transition shadow active:scale-98"><i data-lucide="plus" class="w-3.5 h-3.5"></i>Add Product</button>
-      </div>
-
-      <div class="relative mb-3">
-        <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-brand-400"></i>
-        <input id="dashRetailSearch" value="${session.retailSearch || ''}" placeholder="Filter retail products..." class="w-full bg-brand-50 border border-brand-100 rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300">
-      </div>
-
-      <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-        ${filteredRetail.map(inventoryRow.bind(null, 'retail')).join('') || `<div class="text-xs text-center py-8 text-brand-400">No matching products.</div>`}
-      </div>
-    </div>
-  </div>`;
-}
-
-function inventoryRow(kind, item) {
-  return `
-  <div class="flex items-center gap-2.5 sm:gap-3 border border-brand-50 rounded-xl p-2 sm:p-2.5 bg-brand-50/20">
-    <img src="${item.img || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500'}" class="w-10 h-10 sm:w-11 sm:h-11 rounded-lg object-cover shrink-0" onerror="this.style.display='none'">
-    <div class="flex-1 min-w-0">
-      <div class="text-xs sm:text-sm font-bold text-brand-950 truncate">${item.name}</div>
-      <div class="text-[10px] sm:text-[11px] text-brand-400 font-medium truncate">${item.category} · ${money(item.price)}</div>
-    </div>
-    <button class="stock-toggle shrink-0 text-[9px] sm:text-[10px] font-bold px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full ${item.stock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}" data-kind="${kind}" data-id="${item.id}">${item.stock ? 'In Stock' : 'Out'}</button>
-    <button class="edit-item shrink-0 w-7 h-7 rounded-lg bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100" data-kind="${kind}" data-id="${item.id}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-    <button class="delete-item shrink-0 w-7 h-7 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100" data-kind="${kind}" data-id="${item.id}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-  </div>`;
-}
-
-function bulkPanel() {
-  return `
-  <div class="max-w-2xl mx-auto space-y-4 sm:space-y-6">
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-6">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-gold-100 flex items-center justify-center text-gold-700 shrink-0"><i data-lucide="file-spreadsheet" class="w-5 h-5"></i></div>
-        <div>
-          <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Excel Bulk Uploader</h3>
-          <p class="text-xs text-brand-400">Download templates and upload menu &amp; retail records.</p>
-        </div>
-      </div>
-
-      <div class="mb-4 bg-brand-50 p-3 sm:p-4 rounded-xl border border-brand-100 space-y-2">
-        <div class="text-xs font-bold text-brand-800 flex items-center gap-1.5">
-          <i data-lucide="download" class="w-4 h-4 text-brand-600"></i> Download Templates:
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <button id="dlCafeTemplateBtn" class="bg-brand text-cream text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 hover:bg-brand-600 transition">
-            <i data-lucide="utensils" class="w-3.5 h-3.5"></i> Cafe Menu
-          </button>
-          <button id="dlRetailTemplateBtn" class="bg-gold text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 hover:opacity-90 transition">
-            <i data-lucide="shopping-basket" class="w-3.5 h-3.5"></i> Retail Store
-          </button>
-        </div>
-      </div>
-      
-      <div class="border-2 border-dashed border-brand-200 rounded-xl p-4 sm:p-6 text-center bg-cream/40 mb-3">
-        <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-brand-400 mb-1"></i>
-        <label class="block text-xs font-bold text-brand-700 mb-2">Upload (.xlsx, .xls, .csv)</label>
-        <input id="excelFileInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand file:text-cream">
-      </div>
-
-      <button id="processExcelBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition shadow active:scale-98">Process &amp; Upload Items</button>
-    </div>
-
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-6">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-700 shrink-0"><i data-lucide="images" class="w-5 h-5"></i></div>
-        <div>
-          <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Bulk Auto-Match Photos</h3>
-          <p class="text-xs text-brand-400">Links images matching dish/product names automatically.</p>
-        </div>
-      </div>
-
-      <div class="border-2 border-dashed border-brand-200 rounded-xl p-4 sm:p-6 text-center bg-brand-50/40 mb-3">
-        <i data-lucide="image-plus" class="w-8 h-8 mx-auto text-brand-400 mb-1"></i>
-        <label class="block text-xs font-bold text-brand-700 mb-1">Select Multiple Images</label>
-        <input id="bulkImagesInput" type="file" accept="image/*" multiple class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gold file:text-white">
-      </div>
-
-      <button id="processBulkImagesBtn" class="w-full bg-gold text-white font-bold py-3 rounded-xl text-xs sm:text-sm hover:opacity-90 transition shadow active:scale-98">Auto-Match &amp; Upload Photos</button>
-    </div>
-  </div>`;
-}
-
-function retailBoard(orders) {
-  const active = orders.filter(o => o.status !== 'served');
-  const nextMap = { received:'preparing', preparing:'ready', ready:'served' };
-  const nextLabel = { received:'Acknowledge', preparing:'Mark Ready', ready:'Mark Delivered' };
-  return `
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-    ${active.map(o => `
-    <div class="bg-white rounded-2xl card-shadow p-3.5 sm:p-4 border-l-4 border-gold relative overflow-hidden">
-      <span class="absolute top-0 right-0 bg-gold text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg">RETAIL</span>
-      <div class="font-display text-sm sm:text-base font-bold mb-0.5 text-brand-950">#${o.id} · Table ${o.table}</div>
-      ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-1 truncate">${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
-      <div class="text-[10px] text-brand-400 mb-2">${timeAgo(o.ts)}</div>
-      <div class="space-y-1 mb-2 bg-brand-50/40 p-2 rounded-lg">
-        ${o.items.map(it => `<div class="text-xs text-brand-800 font-medium">${it.qty}× ${it.name}</div>`).join('')}
-      </div>
-      ${o.notes ? `<div class="text-[11px] bg-amber-50 text-amber-900 rounded-lg p-2 mb-2 border border-amber-200">${o.notes}</div>` : ''}
-      <button class="advance-order w-full mt-2 bg-gold text-white text-xs font-bold py-2 rounded-xl active:scale-98" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>
-    </div>`).join('') || `<div class="col-span-full text-center py-10 text-brand-400 text-xs">No active retail requests.</div>`}
-  </div>`;
-}
-
-function dishEditorModal() {
-  const d = session.editingDish === 'new' ? { id:null,name:'',category:'Millet Bowls',price:'',img:'',badges:[],nutrition:{cal:'',protein:'',carbs:'',fat:''},stock:true,desc:'' } : DB.menu.find(m => m.id === session.editingDish);
-  const allBadges = ['100% Organic', 'Vegan', 'Gluten-Free'];
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">${d.id ? 'Edit Menu Dish' : 'Add Menu Dish'}</h3>
-        <button id="cancelDishBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-      
-      <div class="flex-1 overflow-y-auto space-y-3 pr-0.5">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Dish Name</label><input id="dName" value="${d.name}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
-          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="dCategory" value="${d.category}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
-          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="dPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
-          <div class="sm:col-span-2">
-            <label class="text-xs font-bold text-brand-600">Photo Upload</label>
-            <input id="dImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-1.5 text-xs bg-white">
-          </div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="dDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none">${d.desc}</textarea></div>
-          <div class="sm:col-span-2">
-            <label class="text-xs font-bold text-brand-600">Dietary Badges</label>
-            <div class="flex flex-wrap gap-3 mt-1.5">${allBadges.map(b => `<label class="text-xs font-semibold flex items-center gap-1.5"><input type="checkbox" class="dBadge accent-brand" value="${b}" ${d.badges.includes(b) ? 'checked' : ''}>${b}</label>`).join('')}</div>
-          </div>
-          <div><label class="text-[11px] font-bold text-brand-600">Calories (kcal)</label><input id="dCal" type="number" value="${d.nutrition.cal}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Protein (g)</label><input id="dProt" type="number" value="${d.nutrition.protein}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Carbs (g)</label><input id="dCarb" type="number" value="${d.nutrition.carbs}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Fat (g)</label><input id="dFat" type="number" value="${d.nutrition.fat}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-        </div>
-      </div>
-
-      <div class="pt-3 border-t border-brand-100 shrink-0">
-        <button id="saveDishBtn" data-id="${d.id || ''}" class="w-full bg-brand text-cream font-bold py-3 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition shadow active:scale-98">Save Dish</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function retailEditorModal() {
-  const d = session.editingRetail === 'new' ? { id:null,name:'',category:'Oils & Ghee',price:'',img:'',size:'',stock:true,desc:'' } : DB.retail.find(m => m.id === session.editingRetail);
-  return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
-        <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">${d.id ? 'Edit Product' : 'Add Retail Product'}</h3>
-        <button id="cancelRetailBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-
-      <div class="flex-1 overflow-y-auto space-y-3 pr-0.5">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Product Name</label><input id="rName" value="${d.name}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="rCategory" value="${d.category}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="rPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Size / Pack Specification</label><input id="rSize" value="${d.size}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div class="sm:col-span-2">
-            <label class="text-xs font-bold text-brand-600">Photo Upload</label>
-            <input id="rImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-1.5 text-xs bg-white">
-          </div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="rDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50">${d.desc}</textarea></div>
-        </div>
-      </div>
-
-      <div class="pt-3 border-t border-brand-100 shrink-0">
-        <button id="saveRetailBtn" data-id="${d.id || ''}" class="w-full bg-gold text-white font-bold py-3 rounded-xl text-xs sm:text-sm hover:opacity-90 transition shadow active:scale-98">Save Product</button>
-      </div>
-    </div>
-  </div>`;
-}
-
-function qrPanel() {
-  const repoPath = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
-  const base = location.origin + repoPath + 'index.html';
-  return `
-  <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
-    <div class="flex items-center justify-between mb-3 no-print flex-wrap gap-2">
-      <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">QR Table Stands</h3>
-      <button id="printAllBtn" class="text-xs font-bold bg-brand text-cream px-4 py-2 rounded-xl flex items-center gap-1.5 hover:bg-brand-600 transition shadow active:scale-98"><i data-lucide="printer" class="w-3.5 h-3.5"></i>Print Tent Cards</button>
-    </div>
-    <div id="printArea" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-      ${Array.from({length:16}, (_,i) => i+1).map(n => tentCard(n, base)).join('')}
-    </div>
-  </div>`;
-}
-
-function tentCard(n, base) {
-  const url = `${base}?table=${n}`;
-  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=105955&data=${encodeURIComponent(url)}`;
-  return `
-  <div class="border-2 border-brand rounded-2xl p-3 sm:p-4 text-center bg-cream break-inside-avoid shadow-sm">
-    <img src="${DB.settings.logoUrl}" class="w-8 h-8 object-contain mx-auto mb-1">
-    <div class="font-display text-xs font-bold text-brand-800 truncate">${DB.settings.restaurantName}</div>
-    <img src="${qrImg}" class="w-full aspect-square my-2 rounded-lg" alt="QR table ${n}">
-    <div class="font-display text-xl font-bold text-brand">Table ${String(n).padStart(2,'0')}</div>
-    <div class="text-[9px] text-brand-400 mt-0.5">Scan to view menu &amp; order</div>
-  </div>`;
-}
-
-function brandPanel() {
-  return `
-  <div class="max-w-lg bg-white rounded-2xl card-shadow p-4 sm:p-5 mx-auto sm:mx-0">
-    <h3 class="font-display text-base sm:text-lg font-bold mb-1 text-brand-950">Brand Configuration</h3>
-    <p class="text-xs text-brand-400 mb-4">Instantly syncs restaurant branding across customer &amp; kitchen apps.</p>
-    <label class="text-xs font-bold text-brand-600">Restaurant Name</label>
-    <input id="brandName" value="${DB.settings.restaurantName}" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50">
-    <label class="text-xs font-bold text-brand-600">Tagline</label>
-    <input id="brandTagline" value="${DB.settings.tagline}" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50">
-    <label class="text-xs font-bold text-brand-600">Logo Photo</label>
-    <input id="brandLogoFile" type="file" accept="image/*" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3 py-1.5 text-xs bg-white">
-    <div class="flex items-center gap-3 mb-4">
-      <img id="logoPreview" src="${DB.settings.logoUrl}" class="w-12 h-12 rounded-full bg-brand p-1.5 object-contain shadow">
-      <button id="resetLogoBtn" class="text-xs font-semibold text-brand-500 underline">Reset default</button>
-    </div>
-    <button id="saveBrandBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition shadow active:scale-98">Save Brand Settings</button>
-  </div>`;
+  const el = document.getElementById(inputId);
+  if (el) {
+    el.focus();
+    if (start !== null && end !== null) el.setSelectionRange(start, end);
+  }
 }
 
 db.ref('menu').on('value', snap => {
@@ -2500,6 +1496,59 @@ db.ref('settings').on('value', snap => {
 (function boot() {
   document.addEventListener('touchstart', unlockAudio, { once: true });
   document.addEventListener('click', unlockAudio, { once: true });
+
+  // Foolproof global click delegation
+  document.addEventListener('click', (e) => {
+    const kTabBtn = e.target.closest('[data-ktab]');
+    if (kTabBtn) {
+      session.kitchenTab = kTabBtn.dataset.ktab;
+      render();
+      return;
+    }
+    if (e.target.closest('#openBillingModalBtn')) {
+      session.showBillingModal = true;
+      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
+      session.salesPayments = [{ mode: 'Cash', amount: totalVal }];
+      render();
+      return;
+    }
+    if (e.target.closest('#openPurchaseModalBtn')) {
+      session.showPurchaseModal = true;
+      render();
+      return;
+    }
+    if (e.target.closest('#openStockTakeModalBtn')) {
+      session.showStockTakeModal = true;
+      render();
+      return;
+    }
+    if (e.target.closest('#openWastageModalBtn')) {
+      session.showWastageModal = true;
+      render();
+      return;
+    }
+    if (e.target.closest('#closeBillingModalBtn')) {
+      session.showBillingModal = false;
+      render();
+      return;
+    }
+    if (e.target.closest('#closePurchaseModalBtn')) {
+      session.showPurchaseModal = false;
+      render();
+      return;
+    }
+    if (e.target.closest('#closeStockTakeModalBtn')) {
+      session.showStockTakeModal = false;
+      render();
+      return;
+    }
+    if (e.target.closest('#closeWastageModalBtn')) {
+      session.showWastageModal = false;
+      render();
+      return;
+    }
+  });
+
   render();
 })();
 </script>
