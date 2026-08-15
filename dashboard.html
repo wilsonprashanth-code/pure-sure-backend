@@ -1062,10 +1062,7 @@ function billingModalBillmaxStyle() {
                   <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
                   <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
                   <td class="p-2 border border-slate-200">
-                    <select class="sales-item-select w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}">
-                      <option value="">-- Choose Menu Item --</option>
-                      ${DB.menu.map(m => `<option value="${m.name}" ${item.itemName === m.name ? 'selected' : ''}>${m.name} — ${money(m.price)}</option>`).join('')}
-                    </select>
+                    <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
                   </td>
                   <td class="p-2 border border-slate-200 text-center">
                     <input type="number" step="0.01" class="sales-item-qty w-full border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.qty}">
@@ -1105,6 +1102,10 @@ function billingModalBillmaxStyle() {
           <button type="button" id="addSalesLineBtn" class="bg-gold text-white text-xs font-bold px-4 py-1.5 rounded shadow hover:opacity-90">+ Add Item Line</button>
         </div>
       </div>
+
+      <datalist id="menuItemsList">
+        ${DB.menu.map(m => `<option value="${m.name}">`).join('')}
+      </datalist>
 
       <!-- Remarks & Footer Meta Bar -->
       <div class="bg-[#e6decc] p-2 border-t border-slate-300 flex items-center gap-3 text-xs shrink-0">
@@ -2192,63 +2193,6 @@ function addStaffForm() {
   </div>`;
 }
 
-function recalculateMainRecipeTotals() {
-  if (!session.activeRecipeDishId || !DB.recipes[session.activeRecipeDishId]) return;
-  const recipe = DB.recipes[session.activeRecipeDishId];
-  const selectedDish = DB.menu.find(m => m.id === session.activeRecipeDishId);
-
-  const rawTotalCost = (recipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
-  const wastageCost = rawTotalCost * ((recipe.wastagePercent || 10) / 100);
-  const totalProductionCost = rawTotalCost + wastageCost;
-  const costPerPortion = recipe.portions ? (totalProductionCost / recipe.portions) : 0;
-  const sellingPrice = selectedDish ? Number(selectedDish.price || 0) : 0;
-  const profitMargin = sellingPrice - costPerPortion;
-  const foodCostPercent = sellingPrice > 0 ? ((costPerPortion / sellingPrice) * 100) : 0;
-  const grossMarginPercent = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100) : 0;
-
-  const summaryRaw = document.getElementById('summaryRawCost');
-  if (summaryRaw) summaryRaw.textContent = money(rawTotalCost);
-
-  const summaryWastage = document.getElementById('summaryWastageCost');
-  if (summaryWastage) summaryWastage.textContent = money(wastageCost);
-
-  const summaryTotal = document.getElementById('summaryTotalCost');
-  if (summaryTotal) summaryTotal.textContent = money(totalProductionCost);
-
-  const summaryPortion = document.getElementById('summaryCostPerPortion');
-  if (summaryPortion) summaryPortion.textContent = money(costPerPortion);
-
-  const summaryMargin = document.getElementById('summaryProfitMargin');
-  if (summaryMargin) {
-    summaryMargin.textContent = money(profitMargin);
-    summaryMargin.className = profitMargin >= 0 ? 'text-green-700 font-bold' : 'text-red-600 font-bold';
-  }
-
-  const summaryFoodCost = document.getElementById('summaryFoodCostPct');
-  if (summaryFoodCost) {
-    summaryFoodCost.textContent = foodCostPercent.toFixed(1) + '%';
-    summaryFoodCost.className = `text-xs font-bold ${foodCostPercent <= 35 ? 'text-green-700' : 'text-red-600'}`;
-  }
-
-  const summaryGrossMargin = document.getElementById('summaryGrossMarginPct');
-  if (summaryGrossMargin) summaryGrossMargin.textContent = grossMarginPercent.toFixed(1) + '%';
-}
-
-function recalculateBaseRecipeTotals() {
-  if (!session.editingBaseRecipeId) return;
-  const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-  if (!activeBase) return;
-
-  const totalCost = (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0);
-  const costPerUnit = activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
-
-  const baseTotalEl = document.getElementById('baseSummaryTotalCost');
-  if (baseTotalEl) baseTotalEl.textContent = money(totalCost);
-
-  const baseRateEl = document.getElementById('baseSummaryUnitRate');
-  if (baseRateEl) baseRateEl.textContent = money(costPerUnit);
-}
-
 function wireKitchen() {
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
@@ -2283,7 +2227,7 @@ function wireKitchen() {
   const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
   if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
 
-  /* PURCHASE MODAL WIRING */
+  /* PURCHASE WIRING */
   const purchaseInvoiceNoInput = document.getElementById('purchaseInvoiceNo');
   if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
 
@@ -2301,8 +2245,13 @@ function wireKitchen() {
           session.purchaseItems[idx].mrp = (matched.unitPrice || 0) * 1.25;
           const q = Number(session.purchaseItems[idx].qty || 1);
           const r = Number(session.purchaseItems[idx].rate || 0);
-          session.purchaseItems[idx].totalAmount = q * r;
-          session.purchaseItems[idx].netValue = q * r;
+          const dp = Number(session.purchaseItems[idx].discPct || 0);
+          const da = (q * r) * (dp / 100);
+          session.purchaseItems[idx].discAmt = da;
+          const net = (q * r) - da;
+          session.purchaseItems[idx].netValue = net;
+          const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
+          session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
         }
       }
     };
@@ -2315,8 +2264,13 @@ function wireKitchen() {
         session.purchaseItems[idx].qty = Number(e.target.value) || 0;
         const q = Number(session.purchaseItems[idx].qty || 0);
         const r = Number(session.purchaseItems[idx].rate || 0);
-        session.purchaseItems[idx].totalAmount = q * r;
-        session.purchaseItems[idx].netValue = q * r;
+        const dp = Number(session.purchaseItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.purchaseItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.purchaseItems[idx].netValue = net;
+        const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
+        session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
       }
     };
   });
@@ -2328,8 +2282,31 @@ function wireKitchen() {
         session.purchaseItems[idx].rate = Number(e.target.value) || 0;
         const q = Number(session.purchaseItems[idx].qty || 0);
         const r = Number(session.purchaseItems[idx].rate || 0);
-        session.purchaseItems[idx].totalAmount = q * r;
-        session.purchaseItems[idx].netValue = q * r;
+        const dp = Number(session.purchaseItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.purchaseItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.purchaseItems[idx].netValue = net;
+        const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
+        session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
+      }
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-disc-pct').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].discPct = Number(e.target.value) || 0;
+        const q = Number(session.purchaseItems[idx].qty || 0);
+        const r = Number(session.purchaseItems[idx].rate || 0);
+        const dp = Number(session.purchaseItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.purchaseItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.purchaseItems[idx].netValue = net;
+        const gstRate = parseFloat(session.purchaseItems[idx].gstGroup) || 5;
+        session.purchaseItems[idx].gstAmt = net * (gstRate / 100);
       }
     };
   });
@@ -2377,7 +2354,7 @@ function wireKitchen() {
     };
   });
 
-  /* SALES / POS BILLING MODAL WIRING */
+  /* SALES WIRING WITH AUTO-NEW-LINE & INSTANT RECALC */
   const salesCustomerInput = document.getElementById('salesCustomerInput');
   if (salesCustomerInput) salesCustomerInput.oninput = (e) => { session.salesCustomer = e.target.value; };
 
@@ -2388,9 +2365,9 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.sales-item-select').forEach(sel => {
-    sel.onchange = (e) => {
-      const idx = Number(sel.dataset.idx);
+  document.querySelectorAll('.sales-item-name').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
       const val = e.target.value;
       if (session.salesItems[idx]) {
         session.salesItems[idx].itemName = val;
@@ -2398,8 +2375,21 @@ function wireKitchen() {
         if (found) {
           session.salesItems[idx].rate = found.price || 0;
           const q = Number(session.salesItems[idx].qty || 1);
-          session.salesItems[idx].netValue = q * (found.price || 0);
-          session.salesItems[idx].gstAmt = (q * (found.price || 0)) * 0.05;
+          const r = Number(found.price || 0);
+          const dp = Number(session.salesItems[idx].discPct || 0);
+          const da = (q * r) * (dp / 100);
+          session.salesItems[idx].discAmt = da;
+          const net = (q * r) - da;
+          session.salesItems[idx].netValue = net;
+          const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
+          session.salesItems[idx].gstAmt = net * (gstRate / 100);
+
+          // AUTO ADD NEXT LINE IF TYPING IN THE LAST ROW
+          if (idx === session.salesItems.length - 1 && val.trim().length > 0) {
+            session.salesItems.push({ barcode: '', itemName: '', qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0 });
+            renderKeepFocus('salesCustomerInput');
+            return;
+          }
         }
       }
     };
@@ -2412,8 +2402,14 @@ function wireKitchen() {
         session.salesItems[idx].qty = Number(e.target.value) || 0;
         const q = Number(session.salesItems[idx].qty || 0);
         const r = Number(session.salesItems[idx].rate || 0);
-        session.salesItems[idx].netValue = q * r;
-        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        const dp = Number(session.salesItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.salesItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.salesItems[idx].netValue = net;
+        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
+        session.salesItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('salesCustomerInput');
       }
     };
   });
@@ -2425,8 +2421,33 @@ function wireKitchen() {
         session.salesItems[idx].rate = Number(e.target.value) || 0;
         const q = Number(session.salesItems[idx].qty || 0);
         const r = Number(session.salesItems[idx].rate || 0);
-        session.salesItems[idx].netValue = q * r;
-        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        const dp = Number(session.salesItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.salesItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.salesItems[idx].netValue = net;
+        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
+        session.salesItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('salesCustomerInput');
+      }
+    };
+  });
+
+  document.querySelectorAll('.sales-item-disc-pct').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].discPct = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        const dp = Number(session.salesItems[idx].discPct || 0);
+        const da = (q * r) * (dp / 100);
+        session.salesItems[idx].discAmt = da;
+        const net = (q * r) - da;
+        session.salesItems[idx].netValue = net;
+        const gstRate = parseFloat(session.salesItems[idx].gstGroup) || 5;
+        session.salesItems[idx].gstAmt = net * (gstRate / 100);
+        renderKeepFocus('salesCustomerInput');
       }
     };
   });
