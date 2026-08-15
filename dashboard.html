@@ -3171,6 +3171,24 @@ async function clearTrialData() {
     toast("All trial data cleared successfully!", "trash-2");
   }
 }
+async function clearTrialData() {
+  if (confirm("Are you sure you want to clear all test sales, purchases, and wastage logs?")) {
+    await db.ref('orders').remove();
+    await db.ref('purchases').remove();
+    await db.ref('wastageLogs').remove();
+    await db.ref('stockTakes').remove();
+    
+    DB.orders = [];
+    DB.purchases = [];
+    DB.wastageLogs = [];
+    DB.stockTakes = [];
+    session.salesItems = [];
+    session.purchaseItems = [];
+    
+    render();
+    toast("All trial data cleared successfully!", "trash-2");
+  }
+}
 function renderKeepFocus(inputId) {
   const activeEl = document.getElementById(inputId);
   const start = activeEl ? activeEl.selectionStart : null;
