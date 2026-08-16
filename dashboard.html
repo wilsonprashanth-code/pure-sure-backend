@@ -255,12 +255,10 @@ function calculateIngCost(ing) {
     rate = getRawMaterialDetails(ing.name).unitPrice;
   }
 
-  // If unit is PCS or NOS, cost is simply Qty * Unit Rate
   if (unit === 'PCS' || unit === 'NOS' || unit === 'PC') {
     return qty * rate;
   }
 
-  // Convert quantity to standard base units (KG / Litres) for calculation against rate/KG
   let standardUnitsQty = qty;
   switch(unit) {
     case 'GRM':
@@ -3310,6 +3308,39 @@ function wireKitchen() {
       }
     };
   }
+
+  /* TOGGLE INGREDIENT TYPE BETWEEN RAW MATERIAL AND BASE PREP */
+  document.querySelectorAll('.mode-toggle-raw, .base-mode-toggle-raw').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const isBaseModal = btn.classList.contains('base-mode-toggle-raw');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      
+      if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
+        activeObj.ingredients[idx].type = 'raw';
+        activeObj.ingredients[idx].isBase = false;
+        activeObj.ingredients[idx].name = ''; 
+        activeObj.ingredients[idx].unitPrice = 0;
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+      }
+    };
+  });
+
+  document.querySelectorAll('.mode-toggle-base, .base-mode-toggle-base').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const isBaseModal = btn.classList.contains('base-mode-toggle-base');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      
+      if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
+        activeObj.ingredients[idx].type = 'base';
+        activeObj.ingredients[idx].isBase = true;
+        activeObj.ingredients[idx].name = ''; 
+        activeObj.ingredients[idx].unitPrice = 0;
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+      }
+    };
+  });
 
   /* RECIPE INGREDIENT MASTER SELECT WIRING */
   document.querySelectorAll('.ing-master-select, .base-ing-select').forEach(sel => {
