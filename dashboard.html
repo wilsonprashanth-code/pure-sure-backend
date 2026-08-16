@@ -242,6 +242,20 @@ function getRawMaterialDetails(name) {
   return found || { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
 }
 
+function calculateBaseRecipeCostPerUnit(base) {
+  if (!base || !base.ingredients) return 0;
+  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const yieldQty = Number(base.batchYield || 1);
+  if (yieldQty <= 0) return 0;
+  const costPerNativeUnit = totalBatchCost / yieldQty;
+  const unit = (base.unit || 'GRM').toUpperCase();
+  // If base prep unit is GRM or ML, scale unit rate to per KG or Litre (x1000)
+  if (unit === 'GRM' || unit === 'ML' || unit === 'G') {
+    return costPerNativeUnit * 1000;
+  }
+  return costPerNativeUnit;
+}
+
 function calculateIngCost(ing) {
   const qty = Number(ing.qty || 0);
   const unit = (ing.unit || 'GRM').toUpperCase();
@@ -249,13 +263,33 @@ function calculateIngCost(ing) {
   if (ing.type === 'base' || ing.isBase) {
     const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
     if (baseObj) {
-      const unitRate = calculateBaseRecipeCostPerUnit(baseObj);
+      const unitRatePerKgLitre = calculateBaseRecipeCostPerUnit(baseObj);
       const baseUnit = (baseObj.unit || 'GRM').toUpperCase();
       if (baseUnit === 'PCS' || baseUnit === 'NOS' || baseUnit === 'PC') {
-        return qty * unitRate;
+        return qty * unitRatePerKgLitre;
       }
-      const gramsMl = Number(ing.gramsMl || getConvertedGramsMl(qty, unit));
-      return (gramsMl / 1000) * unitRate;
+      let standardUnitsQty = qty;
+      switch(unit) {
+        case 'GRM':
+        case 'ML':
+        case 'G':
+          standardUnitsQty = qty / 1000;
+          break;
+        case 'KG':
+        case 'LITRE':
+          standardUnitsQty = qty;
+          break;
+        case 'TSP':
+          standardUnitsQty = (qty * 5) / 1000;
+          break;
+        case 'TBSP':
+          standardUnitsQty = (qty * 15) / 1000;
+          break;
+        default:
+          standardUnitsQty = qty / 1000;
+          break;
+      }
+      return standardUnitsQty * unitRatePerKgLitre;
     }
   }
 
@@ -307,13 +341,6 @@ function getConvertedGramsMl(qty, unit) {
     case 'NOS':
     default: return q;
   }
-}
-
-function calculateBaseRecipeCostPerUnit(base) {
-  if (!base || !base.ingredients) return 0;
-  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
-  const yieldQty = Number(base.batchYield || 1);
-  return yieldQty > 0 ? (totalBatchCost / yieldQty) : 0;
 }
 
 function getDishFoodCostPercent(dish) {
@@ -1693,7 +1720,6 @@ function mainRecipesModal() {
 
   return `
   <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
-    <!-- FULL-SCREEN MODAL CONTAINER -->
     <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
         <div>
@@ -1821,7 +1847,7 @@ function mainRecipesModal() {
                         <select class="ing-master-select w-full border border-amber-200 bg-white rounded p-1 text-xs font-semibold focus:outline-none" data-idx="${idx}">
                           <option value="">-- Choose Item --</option>
                           ${isBase ? 
-                            sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ ${br.name}</option>`).join('') :
+                            sortedBaseRecipes.map(br => `<option value="br_${br.name}" ${(ing.name || '').toLowerCase().trim() === (br.name || '').toLowerCase().trim() ? 'selected' : ''}>⭐ ${br.name} (${(br.unit || 'GRM').toUpperCase() === 'GRM' ? 'Per KG Rate' : br.unit})</option>`).join('') :
                             sortedRawMaterials.map(rm => `<option value="rm_${rm.name}" ${(ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim() ? 'selected' : ''}>${rm.name}</option>`).join('')
                           }
                         </select>
@@ -1904,6 +1930,9 @@ function baseRecipesModal() {
   const activeBase = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
   const totalCost = activeBase ? (activeBase.ingredients || []).reduce((sum, i) => sum + calculateIngCost(i), 0) : 0;
   const costPerUnit = activeBase && activeBase.batchYield ? (totalCost / activeBase.batchYield) : 0;
+  const displayUnit = activeBase && (activeBase.unit || 'GRM').toUpperCase() === 'GRM' ? 'KG' : ((activeBase?.unit || '').toUpperCase() === 'ML' ? 'LITRE' : (activeBase?.unit || 'GRM'));
+  const displayRate = activeBase && ((activeBase.unit || 'GRM').toUpperCase() === 'GRM' || (activeBase.unit || '').toUpperCase() === 'ML') ? costPerUnit * 1000 : costPerUnit;
+
   const sortedRawMaterials = [...DB.rawMaterials].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   const sortedBaseRecipes = [...DB.baseRecipes].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
@@ -1939,10 +1968,13 @@ function baseRecipesModal() {
           <div class="space-y-1.5">
             ${filteredBaseRecipes.map(br => {
               const cpu = calculateBaseRecipeCostPerUnit(br);
+              const u = (br.unit || 'GRM').toUpperCase();
+              const dUnit = u === 'GRM' ? 'KG' : (u === 'ML' ? 'LITRE' : br.unit);
+              const dRate = (u === 'GRM' || u === 'ML') ? cpu : cpu;
               return `
               <div class="base-recipe-card p-2.5 rounded-xl border text-xs cursor-pointer transition ${session.editingBaseRecipeId === br.id ? 'bg-brand text-cream border-brand shadow' : 'bg-white text-brand-900 border-brand-100 hover:border-brand-300'}" data-id="${br.id}">
                 <div class="font-bold truncate">${br.name}</div>
-                <div class="text-[10px] opacity-80 mt-0.5">${br.batchYield} ${br.unit} · ${money(cpu)}/${br.unit}</div>
+                <div class="text-[10px] opacity-80 mt-0.5">${br.batchYield} ${br.unit} · ${money(dRate)}/${dUnit}</div>
               </div>`;
             }).join('') || `<div class="text-xs text-brand-400 text-center py-6">No base preps found.</div>`}
           </div>
@@ -2061,7 +2093,7 @@ function baseRecipesModal() {
 
             <div class="flex items-center justify-between bg-gold-50/90 p-3 rounded-xl border border-gold-200 text-xs font-bold text-brand-950">
               <span>Total Batch: <span id="baseSummaryTotalCost">${money(totalCost)}</span></span>
-              <span class="text-gold-900">Unit Rate: <span id="baseSummaryUnitRate">${money(costPerUnit)}</span> / ${activeBase.unit}</span>
+              <span class="text-gold-900">Unit Rate: <span id="baseSummaryUnitRate">${money(displayRate)}</span> / ${displayUnit}</span>
             </div>
 
             <div class="flex gap-2 pb-2">
@@ -2964,7 +2996,7 @@ function wireKitchen() {
         salesSearchDropdown.innerHTML = matches.map(m => `
           <div class="search-suggestion-item p-2.5 hover:bg-brand-50 cursor-pointer border-b border-slate-100 flex justify-between items-center text-xs" data-name="${m.name}" data-price="${m.price}">
             <div>
-              <div class="font-bold text-brand-950">${m.name}</div>
+              <div class="font-display text-brand-950">${m.name}</div>
               <div class="text-[10px] text-slate-400">${m.category}</div>
             </div>
             <div class="font-mono font-bold text-brand-700">${money(m.price)}</div>
@@ -3400,13 +3432,14 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.ing-qty, .ing-price').forEach(input => {
+  document.querySelectorAll('.ing-qty, .ing-price, .base-ing-qty').forEach(input => {
     input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
-      const activeObj = DB.recipes[session.activeRecipeDishId];
+      const isBaseModal = input.classList.contains('base-ing-qty');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         const ing = activeObj.ingredients[idx];
-        if (input.classList.contains('ing-qty')) {
+        if (input.classList.contains('ing-qty') || input.classList.contains('base-ing-qty')) {
           ing.qty = Number(input.value) || 0;
           ing.gramsMl = getConvertedGramsMl(ing.qty, ing.unit || 'GRM');
         } else if (input.classList.contains('ing-price')) {
@@ -3416,14 +3449,15 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.ing-unit').forEach(sel => {
+  document.querySelectorAll('.ing-unit, .base-ing-unit').forEach(sel => {
     sel.onchange = (e) => {
       const idx = Number(sel.dataset.idx);
-      const activeObj = DB.recipes[session.activeRecipeDishId];
+      const isBaseModal = sel.classList.contains('base-ing-unit');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         activeObj.ingredients[idx].unit = e.target.value;
         activeObj.ingredients[idx].gramsMl = getConvertedGramsMl(activeObj.ingredients[idx].qty, e.target.value);
-        renderKeepFocus('masterDishNameInput');
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
       }
     };
   });
@@ -3435,27 +3469,32 @@ function wireKitchen() {
       if (!DB.recipes[session.activeRecipeDishId]) {
         DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
       }
-      DB.recipes[session.activeRecipeDishId].ingredients.push({
-        name: '',
-        type: 'raw',
-        isBase: false,
-        qty: 1,
-        unit: 'GRM',
-        gramsMl: 1,
-        unitPrice: 0,
-        vendor: 'FACTORY'
-      });
+      DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
       renderKeepFocus('masterDishNameInput');
     };
   }
 
-  document.querySelectorAll('.remove-ing-row').forEach(btn => {
+  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
+  if (addBaseIngRowBtn) {
+    addBaseIngRowBtn.onclick = () => {
+      if (!session.editingBaseRecipeId) return;
+      const baseObj = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (baseObj) {
+        if (!baseObj.ingredients) baseObj.ingredients = [];
+        baseObj.ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
+        renderKeepFocus('baseName');
+      }
+    };
+  }
+
+  document.querySelectorAll('.remove-ing-row, .remove-base-ing').forEach(btn => {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
-      const recipe = DB.recipes[session.activeRecipeDishId];
-      if (recipe && recipe.ingredients) {
-        recipe.ingredients.splice(idx, 1);
-        renderKeepFocus('masterDishNameInput');
+      const isBaseModal = btn.classList.contains('remove-base-ing');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      if (activeObj && activeObj.ingredients) {
+        activeObj.ingredients.splice(idx, 1);
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
       }
     };
   });
@@ -3464,10 +3503,7 @@ function wireKitchen() {
   if (saveRecipeBtn) {
     saveRecipeBtn.onclick = async () => {
       const dishId = session.activeRecipeDishId;
-      if (!dishId) {
-        toast('No dish selected to save.', 'alert-triangle');
-        return;
-      }
+      if (!dishId) { toast('No dish selected to save.', 'alert-triangle'); return; }
 
       const portions = Number(document.getElementById('recipePortions')?.value) || 1;
       const wastagePercent = Number(document.getElementById('recipeWastage')?.value) || 10;
