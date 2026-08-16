@@ -99,7 +99,7 @@ const savedStaff = localStorage.getItem('ps_staff');
 let session = { 
   staff: savedStaff ? JSON.parse(savedStaff) : null, 
   soundOn: true, 
-  kitchenTab: localStorage.getItem('ps_active_tab') || 'orders', // Restores active tab on refresh
+  kitchenTab: localStorage.getItem('ps_active_tab') || 'orders', 
   editingDish: null, 
   editingRetail: null, 
   showAddStaff: false, 
@@ -111,7 +111,7 @@ let session = {
   activeRecipeDishId: null,
   showRawMaterialsModal: localStorage.getItem('showRawMaterialsModal') === 'true',
   showBaseRecipesModal: localStorage.getItem('showBaseRecipesModal') === 'true',
-  showMainRecipesModal: localStorage.getItem('showMainRecipesModal') === 'true',
+  showMainRecipesModal: localStorage.getItem('ps_show_main_recipe') === 'true', // Persisted in localStorage
   showBillingModal: localStorage.getItem('ps_show_billing') === 'true',
   showWastageModal: localStorage.getItem('showWastageModal') === 'true',
   showPurchaseModal: localStorage.getItem('ps_show_purchase') === 'true',
@@ -389,7 +389,6 @@ async function processBOMDeduction(dishId, orderedPortions = 1) {
   }
 }
 
-// --- EXCEL REPORT EXPORT UTILITIES ---
 function exportBillWiseReportToExcel() {
   const completedOrders = [...DB.orders].filter(o => o.status === 'served');
   const data = completedOrders.map(o => ({
@@ -2568,7 +2567,7 @@ function wireKitchen() {
   document.querySelectorAll('.k-tab').forEach(b => {
     b.onclick = () => { 
       session.kitchenTab = b.dataset.ktab; 
-      localStorage.setItem('ps_active_tab', b.dataset.ktab); // Persist active tab on change
+      localStorage.setItem('ps_active_tab', b.dataset.ktab);
       render(); 
     };
   });
@@ -3225,13 +3224,25 @@ function wireKitchen() {
   }
 
   const openMainBtn = document.getElementById('openMainRecipesModalBtn');
-  if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+  if (openMainBtn) openMainBtn.onclick = () => { 
+    session.showMainRecipesModal = true; 
+    localStorage.setItem('ps_show_main_recipe', 'true');
+    render(); 
+  };
 
   const launchMainBtn = document.getElementById('launchMainMasterBtn');
-  if (launchMainBtn) launchMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
+  if (launchMainBtn) launchMainBtn.onclick = () => { 
+    session.showMainRecipesModal = true; 
+    localStorage.setItem('ps_show_main_recipe', 'true');
+    render(); 
+  };
 
   const closeMainModalBtn = document.getElementById('closeMainRecipesModalBtn');
-  if (closeMainModalBtn) closeMainModalBtn.onclick = () => { session.showMainRecipesModal = false; render(); };
+  if (closeMainModalBtn) closeMainModalBtn.onclick = () => { 
+    session.showMainRecipesModal = false; 
+    localStorage.removeItem('ps_show_main_recipe');
+    render(); 
+  };
 
   document.querySelectorAll('.main-recipe-card').forEach(card => {
     card.onclick = () => {
@@ -3583,7 +3594,19 @@ function renderKeepFocus(inputId) {
   const start = activeEl ? activeEl.selectionStart : null;
   const end = activeEl ? activeEl.selectionEnd : null;
 
+  // Capture the current scroll position of the active scroll container / window
+  const scrollContainer = activeEl ? activeEl.closest('.overflow-y-auto') : null;
+  const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+
   render();
+
+  // Restore the scroll position immediately after re-rendering
+  const newScrollContainer = activeEl ? document.getElementById(inputId)?.closest('.overflow-y-auto') : null;
+  if (newScrollContainer) {
+    newScrollContainer.scrollTop = scrollTop;
+  } else {
+    window.scrollTo(0, scrollTop);
+  }
 
   const el = document.getElementById(inputId);
   if (el) {
