@@ -1351,25 +1351,58 @@ function purchaseModalReferenceStyle() {
                   <input class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName || ''}" placeholder="Type item name...">
                   <div class="purchase-search-dropdown hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50"></div>
                 </td>
-                <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch || ''}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate || ''}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.expDate || ''}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.unit || 'Nos'}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.orderedQty || 1}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold text-emerald-700">${item.receivedQty || 1}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold ${item.shortQty < 0 ? 'text-red-600' : 'text-slate-700'}">${item.shortQty || 0}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.damagedQty || 0}</td>
-                <td class="p-2 border border-slate-200 text-right font-mono font-semibold">${money(item.rate)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.discPct || 0}</td>
+                <td class="p-2 border border-slate-200">
+                  <input type="text" class="purchase-item-batch w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.batch || ''}" placeholder="Batch">
+                </td>
+                <td class="p-2 border border-slate-200">
+                  <input type="date" class="purchase-item-mfg w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.mfgDate || ''}">
+                </td>
+                <td class="p-2 border border-slate-200">
+                  <input type="date" class="purchase-item-exp w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.expDate || ''}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="purchase-item-unit border border-slate-300 rounded p-1 text-xs bg-white font-semibold" data-idx="${idx}">
+                    <option ${item.unit === 'Nos' ? 'selected' : ''}>Nos</option>
+                    <option ${item.unit === 'KG' ? 'selected' : ''}>KG</option>
+                    <option ${item.unit === 'LITRE' ? 'selected' : ''}>LITRE</option>
+                    <option ${item.unit === 'GRM' ? 'selected' : ''}>GRM</option>
+                    <option ${item.unit === 'ML' ? 'selected' : ''}>ML</option>
+                    <option ${item.unit === 'Pcs' ? 'selected' : ''}>Pcs</option>
+                  </select>
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-ordered w-16 border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.orderedQty || 1}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-received w-16 border border-slate-300 rounded p-1 text-xs text-center font-bold text-emerald-700 bg-white" data-idx="${idx}" value="${item.receivedQty || 1}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center font-bold ${Number(item.shortQty || 0) < 0 ? 'text-red-600' : 'text-slate-700'} purchase-short-cell" data-idx="${idx}">
+                  ${item.shortQty || 0}
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-damaged w-16 border border-slate-300 rounded p-1 text-xs text-center font-bold bg-white" data-idx="${idx}" value="${item.damagedQty || 0}">
+                </td>
+                <td class="p-2 border border-slate-200 text-right">
+                  <input type="number" step="0.01" class="purchase-item-rate w-20 border border-slate-300 rounded p-1 text-xs text-right font-mono font-semibold bg-white" data-idx="${idx}" value="${item.rate || 0}">
+                </td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <input type="number" step="0.01" class="purchase-item-disc w-14 border border-slate-300 rounded p-1 text-xs text-center bg-white" data-idx="${idx}" value="${item.discPct || 0}">
+                </td>
                 <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.gstGroup || '5%'}</td>
+                <td class="p-2 border border-slate-200 text-center">
+                  <select class="purchase-item-gst border border-slate-300 rounded p-1 text-xs bg-white" data-idx="${idx}">
+                    <option ${item.gstGroup === '5%' ? 'selected' : ''}>5%</option>
+                    <option ${item.gstGroup === '0%' ? 'selected' : ''}>0%</option>
+                    <option ${item.gstGroup === '12%' ? 'selected' : ''}>12%</option>
+                    <option ${item.gstGroup === '18%' ? 'selected' : ''}>18%</option>
+                  </select>
+                </td>
                 <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono text-slate-500">${money(item.lastRate)}</td>
                 <td class="p-2 border border-slate-200 text-center">
                   <div class="flex items-center justify-center gap-1">
-                    <button type="button" class="text-blue-600 hover:text-blue-800 p-1"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                    <button type="button" class="text-red-500 hover:text-red-700 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" class="remove-purchase-line text-red-500 hover:text-red-700 p-1" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                   </div>
                 </td>
               </tr>
@@ -2683,6 +2716,84 @@ function wireKitchen() {
     };
   });
 
+  /* EDITABLE PURCHASE TABLE FIELDS WIRING */
+  document.querySelectorAll('.purchase-item-batch').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].batch = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-mfg').forEach(inp => {
+    inp.onchange = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].mfgDate = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-exp').forEach(inp => {
+    inp.onchange = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].expDate = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-unit').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.purchaseItems[idx]) session.purchaseItems[idx].unit = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-ordered, .purchase-item-received, .purchase-item-damaged, .purchase-item-rate, .purchase-item-disc').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].orderedQty = Number(document.querySelectorAll('.purchase-item-ordered')[idx]?.value) || 0;
+        session.purchaseItems[idx].receivedQty = Number(document.querySelectorAll('.purchase-item-received')[idx]?.value) || 0;
+        session.purchaseItems[idx].damagedQty = Number(document.querySelectorAll('.purchase-item-damaged')[idx]?.value) || 0;
+        session.purchaseItems[idx].rate = Number(document.querySelectorAll('.purchase-item-rate')[idx]?.value) || 0;
+        session.purchaseItems[idx].discPct = Number(document.querySelectorAll('.purchase-item-disc')[idx]?.value) || 0;
+
+        const ord = session.purchaseItems[idx].orderedQty;
+        const rec = session.purchaseItems[idx].receivedQty;
+        session.purchaseItems[idx].shortQty = rec - ord;
+
+        const rate = session.purchaseItems[idx].rate;
+        const gross = rec * rate;
+        const discAmt = gross * (session.purchaseItems[idx].discPct / 100);
+        session.purchaseItems[idx].discAmt = discAmt;
+
+        const taxable = gross - discAmt;
+        const gstRate = parseFloat(document.querySelectorAll('.purchase-item-gst')[idx]?.value || '5') / 100;
+        const gstAmt = taxable * gstRate;
+        session.purchaseItems[idx].gstAmt = gstAmt;
+        session.purchaseItems[idx].netValue = taxable + gstAmt;
+
+        renderKeepFocus('purchaseInvoiceNo');
+      }
+    };
+  });
+
+  document.querySelectorAll('.purchase-item-gst').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      if (session.purchaseItems[idx]) {
+        session.purchaseItems[idx].gstGroup = e.target.value;
+        const rec = Number(session.purchaseItems[idx].receivedQty || 0);
+        const rate = Number(session.purchaseItems[idx].rate || 0);
+        const gross = rec * rate;
+        const discAmt = Number(session.purchaseItems[idx].discAmt || 0);
+        const taxable = gross - discAmt;
+        const gstRate = parseFloat(e.target.value) / 100;
+        const gstAmt = taxable * gstRate;
+        session.purchaseItems[idx].gstAmt = gstAmt;
+        session.purchaseItems[idx].netValue = taxable + gstAmt;
+        renderKeepFocus('purchaseInvoiceNo');
+      }
+    };
+  });
+
   const addPurchaseLineBtn = document.getElementById('addPurchaseLineBtn');
   if (addPurchaseLineBtn) {
     addPurchaseLineBtn.onclick = () => {
@@ -2709,6 +2820,14 @@ function wireKitchen() {
       renderKeepFocus('purchaseInvoiceNo');
     };
   }
+
+  document.querySelectorAll('.remove-purchase-line').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      session.purchaseItems.splice(idx, 1);
+      renderKeepFocus('purchaseInvoiceNo');
+    };
+  });
 
   /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
