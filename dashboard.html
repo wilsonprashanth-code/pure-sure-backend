@@ -2711,7 +2711,7 @@ function wireKitchen() {
         });
       } else if (dropdown) {
         dropdown.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No raw materials found.</div>`;
-        dropdown.classList.remove('hidden');
+        dropdown.classList.add('hidden');
       }
     };
   });
@@ -3330,6 +3330,62 @@ function wireKitchen() {
       }
     };
   });
+
+  /* MAIN RECIPE: ADD INGREDIENT ROW */
+  const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
+  if (addIngredientRowBtn) {
+    addIngredientRowBtn.onclick = () => {
+      if (!session.activeRecipeDishId) return;
+      if (!DB.recipes[session.activeRecipeDishId]) {
+        DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+      }
+      DB.recipes[session.activeRecipeDishId].ingredients.push({
+        name: '',
+        type: 'raw',
+        isBase: false,
+        qty: 1,
+        unit: 'GRM',
+        gramsMl: 1,
+        unitPrice: 0,
+        vendor: 'FACTORY'
+      });
+      renderKeepFocus('masterDishNameInput');
+    };
+  }
+
+  /* MAIN RECIPE: REMOVE INGREDIENT ROW */
+  document.querySelectorAll('.remove-ing-row').forEach(btn => {
+    btn.onclick = () => {
+      const idx = Number(btn.dataset.idx);
+      const recipe = DB.recipes[session.activeRecipeDishId];
+      if (recipe && recipe.ingredients) {
+        recipe.ingredients.splice(idx, 1);
+        renderKeepFocus('masterDishNameInput');
+      }
+    };
+  });
+
+  /* MAIN RECIPE: SAVE RECIPE & FOOD COSTING */
+  const saveRecipeBtn = document.getElementById('saveRecipeBtn');
+  if (saveRecipeBtn) {
+    saveRecipeBtn.onclick = async () => {
+      const dishId = session.activeRecipeDishId;
+      if (!dishId) {
+        toast('No dish selected to save.', 'alert-triangle');
+        return;
+      }
+
+      const portions = Number(document.getElementById('recipePortions')?.value) || 1;
+      const wastagePercent = Number(document.getElementById('recipeWastage')?.value) || 10;
+      const currentRecipe = DB.recipes[dishId] || { ingredients: [] };
+
+      currentRecipe.portions = portions;
+      currentRecipe.wastagePercent = wastagePercent;
+
+      await db.ref('recipes/' + dishId).set(currentRecipe);
+      toast('Recipe & Food Costing saved successfully!', 'check-circle');
+    };
+  }
 }
 
 async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
