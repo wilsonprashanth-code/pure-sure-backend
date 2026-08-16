@@ -2644,13 +2644,14 @@ function wireKitchen() {
         const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === val.toLowerCase().trim());
         if (matched) {
           session.purchaseItems[idx].rate = matched.unitPrice || 0;
+          session.purchaseItems[idx].unit = matched.unit || 'Nos';
           const q = Number(session.purchaseItems[idx].receivedQty || 1);
           const r = Number(session.purchaseItems[idx].rate || 0);
           const net = q * r;
           session.purchaseItems[idx].netValue = net;
           session.purchaseItems[idx].gstAmt = net * 0.05;
-          renderKeepFocus('purchaseInvoiceNo');
         }
+        renderKeepFocus('purchaseInvoiceNo');
       }
     };
   });
@@ -2659,9 +2660,28 @@ function wireKitchen() {
   if (addPurchaseLineBtn) {
     addPurchaseLineBtn.onclick = () => {
       if (!session.purchaseItems) session.purchaseItems = [];
-      session.purchaseItems.push({ itemName: '', code: 'ITEM-004', batch: 'B240820', mfgDate: '2026-08-15', expDate: '2027-02-15', unit: 'Pcs', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 100, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 5, netValue: 100, lastRate: 95 });
+      session.purchaseItems.push({ 
+        itemName: '', 
+        code: '', 
+        batch: '', 
+        mfgDate: '', 
+        expDate: '', 
+        unit: 'Nos', 
+        orderedQty: 1, 
+        receivedQty: 1, 
+        shortQty: 0, 
+        damagedQty: 0, 
+        rate: 0, 
+        discPct: 0, 
+        discAmt: 0, 
+        gstGroup: '5%', 
+        gstAmt: 0, 
+        netValue: 0, 
+        lastRate: 0 
+      });
       renderKeepFocus('purchaseInvoiceNo');
     };
+  }
   }
 
   /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
