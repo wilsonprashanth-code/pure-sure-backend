@@ -3299,6 +3299,37 @@ function wireKitchen() {
       }
     };
   }
+
+  /* RECIPE INGREDIENT MASTER SELECT WIRING */
+  document.querySelectorAll('.ing-master-select, .base-ing-select').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      const val = e.target.value;
+      const isBaseModal = sel.classList.contains('base-ing-select');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      
+      if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
+        if (val.startsWith('rm_')) {
+          const rmName = val.replace('rm_', '');
+          const rmDetails = getRawMaterialDetails(rmName);
+          activeObj.ingredients[idx].name = rmName;
+          activeObj.ingredients[idx].type = 'raw';
+          activeObj.ingredients[idx].isBase = false;
+          activeObj.ingredients[idx].unitPrice = rmDetails.unitPrice || 0;
+          activeObj.ingredients[idx].vendor = rmDetails.vendor || 'FACTORY';
+        } else if (val.startsWith('br_')) {
+          const brName = val.replace('br_', '');
+          const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === brName.toLowerCase().trim());
+          activeObj.ingredients[idx].name = brName;
+          activeObj.ingredients[idx].type = 'base';
+          activeObj.ingredients[idx].isBase = true;
+          activeObj.ingredients[idx].unitPrice = baseObj ? calculateBaseRecipeCostPerUnit(baseObj) : 0;
+          activeObj.ingredients[idx].vendor = 'LINKED BASE';
+        }
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+      }
+    };
+  });
 }
 
 async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
