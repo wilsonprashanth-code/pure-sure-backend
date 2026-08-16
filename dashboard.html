@@ -456,7 +456,6 @@ function exportMonthlyStockReconciliationToExcel() {
     const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
     const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
     
-    // Calculate total consumed via BOM cascading for dishes sold
     let soldQty = 0;
     DB.orders.filter(o => o.status === 'served').forEach(order => {
       (order.items || []).forEach(item => {
@@ -1254,10 +1253,10 @@ function purchaseModalReferenceStyle() {
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
           <div class="flex items-center justify-between">
             <label class="font-bold text-slate-700 block">Supplier *</label>
-            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); db.ref('suppliers').set(DB.suppliers); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
+            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
           </div>
           <select id="purchaseSupplierSelect" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-bold text-slate-900">
-            ${DB.suppliers.map(s => `<option value="${s.name}" ${session.purchaseVendor === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
+            ${DB.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
           </select>
           <div class="text-[10px] text-slate-500 space-y-0.5 pt-1">
             <div><b>GSTIN:</b> ${session.purchaseSupplierGstin}</div>
@@ -1295,6 +1294,7 @@ function purchaseModalReferenceStyle() {
             <label class="font-bold text-slate-700 block mb-1">Purchase No. *</label>
             <div class="bg-slate-100 border border-slate-300 rounded-lg p-2 font-mono font-bold text-brand-950">
               ${session.purchaseNo}
+              <div class="text-[9px] text-slate-400 font-normal">Next No: P/26-27/00002</div>
             </div>
           </div>
           <div>
@@ -1339,8 +1339,9 @@ function purchaseModalReferenceStyle() {
         </div>
         <div class="flex items-center gap-4 text-xs font-semibold text-slate-700">
           <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked class="accent-brand"> Show last purchase rate</label>
+          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="accent-brand"> Show inactive items</label>
         </div>
-        <button type="button" id="addPurchaseLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
+        <button type="button" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
 
       <div class="flex-1 bg-white overflow-y-auto">
@@ -1433,6 +1434,10 @@ function purchaseModalReferenceStyle() {
             `).join('')}
           </tbody>
         </table>
+      </div>
+
+      <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
+        <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded-lg shadow hover:bg-brand-600">+ Add Item Line</button>
       </div>
 
       <div class="bg-[#f4f7f6] p-3 border-t border-slate-300 grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs shrink-0">
@@ -1687,8 +1692,9 @@ function mainRecipesModal() {
   }
 
   return `
-  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
-    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-7xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
+  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
+    <!-- FULL-SCREEN MODAL CONTAINER -->
+    <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       <div class="flex items-center justify-between pb-3 border-b border-brand-100 mb-3 shrink-0">
         <div>
           <h3 class="font-display text-lg sm:text-xl font-bold text-brand-950">Main Dish Recipe &amp; BOM Master</h3>
@@ -2378,6 +2384,17 @@ function brandPanel() {
   </div>`;
 }
 
+function addStaffForm() {
+  return `
+  <div class="bg-brand-50 p-3 rounded-xl border border-brand-200 space-y-2 text-xs">
+    <div class="font-bold text-brand-950">Add New Staff Account</div>
+    <input id="newStaffUser" placeholder="Username" class="w-full border rounded p-2 bg-white">
+    <input id="newStaffPass" type="password" placeholder="Password" class="w-full border rounded p-2 bg-white">
+    <select id="newStaffRole" class="w-full border rounded p-2 bg-white"><option>Kitchen Staff</option><option>Admin</option></select>
+    <button id="submitNewStaffBtn" class="w-full bg-brand text-cream font-bold py-2 rounded">Save Staff Account</button>
+  </div>`;
+}
+
 function usersPanel() {
   return `
   <div class="max-w-3xl bg-white rounded-2xl card-shadow p-5 mx-auto sm:mx-0 space-y-6">
@@ -2458,19 +2475,7 @@ function usersPanel() {
   </div>`;
 }
 
-function addStaffForm() {
-  return `
-  <div class="bg-brand-50 p-3 rounded-xl border border-brand-200 space-y-2 text-xs">
-    <div class="font-bold text-brand-950">Add New Staff Account</div>
-    <input id="newStaffUser" placeholder="Username" class="w-full border rounded p-2 bg-white">
-    <input id="newStaffPass" type="password" placeholder="Password" class="w-full border rounded p-2 bg-white">
-    <select id="newStaffRole" class="w-full border rounded p-2 bg-white"><option>Kitchen Staff</option><option>Admin</option></select>
-    <button id="submitNewStaffBtn" class="w-full bg-brand text-cream font-bold py-2 rounded">Save Staff Account</button>
-  </div>`;
-}
-
 function wireKitchen() {
-  /* 1. ORDER ADVANCEMENT */
   document.querySelectorAll('.advance-order').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id, next = btn.dataset.next;
@@ -2560,7 +2565,6 @@ function wireKitchen() {
   const closeWastageModalBtn = document.getElementById('closeWastageModalBtn');
   if (closeWastageModalBtn) closeWastageModalBtn.onclick = () => { session.showWastageModal = false; render(); };
 
-  /* 3. INVENTORY TAB WIRING (ADD/EDIT/DELETE/TOGGLE) */
   const addDishBtn = document.getElementById('addDishBtn');
   if (addDishBtn) addDishBtn.onclick = () => { session.editingDish = 'new'; render(); };
 
@@ -2608,7 +2612,6 @@ function wireKitchen() {
     };
   });
 
-  /* DISH & RETAIL EDIT MODAL SAVE WIRING */
   const saveDishBtn = document.getElementById('saveDishBtn');
   if (saveDishBtn) {
     saveDishBtn.onclick = async () => {
@@ -2671,7 +2674,6 @@ function wireKitchen() {
     };
   }
 
-  /* 4. BRAND & STAFF WIRING */
   const saveBrandBtn = document.getElementById('saveBrandBtn');
   if (saveBrandBtn) {
     saveBrandBtn.onclick = async () => {
@@ -2729,7 +2731,6 @@ function wireKitchen() {
     };
   });
 
-  /* 5. BULK IMPORT WIRING */
   const processExcelBtn = document.getElementById('processExcelBtn');
   if (processExcelBtn) {
     processExcelBtn.onclick = async () => {
@@ -2762,7 +2763,6 @@ function wireKitchen() {
     };
   }
 
-  /* PURCHASE INWARDING WIRING */
   const purchaseSupplierSelect = document.getElementById('purchaseSupplierSelect');
   if (purchaseSupplierSelect) {
     purchaseSupplierSelect.onchange = (e) => {
@@ -2824,7 +2824,7 @@ function wireKitchen() {
         });
       } else if (dropdown) {
         dropdown.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No raw materials found.</div>`;
-        dropdown.classList.remove('hidden'); // 12. Fixed visibility bug
+        dropdown.classList.remove('hidden');
       }
     };
   });
@@ -2911,7 +2911,6 @@ function wireKitchen() {
     };
   }
 
-  /* 7. POS SALES CART EDITABILITY WIRING */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
   if (salesCustomerNameInput) {
     salesCustomerNameInput.onchange = (e) => { 
@@ -3078,7 +3077,6 @@ function wireKitchen() {
     };
   }
 
-  /* 2. COMPLETE SALES BILL & BOM DEDUCTION FIX */
   const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
   if (completeSalesBillBtn) {
     completeSalesBillBtn.onclick = async () => {
@@ -3108,8 +3106,6 @@ function wireKitchen() {
       };
 
       await db.ref('orders/' + orderId).set(newOrder);
-
-      // Fixed lookup by menu item name to trigger BOM deduction
       for (const item of cartFormatted) {
         const dish = DB.menu.find(m => m.name.toLowerCase().trim() === item.name.toLowerCase().trim());
         if (dish) {
@@ -3129,7 +3125,6 @@ function wireKitchen() {
     };
   }
 
-  /* PHYSICAL STOCK TAKE RECONCILIATION */
   document.querySelectorAll('.physical-count-input').forEach(input => {
     input.oninput = (e) => {
       const id = input.dataset.id;
@@ -3166,7 +3161,6 @@ function wireKitchen() {
     };
   }
 
-  /* WASTAGE LOGGING SUBMISSION */
   const submitWastageBtn = document.getElementById('submitWastageBtn');
   if (submitWastageBtn) {
     submitWastageBtn.onclick = async () => {
@@ -3198,7 +3192,6 @@ function wireKitchen() {
     };
   }
 
-  /* RECIPE & BOM MASTER WIRING */
   const openMainBtn = document.getElementById('openMainRecipesModalBtn');
   if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
 
@@ -3345,7 +3338,6 @@ function wireKitchen() {
     };
   }
 
-  /* TOGGLE INGREDIENT TYPE BETWEEN RAW MATERIAL AND BASE PREP */
   document.querySelectorAll('.mode-toggle-raw, .base-mode-toggle-raw').forEach(btn => {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
@@ -3378,7 +3370,6 @@ function wireKitchen() {
     };
   });
 
-  /* RECIPE INGREDIENT MASTER SELECT WIRING */
   document.querySelectorAll('.ing-master-select, .base-ing-select').forEach(sel => {
     sel.onchange = (e) => {
       const idx = Number(sel.dataset.idx);
@@ -3409,15 +3400,13 @@ function wireKitchen() {
     };
   });
 
-  /* LIVE INGREDIENT QTY, UNIT, AND PRICE WIRING */
-  document.querySelectorAll('.ing-qty, .ing-price, .base-ing-qty').forEach(input => {
+  document.querySelectorAll('.ing-qty, .ing-price').forEach(input => {
     input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
-      const isBaseModal = input.classList.contains('base-ing-qty');
-      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      const activeObj = DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         const ing = activeObj.ingredients[idx];
-        if (input.classList.contains('ing-qty') || input.classList.contains('base-ing-qty')) {
+        if (input.classList.contains('ing-qty')) {
           ing.qty = Number(input.value) || 0;
           ing.gramsMl = getConvertedGramsMl(ing.qty, ing.unit || 'GRM');
         } else if (input.classList.contains('ing-price')) {
@@ -3427,20 +3416,18 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.ing-unit, .base-ing-unit').forEach(sel => {
+  document.querySelectorAll('.ing-unit').forEach(sel => {
     sel.onchange = (e) => {
       const idx = Number(sel.dataset.idx);
-      const isBaseModal = sel.classList.contains('base-ing-unit');
-      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      const activeObj = DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         activeObj.ingredients[idx].unit = e.target.value;
         activeObj.ingredients[idx].gramsMl = getConvertedGramsMl(activeObj.ingredients[idx].qty, e.target.value);
-        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+        renderKeepFocus('masterDishNameInput');
       }
     };
   });
 
-  /* MAIN & BASE RECIPE: ADD/REMOVE INGREDIENT ROW */
   const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
   if (addIngredientRowBtn) {
     addIngredientRowBtn.onclick = () => {
@@ -3448,32 +3435,27 @@ function wireKitchen() {
       if (!DB.recipes[session.activeRecipeDishId]) {
         DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
       }
-      DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
+      DB.recipes[session.activeRecipeDishId].ingredients.push({
+        name: '',
+        type: 'raw',
+        isBase: false,
+        qty: 1,
+        unit: 'GRM',
+        gramsMl: 1,
+        unitPrice: 0,
+        vendor: 'FACTORY'
+      });
       renderKeepFocus('masterDishNameInput');
     };
   }
 
-  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
-  if (addBaseIngRowBtn) {
-    addBaseIngRowBtn.onclick = () => {
-      if (!session.editingBaseRecipeId) return;
-      const baseObj = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
-      if (baseObj) {
-        if (!baseObj.ingredients) baseObj.ingredients = [];
-        baseObj.ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
-        renderKeepFocus('baseName');
-      }
-    };
-  }
-
-  document.querySelectorAll('.remove-ing-row, .remove-base-ing').forEach(btn => {
+  document.querySelectorAll('.remove-ing-row').forEach(btn => {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
-      const isBaseModal = btn.classList.contains('remove-base-ing');
-      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
-      if (activeObj && activeObj.ingredients) {
-        activeObj.ingredients.splice(idx, 1);
-        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+      const recipe = DB.recipes[session.activeRecipeDishId];
+      if (recipe && recipe.ingredients) {
+        recipe.ingredients.splice(idx, 1);
+        renderKeepFocus('masterDishNameInput');
       }
     };
   });
@@ -3482,7 +3464,10 @@ function wireKitchen() {
   if (saveRecipeBtn) {
     saveRecipeBtn.onclick = async () => {
       const dishId = session.activeRecipeDishId;
-      if (!dishId) { toast('No dish selected to save.', 'alert-triangle'); return; }
+      if (!dishId) {
+        toast('No dish selected to save.', 'alert-triangle');
+        return;
+      }
 
       const portions = Number(document.getElementById('recipePortions')?.value) || 1;
       const wastagePercent = Number(document.getElementById('recipeWastage')?.value) || 10;
@@ -3494,6 +3479,66 @@ function wireKitchen() {
       await db.ref('recipes/' + dishId).set(currentRecipe);
       toast('Recipe & Food Costing saved successfully!', 'check-circle');
     };
+  }
+}
+
+async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
+  if (rm) {
+    const addedGrams = getConvertedGramsMl(qty, unit);
+    const currentStock = Number(rm.stockGrams ?? 0);
+    const newStock = currentStock + addedGrams;
+
+    await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
+    await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
+  }
+
+  const purchaseLog = {
+    id: uid('p'),
+    invoiceNo,
+    vendor,
+    vendorPhone,
+    vendorGst,
+    itemName: rmName,
+    qty,
+    unit,
+    totalAmount,
+    rate: newRate,
+    staff: session.staff.username,
+    ts: Date.now()
+  };
+
+  DB.purchases.push(purchaseLog);
+  await db.ref('purchases').set(DB.purchases);
+}
+
+async function clearTrialData() {
+  if (confirm("Are you sure you want to clear all test sales, purchases, wastage logs, and reset all opening stocks and inventory to zero?")) {
+    await db.ref('orders').remove();
+    await db.ref('purchases').remove();
+    await db.ref('wastageLogs').remove();
+    await db.ref('stockTakes').remove();
+    
+    const rmSnapshot = await db.ref('rawMaterials').once('value');
+    const materials = rmSnapshot.val();
+    if (materials) {
+      const updates = {};
+      for (const id in materials) {
+        updates[`rawMaterials/${id}/openingQty`] = 0;
+        updates[`rawMaterials/${id}/openingValue`] = 0;
+        updates[`rawMaterials/${id}/stockGrams`] = 0;
+      }
+      await db.ref().update(updates);
+    }
+    
+    DB.orders = [];
+    DB.purchases = [];
+    DB.wastageLogs = [];
+    DB.stockTakes = [];
+    session.salesItems = [];
+    session.purchaseItems = [];
+    
+    render();
+    toast("All trial data and inventory reset to zero!", "trash-2");
   }
 }
 
@@ -3519,8 +3564,8 @@ db.ref('baseRecipes').on('value', snap => { DB.baseRecipes = snap.val() ? Object
 db.ref('recipes').on('value', snap => { DB.recipes = snap.val() || {}; render(); });
 db.ref('wastageLogs').on('value', snap => { DB.wastageLogs = snap.val() || []; render(); });
 db.ref('purchases').on('value', snap => { DB.purchases = snap.val() || []; render(); });
-db.ref('suppliers').on('value', snap => { DB.suppliers = snap.val() ? Object.values(snap.val()) : DB.suppliers; render(); });
-db.ref('customers').on('value', snap => { DB.customers = snap.val() ? Object.values(snap.val()) : DB.customers; render(); });
+db.ref('suppliers').on('value', snap => { const data=snap.val(); if(data) DB.suppliers=Object.values(data); render(); });
+db.ref('customers').on('value', snap => { const data=snap.val(); if(data) DB.customers=Object.values(data); render(); });
 db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.val(); render(); } });
 
 (function boot() {
