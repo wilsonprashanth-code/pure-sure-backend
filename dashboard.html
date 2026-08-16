@@ -111,7 +111,7 @@ let session = {
   activeRecipeDishId: null,
   showRawMaterialsModal: localStorage.getItem('showRawMaterialsModal') === 'true',
   showBaseRecipesModal: localStorage.getItem('showBaseRecipesModal') === 'true',
-  showMainRecipesModal: localStorage.getItem('ps_show_main_recipe') === 'true', // Persisted in localStorage
+  showMainRecipesModal: localStorage.getItem('ps_show_main_recipe') === 'true',
   showBillingModal: localStorage.getItem('ps_show_billing') === 'true',
   showWastageModal: localStorage.getItem('showWastageModal') === 'true',
   showPurchaseModal: localStorage.getItem('ps_show_purchase') === 'true',
@@ -3594,13 +3594,13 @@ function renderKeepFocus(inputId) {
   const start = activeEl ? activeEl.selectionStart : null;
   const end = activeEl ? activeEl.selectionEnd : null;
 
-  // Capture the current scroll position of the active scroll container / window
+  // Capture current scroll container position
   const scrollContainer = activeEl ? activeEl.closest('.overflow-y-auto') : null;
   const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
 
   render();
 
-  // Restore the scroll position immediately after re-rendering
+  // Restore scroll position back instantly after rendering
   const newScrollContainer = activeEl ? document.getElementById(inputId)?.closest('.overflow-y-auto') : null;
   if (newScrollContainer) {
     newScrollContainer.scrollTop = scrollTop;
