@@ -134,7 +134,7 @@ let session = {
   purchaseVendor: '',
   purchaseVendorPhone: '',
   purchaseVendorGst: '',
-  purchaseItems: [{ itemName: '', mrp: 0, qty: 1, unit: 'Nos', rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, margin: 0 }],
+  purchaseItems: [{ itemName: '', code: '', batch: '', mfgDate: '', expDate: '', unit: 'Nos', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, lastRate: 0 }],
   salesInvoiceNo: 'S/26-27/000290',
   salesCustomerName: 'Walk-In Customer',
   salesCustomerPhone: '9876543210',
@@ -1347,8 +1347,9 @@ function purchaseModalReferenceStyle() {
             ${items.map((item, idx) => `
               <tr class="hover:bg-slate-50">
                 <td class="p-2 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
-                <td class="p-2 border border-slate-200">
-                  <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
+                <td class="p-2 border border-slate-200 relative">
+                  <input class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName || ''}" placeholder="Type item name...">
+                  <div class="purchase-search-dropdown hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto z-50"></div>
                 </td>
                 <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch || ''}</td>
                 <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate || ''}</td>
@@ -1376,10 +1377,6 @@ function purchaseModalReferenceStyle() {
           </tbody>
         </table>
       </div>
-
-      <datalist id="rawMaterialsList">
-        ${DB.rawMaterials.map(rm => `<option value="${rm.name}">`).join('')}
-      </datalist>
 
       <!-- Add Item Line button -->
       <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
@@ -2636,22 +2633,52 @@ function wireKitchen() {
   if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
 
   document.querySelectorAll('.purchase-item-name').forEach(inp => {
+    const idx = Number(inp.dataset.idx);
+    const dropdown = inp.nextElementSibling;
+
     inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      const val = e.target.value;
+      const val = e.target.value.toLowerCase().trim();
       if (session.purchaseItems[idx]) {
-        session.purchaseItems[idx].itemName = val;
-        const matched = DB.rawMaterials.find(r => r.name.toLowerCase() === val.toLowerCase().trim());
-        if (matched) {
-          session.purchaseItems[idx].rate = matched.unitPrice || 0;
-          session.purchaseItems[idx].unit = matched.unit || 'Nos';
-          const q = Number(session.purchaseItems[idx].receivedQty || 1);
-          const r = Number(session.purchaseItems[idx].rate || 0);
-          const net = q * r;
-          session.purchaseItems[idx].netValue = net;
-          session.purchaseItems[idx].gstAmt = net * 0.05;
-        }
-        renderKeepFocus('purchaseInvoiceNo');
+        session.purchaseItems[idx].itemName = e.target.value;
+      }
+
+      if (!val || val.length === 0) {
+        if (dropdown) dropdown.classList.add('hidden');
+        return;
+      }
+
+      const matches = DB.rawMaterials.filter(r => (r.name || '').toLowerCase().includes(val));
+      if (matches.length > 0 && dropdown) {
+        dropdown.innerHTML = matches.map(m => `
+          <div class="purchase-suggestion-item p-2 hover:bg-brand-50 cursor-pointer border-b border-slate-100 flex justify-between items-center text-xs" data-name="${m.name}" data-price="${m.unitPrice || 0}" data-unit="${m.unit || 'Nos'}">
+            <span class="font-bold text-brand-950">${m.name}</span>
+            <span class="font-mono text-brand-700">${money(m.unitPrice)}/${m.unit || 'Nos'}</span>
+          </div>
+        `).join('');
+        dropdown.classList.remove('hidden');
+
+        dropdown.querySelectorAll('.purchase-suggestion-item').forEach(el => {
+          el.onclick = () => {
+            const name = el.dataset.name;
+            const price = Number(el.dataset.price);
+            const unit = el.dataset.unit;
+
+            session.purchaseItems[idx].itemName = name;
+            session.purchaseItems[idx].rate = price;
+            session.purchaseItems[idx].unit = unit;
+            
+            const q = Number(session.purchaseItems[idx].receivedQty || 1);
+            const net = q * price;
+            session.purchaseItems[idx].netValue = net;
+            session.purchaseItems[idx].gstAmt = net * 0.05;
+
+            dropdown.classList.add('hidden');
+            renderKeepFocus('purchaseInvoiceNo');
+          };
+        });
+      } else if (dropdown) {
+        dropdown.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No raw materials found.</div>`;
+        dropdown.classList.remove('hidden');
       }
     };
   });
