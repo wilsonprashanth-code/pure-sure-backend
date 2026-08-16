@@ -99,7 +99,7 @@ const savedStaff = localStorage.getItem('ps_staff');
 let session = { 
   staff: savedStaff ? JSON.parse(savedStaff) : null, 
   soundOn: true, 
-  kitchenTab: 'orders', 
+  kitchenTab: localStorage.getItem('ps_active_tab') || 'orders', // Restores active tab on refresh
   editingDish: null, 
   editingRetail: null, 
   showAddStaff: false, 
@@ -249,7 +249,6 @@ function calculateBaseRecipeCostPerUnit(base) {
   if (yieldQty <= 0) return 0;
   const costPerNativeUnit = totalBatchCost / yieldQty;
   const unit = (base.unit || 'GRM').toUpperCase();
-  // If base prep unit is GRM or ML, scale unit rate to per KG or Litre (x1000)
   if (unit === 'GRM' || unit === 'ML' || unit === 'G') {
     return costPerNativeUnit * 1000;
   }
@@ -2569,6 +2568,7 @@ function wireKitchen() {
   document.querySelectorAll('.k-tab').forEach(b => {
     b.onclick = () => { 
       session.kitchenTab = b.dataset.ktab; 
+      localStorage.setItem('ps_active_tab', b.dataset.ktab); // Persist active tab on change
       render(); 
     };
   });
