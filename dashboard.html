@@ -1350,18 +1350,18 @@ function purchaseModalReferenceStyle() {
                 <td class="p-2 border border-slate-200">
                   <input list="rawMaterialsList" class="purchase-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
                 </td>
-                <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate}</td>
-                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.expDate}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.unit}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.orderedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold text-emerald-700">${item.receivedQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold ${item.shortQty < 0 ? 'text-red-600' : 'text-slate-700'}">${item.shortQty}</td>
-                <td class="p-2 border border-slate-200 text-center font-bold">${item.damagedQty}</td>
+                <td class="p-2 border border-slate-200 font-mono font-bold text-slate-700">${item.batch || ''}</td>
+                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.mfgDate || ''}</td>
+                <td class="p-2 border border-slate-200 font-mono text-slate-600">${item.expDate || ''}</td>
+                <td class="p-2 border border-slate-200 text-center">${item.unit || 'Nos'}</td>
+                <td class="p-2 border border-slate-200 text-center font-bold">${item.orderedQty || 1}</td>
+                <td class="p-2 border border-slate-200 text-center font-bold text-emerald-700">${item.receivedQty || 1}</td>
+                <td class="p-2 border border-slate-200 text-center font-bold ${item.shortQty < 0 ? 'text-red-600' : 'text-slate-700'}">${item.shortQty || 0}</td>
+                <td class="p-2 border border-slate-200 text-center font-bold">${item.damagedQty || 0}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono font-semibold">${money(item.rate)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.discPct}</td>
+                <td class="p-2 border border-slate-200 text-center">${item.discPct || 0}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono">${money(item.discAmt)}</td>
-                <td class="p-2 border border-slate-200 text-center">${item.gstGroup}</td>
+                <td class="p-2 border border-slate-200 text-center">${item.gstGroup || '5%'}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono">${money(item.gstAmt)}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono font-bold text-emerald-700">${money(item.netValue)}</td>
                 <td class="p-2 border border-slate-200 text-right font-mono text-slate-500">${money(item.lastRate)}</td>
@@ -1399,11 +1399,11 @@ function purchaseModalReferenceStyle() {
         <div class="lg:col-span-4 grid grid-cols-1 gap-2">
           <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
             <div class="text-[11px] font-bold text-slate-400 uppercase border-b border-slate-100 pb-1">Item Summary</div>
-            <div class="flex justify-between font-medium"><span>Total Items</span><span class="font-bold">3</span></div>
-            <div class="flex justify-between font-medium"><span>Total Ordered Qty</span><span class="font-bold">13</span></div>
-            <div class="flex justify-between font-medium"><span>Total Received Qty</span><span class="font-bold text-emerald-700">12</span></div>
-            <div class="flex justify-between font-medium"><span>Total Shortage Qty</span><span class="font-bold text-red-600">-1</span></div>
-            <div class="flex justify-between font-medium"><span>Total Damaged Qty</span><span class="font-bold">0</span></div>
+            <div class="flex justify-between font-medium"><span>Total Items</span><span class="font-bold">${totalLines}</span></div>
+            <div class="flex justify-between font-medium"><span>Total Ordered Qty</span><span class="font-bold">${items.reduce((a,b)=>a+Number(b.orderedQty||0),0)}</span></div>
+            <div class="flex justify-between font-medium"><span>Total Received Qty</span><span class="font-bold text-emerald-700">${items.reduce((a,b)=>a+Number(b.receivedQty||0),0)}</span></div>
+            <div class="flex justify-between font-medium"><span>Total Shortage Qty</span><span class="font-bold text-red-600">${items.reduce((a,b)=>a+Number(b.shortQty||0),0)}</span></div>
+            <div class="flex justify-between font-medium"><span>Total Damaged Qty</span><span class="font-bold">${items.reduce((a,b)=>a+Number(b.damagedQty||0),0)}</span></div>
           </div>
         </div>
 
@@ -2682,7 +2682,6 @@ function wireKitchen() {
       renderKeepFocus('purchaseInvoiceNo');
     };
   }
-  }
 
   /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
@@ -3154,6 +3153,7 @@ function wireKitchen() {
       }
     };
   }
+}
 
 async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
   if (rm) {
