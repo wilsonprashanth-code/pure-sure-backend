@@ -255,24 +255,35 @@ function calculateIngCost(ing) {
     rate = getRawMaterialDetails(ing.name).unitPrice;
   }
 
-  let gramsMl = Number(ing.gramsMl || 0);
-
-  if (!gramsMl) {
-    switch(unit) {
-      case 'KG':
-      case 'LITRE': gramsMl = qty * 1000; break;
-      case 'TSP': gramsMl = qty * 5; break;
-      case 'TBSP': gramsMl = qty * 15; break;
-      case 'GRM':
-      case 'ML':
-      case 'G':
-      case 'PCS':
-      case 'NOS':
-      default: gramsMl = qty; break;
-    }
+  // If unit is PCS or NOS, cost is simply Qty * Unit Rate
+  if (unit === 'PCS' || unit === 'NOS' || unit === 'PC') {
+    return qty * rate;
   }
 
-  return (gramsMl / 1000) * rate;
+  // Convert quantity to standard base units (KG / Litres) for calculation against rate/KG
+  let standardUnitsQty = qty;
+  switch(unit) {
+    case 'GRM':
+    case 'ML':
+    case 'G':
+      standardUnitsQty = qty / 1000;
+      break;
+    case 'KG':
+    case 'LITRE':
+      standardUnitsQty = qty;
+      break;
+    case 'TSP':
+      standardUnitsQty = (qty * 5) / 1000;
+      break;
+    case 'TBSP':
+      standardUnitsQty = (qty * 15) / 1000;
+      break;
+    default:
+      standardUnitsQty = qty / 1000;
+      break;
+  }
+
+  return standardUnitsQty * rate;
 }
 
 function getConvertedGramsMl(qty, unit) {
@@ -3327,6 +3338,35 @@ function wireKitchen() {
           activeObj.ingredients[idx].vendor = 'LINKED BASE';
         }
         renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
+      }
+    };
+  });
+
+  /* LIVE INGREDIENT QTY, UNIT, AND PRICE WIRING */
+  document.querySelectorAll('.ing-qty, .ing-price').forEach(input => {
+    input.oninput = (e) => {
+      const idx = Number(input.dataset.idx);
+      const activeObj = DB.recipes[session.activeRecipeDishId];
+      if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
+        const ing = activeObj.ingredients[idx];
+        if (input.classList.contains('ing-qty')) {
+          ing.qty = Number(input.value) || 0;
+          ing.gramsMl = getConvertedGramsMl(ing.qty, ing.unit || 'GRM');
+        } else if (input.classList.contains('ing-price')) {
+          ing.unitPrice = Number(input.value) || 0;
+        }
+      }
+    };
+  });
+
+  document.querySelectorAll('.ing-unit').forEach(sel => {
+    sel.onchange = (e) => {
+      const idx = Number(sel.dataset.idx);
+      const activeObj = DB.recipes[session.activeRecipeDishId];
+      if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
+        activeObj.ingredients[idx].unit = e.target.value;
+        activeObj.ingredients[idx].gramsMl = getConvertedGramsMl(activeObj.ingredients[idx].qty, e.target.value);
+        renderKeepFocus('masterDishNameInput');
       }
     };
   });
