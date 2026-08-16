@@ -132,8 +132,13 @@ let session = {
   newCustomPayment: '',
   purchaseInvoiceNo: 'P/26-27/000016',
   purchaseVendor: '',
-  purchaseVendorPhone: '',
-  purchaseVendorGst: '',
+  purchaseSupplierGstin: '29ABCDE1234F1Z5',
+  purchaseSupplierPhone: '9876543210',
+  purchaseSupplierAddress: 'No.12, KIADB, Peenya 2nd Phase, Bengaluru',
+  purchaseInvoiceDate: '2026-08-15',
+  purchaseDueDate: '2026-09-14',
+  purchaseReceivedDate: '2026-08-15',
+  purchaseNo: 'P/26-27/000001',
   purchaseItems: [{ itemName: '', code: '', batch: '', mfgDate: '', expDate: '', unit: 'Nos', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, lastRate: 0 }],
   salesInvoiceNo: 'S/26-27/000290',
   salesCustomerName: 'Walk-In Customer',
@@ -245,6 +250,10 @@ function calculateIngCost(ing) {
     const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
     if (baseObj) {
       const unitRate = calculateBaseRecipeCostPerUnit(baseObj);
+      const baseUnit = (baseObj.unit || 'GRM').toUpperCase();
+      if (baseUnit === 'PCS' || baseUnit === 'NOS' || baseUnit === 'PC') {
+        return qty * unitRate;
+      }
       const gramsMl = Number(ing.gramsMl || getConvertedGramsMl(qty, unit));
       return (gramsMl / 1000) * unitRate;
     }
@@ -446,7 +455,38 @@ function exportMonthlyStockReconciliationToExcel() {
     const openingVal = Number(rm.openingValue || 0);
     const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
     const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
-    const soldQty = 0;
+    
+    // Calculate total consumed via BOM cascading for dishes sold
+    let soldQty = 0;
+    DB.orders.filter(o => o.status === 'served').forEach(order => {
+      (order.items || []).forEach(item => {
+        const dishObj = DB.menu.find(m => m.name === item.name);
+        if (dishObj && DB.recipes[dishObj.id]) {
+          const rec = DB.recipes[dishObj.id];
+          function calcConsumption(ing, mult) {
+            if (ing.type === 'base' || ing.isBase) {
+              const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+              if (baseObj && baseObj.ingredients) {
+                const usage = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+                const batchYield = Number(baseObj.batchYield || 1);
+                const fraction = batchYield > 0 ? usage / batchYield : 0;
+                baseObj.ingredients.forEach(sub => calcConsumption(sub, fraction));
+              }
+            } else {
+              if ((ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim()) {
+                soldQty += Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+              }
+            }
+          }
+          (rec.ingredients || []).forEach(ing => calcConsumption(ing, Number(item.qty || 1)));
+        }
+      });
+    });
+
+    const unit = rm.unit || 'GRM';
+    const divisor = (unit.toUpperCase() === 'KG' || unit.toUpperCase() === 'LITRE') ? 1000 : 1;
+    soldQty = soldQty / divisor;
+
     const soldVal = soldQty * Number(rm.unitPrice || 0);
     const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
     const wasteVal = wasteQty * Number(rm.unitPrice || 0);
@@ -605,7 +645,6 @@ function kitchenShell() {
     ${session.showWastageModal ? wastageModal() : ''}
     ${session.showPurchaseModal ? purchaseModalReferenceStyle() : ''}
     ${session.showStockTakeModal ? stockTakeModal() : ''}
-    ${session.purchaseItemDiffWarning ? priceDifferenceWarningModal() : ''}
   </div>`;
 }
 
@@ -657,18 +696,6 @@ function orderCard(o) {
 
 function historyPanel() {
   const completedOrders = [...DB.orders].filter(o => o.status === 'served').sort((a,b) => (b.completedTs || 0) - (a.completedTs || 0));
-  
-  const itemSales = {};
-  completedOrders.forEach(o => {
-    (o.items || []).forEach(i => {
-      if (!itemSales[i.name]) itemSales[i.name] = { qty: 0, revenue: 0 };
-      itemSales[i.name].qty += Number(i.qty || 1);
-      itemSales[i.name].revenue += Number(i.price || 0) * Number(i.qty || 1);
-    });
-  });
-
-  const topItems = Object.entries(itemSales).sort((a,b) => b[1].qty - a[1].qty);
-
   return `
   <div class="space-y-6">
     <div class="bg-white p-4 rounded-2xl card-shadow border border-brand-100 flex items-center justify-between flex-wrap gap-3">
@@ -695,7 +722,6 @@ function historyPanel() {
       </div>
     </div>
 
-    <!-- Wastage Summary Report -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
       <div class="flex items-center justify-between mb-3">
         <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Wastage &amp; Shrinkage Audit Report</h3>
@@ -727,7 +753,6 @@ function historyPanel() {
       </div>
     </div>
 
-    <!-- Monthly Stock Reconciliation Summary Table -->
     <div class="bg-white rounded-2xl card-shadow p-4 sm:p-5">
       <h3 class="font-display text-base sm:text-lg font-bold text-brand-950 mb-3">Monthly Stock Take &amp; Reconciliation (Qty &amp; Value)</h3>
       <div class="overflow-x-auto">
@@ -754,17 +779,36 @@ function historyPanel() {
               const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
               const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
               
-              const soldQty = DB.orders
-                .filter(o => o.status === 'served')
-                .reduce((total, order) => {
-                  const foundLine = (order.items || []).find(i => (i.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim());
-                  return total + (foundLine ? Number(foundLine.qty || 0) : 0);
-                }, 0);
-              
+              let soldGrams = 0;
+              DB.orders.filter(o => o.status === 'served').forEach(order => {
+                (order.items || []).forEach(item => {
+                  const dishObj = DB.menu.find(m => m.name === item.name);
+                  if (dishObj && DB.recipes[dishObj.id]) {
+                    const rec = DB.recipes[dishObj.id];
+                    function computeCons(ing, mult) {
+                      if (ing.type === 'base' || ing.isBase) {
+                        const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+                        if (baseObj && baseObj.ingredients) {
+                          const usage = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+                          const batchYield = Number(baseObj.batchYield || 1);
+                          const fraction = batchYield > 0 ? usage / batchYield : 0;
+                          baseObj.ingredients.forEach(sub => computeCons(sub, fraction));
+                        }
+                      } else {
+                        if ((ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim()) {
+                          soldGrams += Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+                        }
+                      }
+                    }
+                    (rec.ingredients || []).forEach(ing => computeCons(ing, Number(item.qty || 1)));
+                  }
+                });
+              });
+
+              const soldQty = soldGrams / divisor;
               const soldVal = soldQty * Number(rm.unitPrice || 0);
               const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
               const wasteVal = wasteQty * Number(rm.unitPrice || 0);
-              
               const closingQty = Math.max(0, openingQty + purchaseQty - soldQty - wasteQty);
               const closingVal = closingQty * Number(rm.unitPrice || 0);
 
@@ -894,7 +938,6 @@ function billingModalReferenceStyle() {
   <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
     <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       
-      <!-- Top Title Header matching screenshot with active nav buttons -->
       <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
@@ -904,7 +947,6 @@ function billingModalReferenceStyle() {
           <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Cafe</span>
         </div>
         
-        <!-- Active Nav Tabs -->
         <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
           <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
           <button type="button" onclick="session.showBillingModal=false; localStorage.removeItem('ps_show_billing'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Orders</button>
@@ -916,7 +958,6 @@ function billingModalReferenceStyle() {
         <button id="closeBillingModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
       </div>
 
-      <!-- Top Meta Bar: Customer, Mobile, Bill No, Date, Time -->
       <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-center shrink-0 shadow-sm">
         <div class="md:col-span-3 flex items-center gap-2">
           <label class="font-bold text-slate-700 shrink-0">Customer</label>
@@ -924,7 +965,7 @@ function billingModalReferenceStyle() {
             <select id="salesCustomerNameInput" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 bg-slate-50 font-medium">
               ${DB.customers.map(c => `<option value="${c.name}" ${session.salesCustomerName === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
             </select>
-            <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); render(); toast('Customer added!', 'check-circle'); }" class="bg-posGreen text-white text-[10px] font-bold px-2 py-1.5 rounded-lg shrink-0" title="Add New Customer">+ New</button>
+            <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); db.ref('customers').set(DB.customers); render(); toast('Customer added!', 'check-circle'); }" class="bg-posGreen text-white text-[10px] font-bold px-2 py-1.5 rounded-lg shrink-0" title="Add New Customer">+ New</button>
           </div>
         </div>
         <div class="md:col-span-3 flex items-center gap-2">
@@ -935,7 +976,6 @@ function billingModalReferenceStyle() {
           <label class="font-bold text-slate-700 shrink-0">Bill No</label>
           <div class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono font-bold text-brand-950">
             ${session.salesInvoiceNo || 'S/26-27/000290'}
-            <div class="text-[9px] text-slate-400 font-normal">Next: S/26-27/000291</div>
           </div>
         </div>
         <div class="md:col-span-2 flex items-center gap-2">
@@ -948,25 +988,17 @@ function billingModalReferenceStyle() {
         </div>
       </div>
 
-      <!-- Global Search Bar / Barcode Scanner with Autocomplete Dropdown -->
       <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center gap-3 shrink-0 relative">
         <div class="relative flex-1">
           <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
           <input id="globalSalesSearchInput" value="${session.salesGlobalSearchQuery || ''}" placeholder="Scan barcode or search item by name / code..." class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none shadow-sm">
-          
-          <!-- Autocomplete Dropdown suggestions container -->
           <div id="salesSearchDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto z-50"></div>
         </div>
         <button type="button" id="addSalesLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
 
-      <!-- Main Dual-Column Layout Body -->
       <div class="flex-1 bg-white overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
-        
-        <!-- Left Column: Items Table & Footer Elements -->
         <div class="lg:col-span-8 flex flex-col border-r border-slate-200 overflow-hidden bg-white">
-          
-          <!-- Scrollable Table -->
           <div class="flex-1 overflow-y-auto">
             <table class="w-full text-left text-xs border-collapse">
               <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
@@ -990,7 +1022,7 @@ function billingModalReferenceStyle() {
                   <tr class="hover:bg-brand-50/20 transition">
                     <td class="p-2.5 border border-slate-200 text-center font-bold text-slate-500">${idx + 1}</td>
                     <td class="p-2.5 border border-slate-200">
-                      <input list="menuItemsList" class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type or select dish...">
+                      <input class="sales-item-name w-full border border-slate-300 rounded p-1 text-xs font-bold bg-white" data-idx="${idx}" value="${item.itemName}" placeholder="Type item name...">
                     </td>
                     <td class="p-2 border border-slate-200"><input class="sales-item-barcode w-full border border-slate-300 rounded p-1 text-xs font-mono bg-white" data-idx="${idx}" value="${item.barcode}" placeholder="Barcode"></td>
                     <td class="p-2.5 border border-slate-200 text-center">
@@ -1025,7 +1057,6 @@ function billingModalReferenceStyle() {
                     <td class="p-2.5 border border-slate-200 text-right font-mono font-bold text-green-700">${money(item.netValue)}</td>
                     <td class="p-2.5 border border-slate-200 text-center">
                       <div class="flex items-center justify-center gap-1.5">
-                        <button type="button" class="text-blue-600 hover:text-blue-800 p-1" title="Edit"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
                         <button type="button" class="remove-sales-line text-red-500 hover:text-red-700 p-1" title="Delete" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                       </div>
                     </td>
@@ -1035,7 +1066,6 @@ function billingModalReferenceStyle() {
             </table>
           </div>
 
-          <!-- Table Bottom Bar: Clear Cart & Totals -->
           <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
             <button type="button" id="clearSalesCartBtn" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear Cart
@@ -1046,11 +1076,10 @@ function billingModalReferenceStyle() {
             </div>
           </div>
 
-          <!-- Remarks & Order Type / Table Section -->
           <div class="p-3.5 bg-cream border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
             <div>
               <label class="text-[11px] font-bold text-slate-700 uppercase block mb-1">Remarks</label>
-              <textarea id="salesRemarksInput" placeholder="Order remarks..." rows="2" class="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white focus:outline-none"></textarea>
+              <textarea id="salesRemarksInput" placeholder="Order remarks..." rows="2" class="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white focus:outline-none">${session.salesRemarks || ''}</textarea>
             </div>
             <div class="space-y-2">
               <div class="flex items-center justify-between">
@@ -1063,10 +1092,10 @@ function billingModalReferenceStyle() {
                 </select>
               </div>
               <div class="grid grid-cols-2 gap-2">
-                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Dine-In' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
+                <button type="button" id="salesOrderTypeDineIn" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Dine-In' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
                   <i data-lucide="coffee" class="w-3.5 h-3.5"></i> Dine-In
                 </button>
-                <button type="button" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Takeaway' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
+                <button type="button" id="salesOrderTypeTakeaway" class="py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm ${session.salesOrderType === 'Takeaway' ? 'bg-posGreen text-white' : 'bg-white text-slate-700 border border-slate-300'}">
                   <i data-lucide="shopping-bag" class="w-3.5 h-3.5"></i> Takeaway
                 </button>
               </div>
@@ -1074,7 +1103,6 @@ function billingModalReferenceStyle() {
           </div>
         </div>
 
-        <!-- Right Column: Payment Sidebar matching reference design -->
         <div class="lg:col-span-4 bg-[#f8fafc] p-4 flex flex-col justify-between overflow-y-auto">
           <div class="space-y-4">
             <div>
@@ -1089,7 +1117,6 @@ function billingModalReferenceStyle() {
               </div>
             </div>
 
-            <!-- Split Payment Sidebar Section -->
             <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-800 uppercase">Split Payment</span>
@@ -1121,7 +1148,6 @@ function billingModalReferenceStyle() {
             </div>
           </div>
 
-          <!-- Financial Totals Summary Sidebar Box matching reference image -->
           <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5 mt-4">
             <div class="flex justify-between text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5">
               <span>Sub Total</span>
@@ -1159,11 +1185,9 @@ function billingModalReferenceStyle() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
-      <!-- Bottom Action Toolbar matching reference image -->
       <div class="bg-[#10344a] p-3 flex items-center justify-between gap-3 shrink-0 flex-wrap">
         <div class="flex items-center gap-2">
           <button id="completeSalesBillBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
@@ -1172,7 +1196,7 @@ function billingModalReferenceStyle() {
           <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
             <i data-lucide="save" class="w-4 h-4"></i> Save Draft (F5)
           </button>
-          <button id="closeBillingModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
+          <button id="clearBillingModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5">
             <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Clear (F4)
           </button>
         </div>
@@ -1182,11 +1206,9 @@ function billingModalReferenceStyle() {
           <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="500">₹500</button>
           <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="1000">₹1000</button>
           <button type="button" class="quick-cash-tender bg-white/10 hover:bg-white/20 text-cream text-xs font-bold px-3 py-2 rounded-lg font-mono" data-amt="2000">₹2000</button>
-          <button type="button" class="bg-white/20 hover:bg-white/30 text-cream text-xs font-bold px-3 py-2 rounded-lg">Other</button>
         </div>
       </div>
 
-      <!-- Bottom Status Bar -->
       <div class="bg-brand-950 text-cream/70 px-4 py-1.5 flex items-center justify-between text-[11px] font-medium shrink-0">
         <div class="flex items-center gap-2"><i data-lucide="user" class="w-3 h-3 text-gold-400"></i> Cashier: <span class="text-white font-bold">${session.staff ? session.staff.username : 'admin'}</span></div>
         <div class="flex items-center gap-2"><i data-lucide="monitor" class="w-3 h-3 text-gold-400"></i> Terminal: <span class="text-white font-bold">POS-01</span></div>
@@ -1208,7 +1230,6 @@ function purchaseModalReferenceStyle() {
   <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-2">
     <div class="modal-fade bg-[#f4f7f6] w-full h-[100dvh] sm:h-[98vh] sm:max-w-[98vw] sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-slate-300">
       
-      <!-- Top Title Header matching screenshot with active nav buttons -->
       <div class="bg-[#10344a] text-white px-5 py-3 flex items-center justify-between shrink-0 shadow">
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">
@@ -1218,7 +1239,6 @@ function purchaseModalReferenceStyle() {
           <span class="text-xs text-cream/80 font-medium">Pure &amp; Sure Organic Store</span>
         </div>
         
-        <!-- Active Nav Tabs -->
         <div class="hidden md:flex items-center gap-6 text-xs font-semibold text-cream/90">
           <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='orders'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard</button>
           <button type="button" onclick="session.showPurchaseModal=false; localStorage.removeItem('ps_show_purchase'); session.kitchenTab='history'; render();" class="nav-tab-btn flex items-center gap-1.5 hover:text-white cursor-pointer"><i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Purchase List</button>
@@ -1230,15 +1250,14 @@ function purchaseModalReferenceStyle() {
         <button id="closePurchaseModalBtn" class="bg-red-600 hover:bg-red-700 text-white w-8 h-8 rounded-full font-bold flex items-center justify-center text-sm shadow">✕</button>
       </div>
 
-      <!-- Top Supplier & Meta Grid -->
       <div class="bg-white p-3.5 border-b border-slate-200 grid grid-cols-1 md:grid-cols-6 gap-3 text-xs shrink-0 shadow-sm">
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
           <div class="flex items-center justify-between">
             <label class="font-bold text-slate-700 block">Supplier *</label>
-            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
+            <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); db.ref('suppliers').set(DB.suppliers); render(); toast('Supplier added!', 'check-circle'); }" class="text-[10px] font-bold bg-posGreen text-white px-2 py-0.5 rounded">+ New</button>
           </div>
           <select id="purchaseSupplierSelect" class="w-full border border-slate-300 rounded-lg p-1.5 bg-white font-bold text-slate-900">
-            ${DB.suppliers.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+            ${DB.suppliers.map(s => `<option value="${s.name}" ${session.purchaseVendor === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
           </select>
           <div class="text-[10px] text-slate-500 space-y-0.5 pt-1">
             <div><b>GSTIN:</b> ${session.purchaseSupplierGstin}</div>
@@ -1276,7 +1295,6 @@ function purchaseModalReferenceStyle() {
             <label class="font-bold text-slate-700 block mb-1">Purchase No. *</label>
             <div class="bg-slate-100 border border-slate-300 rounded-lg p-2 font-mono font-bold text-brand-950">
               ${session.purchaseNo}
-              <div class="text-[9px] text-slate-400 font-normal">Next No: P/26-27/00002</div>
             </div>
           </div>
           <div>
@@ -1314,7 +1332,6 @@ function purchaseModalReferenceStyle() {
         </div>
       </div>
 
-      <!-- Barcode / Item Search Bar -->
       <div class="bg-slate-100 p-3 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
         <div class="relative flex-1">
           <i data-lucide="barcode" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
@@ -1322,12 +1339,10 @@ function purchaseModalReferenceStyle() {
         </div>
         <div class="flex items-center gap-4 text-xs font-semibold text-slate-700">
           <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked class="accent-brand"> Show last purchase rate</label>
-          <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" class="accent-brand"> Show inactive items</label>
         </div>
-        <button type="button" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
+        <button type="button" id="addPurchaseLineBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow"><i data-lucide="plus" class="w-4 h-4"></i> Add Item</button>
       </div>
 
-      <!-- Main Item Table Container -->
       <div class="flex-1 bg-white overflow-y-auto">
         <table class="w-full text-left text-xs border-collapse min-w-[1200px]">
           <thead class="bg-[#105955] text-white uppercase font-bold text-[10px] sticky top-0 z-10">
@@ -1420,71 +1435,38 @@ function purchaseModalReferenceStyle() {
         </table>
       </div>
 
-      <!-- Add Item Line button -->
-      <div class="p-2 bg-slate-100 border-t border-slate-200 flex justify-start shrink-0">
-        <button type="button" id="addPurchaseLineBtn" class="bg-brand text-cream text-xs font-bold px-4 py-1.5 rounded-lg shadow hover:bg-brand-600">+ Add Item Line</button>
-      </div>
-
-      <!-- Bottom Three-Column Summary Section -->
       <div class="bg-[#f4f7f6] p-3 border-t border-slate-300 grid grid-cols-1 lg:grid-cols-12 gap-3 text-xs shrink-0">
-        
-        <!-- Left: Remarks -->
         <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <label class="font-bold text-slate-800 mb-1">Remarks</label>
           <textarea placeholder="Add invoice remarks..." rows="3" class="w-full flex-1 border border-slate-300 rounded-xl p-2 text-xs bg-slate-50 focus:outline-none"></textarea>
         </div>
 
-        <!-- Middle: Item Summary -->
         <div class="lg:col-span-4 grid grid-cols-1 gap-2">
           <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1.5">
             <div class="text-[11px] font-bold text-slate-400 uppercase border-b border-slate-100 pb-1">Item Summary</div>
             <div class="flex justify-between font-medium"><span>Total Items</span><span class="font-bold">${totalLines}</span></div>
             <div class="flex justify-between font-medium"><span>Total Ordered Qty</span><span class="font-bold">${items.reduce((a,b)=>a+Number(b.orderedQty||0),0)}</span></div>
             <div class="flex justify-between font-medium"><span>Total Received Qty</span><span class="font-bold text-emerald-700">${items.reduce((a,b)=>a+Number(b.receivedQty||0),0)}</span></div>
-            <div class="flex justify-between font-medium"><span>Total Shortage Qty</span><span class="font-bold text-red-600">${items.reduce((a,b)=>a+Number(b.shortQty||0),0)}</span></div>
-            <div class="flex justify-between font-medium"><span>Total Damaged Qty</span><span class="font-bold">${items.reduce((a,b)=>a+Number(b.damagedQty||0),0)}</span></div>
           </div>
         </div>
 
-        <!-- Right: Amount Summary & Payment Summary -->
         <div class="lg:col-span-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
           <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Sub Total</span><span class="font-mono">${money(subTotal)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Item Discount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Taxable Value</span><span class="font-mono">${money(subTotal)}</span></div>
           <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Total GST</span><span class="font-mono">${money(totalTax)}</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>TCS Amount</span><span class="font-mono">₹0.00</span></div>
-          <div class="flex justify-between text-slate-700 border-b border-slate-100 pb-1"><span>Round Off</span><span class="font-mono">₹0.16</span></div>
           <div class="flex justify-between text-sm font-bold text-white bg-posGreen p-2.5 rounded-xl shadow-sm">
             <span>Net Payable</span>
             <span class="font-mono text-base">${money(netPayable)}</span>
           </div>
-
-          <div class="pt-2 space-y-1.5 text-xs font-bold border-t border-slate-200">
-            <div class="flex justify-between text-slate-800"><span>Total Payable</span><span class="font-mono">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800 items-center">
-              <span>Paid Amount</span>
-              <input type="number" value="0.00" class="w-28 border border-slate-300 rounded-lg p-1 text-right font-mono font-bold bg-slate-50">
-            </div>
-            <div class="flex justify-between text-slate-800"><span>Outstanding Amount</span><span class="font-mono text-red-600">${money(netPayable)}</span></div>
-            <div class="flex justify-between text-slate-800"><span>Due Date</span><span class="font-mono">30-08-2026</span></div>
-          </div>
         </div>
       </div>
 
-      <!-- Bottom Action Toolbar -->
       <div class="bg-[#10344a] p-3 flex items-center justify-between shrink-0 flex-wrap gap-2">
         <div class="flex items-center gap-2">
           <button id="validatePurchaseBtn" class="bg-posGreen hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-lg active:scale-98">
             <i data-lucide="save" class="w-4 h-4"></i> Save Purchase (F10)
           </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="printer" class="w-4 h-4"></i> Save &amp; Print (F11)
-          </button>
-          <button type="button" class="bg-white/10 hover:bg-white/20 text-cream font-bold px-4 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
-            <i data-lucide="file-plus" class="w-4 h-4"></i> Save &amp; New (F12)
-          </button>
         </div>
-        <button id="closePurchaseModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-5 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
+        <button id="clearPurchaseModalBtn" class="bg-red-500/20 hover:bg-red-500/30 text-red-200 font-bold px-5 py-3 rounded-xl text-xs flex items-center gap-1.5 shadow">
           <i data-lucide="trash-2" class="w-4 h-4"></i> Clear
         </button>
       </div>
@@ -1904,7 +1886,6 @@ function mainRecipesModal() {
 
             <div class="flex gap-2 pb-2">
               <button id="saveRecipeBtn" class="flex-1 bg-brand hover:bg-brand-600 text-cream font-bold py-3 rounded-xl text-xs transition shadow active:scale-98">Save Recipe &amp; Food Costing</button>
-              <button id="deleteMainRecipeBtn" class="bg-red-50 text-red-600 font-bold px-4 py-3 rounded-xl text-xs hover:bg-red-100 transition flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear</button>
             </div>
           ` : `<div class="text-xs text-brand-400 text-center py-16">No menu dish selected.</div>`}
         </div>
@@ -1932,22 +1913,6 @@ function baseRecipesModal() {
     filteredBaseRecipes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
   }
 
-  let matchingBaseUsage = [];
-  const baseIngQuery = (session.baseIngredientUsageQuery || '').toLowerCase().trim();
-  if (baseIngQuery.length >= 2) {
-    DB.baseRecipes.forEach(br => {
-      const usesItem = (br.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
-      if (usesItem) matchingBaseUsage.push(`[BASE PREP] ${br.name}`);
-    });
-    for (const dishId in DB.recipes) {
-      const rec = DB.recipes[dishId];
-      const dishObj = DB.menu.find(m => m.id === dishId);
-      const dishName = dishObj ? dishObj.name : `Dish (${dishId})`;
-      const usesItem = (rec.ingredients || []).some(i => (i.name || '').toLowerCase().includes(baseIngQuery));
-      if (usesItem) matchingBaseUsage.push(`[MAIN DISH] ${dishName}`);
-    }
-  }
-
   return `
   <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4">
     <div class="modal-fade bg-white w-full h-[100dvh] sm:h-[95vh] sm:max-w-6xl sm:rounded-3xl p-4 sm:p-6 flex flex-col overflow-hidden shadow-2xl">
@@ -1959,43 +1924,8 @@ function baseRecipesModal() {
         <button id="closeBaseRecipesBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
 
-      <div class="bg-gold-50 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-gold-200 mb-3 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
-        <div class="font-bold text-brand-900 flex items-center gap-1.5">
-          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Excel Upload
-        </div>
-        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
-          <button id="dlBaseRecipesTemplateBtn" class="font-bold text-gold-700 underline text-xs">Template</button>
-          <input id="baseRecipeExcelInput" type="file" accept=".xlsx, .xls, .csv" class="hidden">
-          <button id="triggerBaseRecipeExcelBtn" class="bg-gold text-white font-bold px-3 py-1.5 rounded-lg text-xs hover:opacity-90 transition">Upload</button>
-          <button id="bulkDeleteBaseRecipesBtn" class="bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-lg text-xs hover:bg-red-200 transition">Bulk Delete</button>
-        </div>
-      </div>
-
       <div class="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 flex-1 overflow-y-auto min-h-0">
         <div class="bg-brand-50/60 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 border border-brand-100 space-y-2.5 overflow-y-auto max-h-48 md:max-h-full">
-          <div class="space-y-2 bg-white p-2.5 rounded-xl border border-brand-200 shadow-sm">
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Filter Base Preps</label>
-              <input id="baseLetterSearchInput" type="text" value="${session.baseRecipeFilterQuery || ''}" placeholder="Filter preps..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gold-400">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">🔍 Usage Lookup</label>
-              <input id="baseIngredientSearchInput" type="text" value="${session.baseIngredientUsageQuery || ''}" placeholder="Find where used..." class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-gold-400">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-0.5">⚡ Sort Base Preps</label>
-              <select id="baseDishSortSelect" class="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white font-semibold text-brand-900 focus:outline-none focus:ring-2 focus:ring-gold-400">
-                <option value="alpha" ${session.baseRecipeSortMode === 'alpha' ? 'selected' : ''}>Alphabetical (A ➔ Z)</option>
-                <option value="cost" ${session.baseRecipeSortMode === 'cost' ? 'selected' : ''}>Cost % (High ➔ Low)</option>
-              </select>
-            </div>
-            ${baseIngQuery.length >= 2 ? `
-              <div class="text-[11px] text-slate-800 bg-slate-50 p-2 border border-slate-200 rounded-lg max-h-28 overflow-y-auto leading-relaxed">
-                ${matchingBaseUsage.length === 0 ? `<b>No usage found for "${baseIngQuery}".</b>` : `<b>Used in (${matchingBaseUsage.length}):</b><br>` + matchingBaseUsage.map(d => `• ${d}`).join('<br>')}
-              </div>
-            ` : ''}
-          </div>
-
           <div class="flex items-center justify-between border-b border-brand-100 pb-1.5">
             <span class="text-xs font-bold text-brand-800">Saved Preps (${filteredBaseRecipes.length})</span>
             <button id="createNewBaseRecipeBtn" class="text-[10px] font-bold bg-gold text-white px-2.5 py-1 rounded-full">+ New</button>
@@ -2162,19 +2092,6 @@ function rawMaterialsModal() {
       </div>
 
       <div class="flex-1 overflow-y-auto space-y-3.5 pr-0.5">
-        <div class="bg-gold-50 p-3 sm:p-4 rounded-xl border border-gold-200 space-y-2">
-          <div class="flex items-center justify-between">
-            <div class="text-xs font-bold text-brand-950 flex items-center gap-1.5">
-              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-gold-600"></i> Bulk Excel Upload
-            </div>
-            <button id="dlRmTemplateBtn" class="text-xs font-bold text-gold-700 underline">Template</button>
-          </div>
-          <div class="flex gap-2">
-            <input id="rmExcelInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gold file:text-white">
-            <button id="processRmExcelBtn" class="bg-brand text-cream font-bold px-3 py-1.5 rounded-lg text-xs shrink-0 hover:bg-brand-600 transition">Upload</button>
-          </div>
-        </div>
-
         <div class="bg-brand-50/70 p-3.5 rounded-xl border border-brand-100">
           <div class="text-xs font-bold text-brand-900 mb-2">Add Single Material Item</div>
           <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -2303,46 +2220,12 @@ function bulkPanel() {
           <p class="text-xs text-brand-400">Download templates and upload menu &amp; retail records.</p>
         </div>
       </div>
-
-      <div class="mb-4 bg-brand-50 p-3 sm:p-4 rounded-xl border border-brand-100 space-y-2">
-        <div class="text-xs font-bold text-brand-800 flex items-center gap-1.5">
-          <i data-lucide="download" class="w-4 h-4 text-brand-600"></i> Download Templates:
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <button id="dlCafeTemplateBtn" class="bg-brand text-cream text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 hover:bg-brand-600 transition">
-            <i data-lucide="utensils" class="w-3.5 h-3.5"></i> Cafe Menu
-          </button>
-          <button id="dlRetailTemplateBtn" class="bg-gold text-white text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 hover:opacity-90 transition">
-            <i data-lucide="shopping-basket" class="w-3.5 h-3.5"></i> Retail Store
-          </button>
-        </div>
-      </div>
-      
       <div class="border-2 border-dashed border-brand-200 rounded-xl p-4 sm:p-6 text-center bg-cream/40 mb-3">
         <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-brand-400 mb-1"></i>
         <label class="block text-xs font-bold text-brand-700 mb-2">Upload (.xlsx, .xls, .csv)</label>
         <input id="excelFileInput" type="file" accept=".xlsx, .xls, .csv" class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand file:text-cream">
       </div>
-
       <button id="processExcelBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition shadow active:scale-98">Process &amp; Upload Items</button>
-    </div>
-
-    <div class="bg-white rounded-2xl card-shadow p-4 sm:p-6">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-700 shrink-0"><i data-lucide="images" class="w-5 h-5"></i></div>
-        <div>
-          <h3 class="font-display text-base sm:text-lg font-bold text-brand-950">Bulk Auto-Match Photos</h3>
-          <p class="text-xs text-brand-400">Links images matching dish/product names automatically.</p>
-        </div>
-      </div>
-
-      <div class="border-2 border-dashed border-brand-200 rounded-xl p-4 sm:p-6 text-center bg-brand-50/40 mb-3">
-        <i data-lucide="image-plus" class="w-8 h-8 mx-auto text-brand-400 mb-1"></i>
-        <label class="block text-xs font-bold text-brand-700 mb-1">Select Multiple Images</label>
-        <input id="bulkImagesInput" type="file" accept="image/*" multiple class="block w-full text-xs text-brand-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gold file:text-white">
-      </div>
-
-      <button id="processBulkImagesBtn" class="w-full bg-gold text-white font-bold py-3 rounded-xl text-xs sm:text-sm hover:opacity-90 transition shadow active:scale-98">Auto-Match &amp; Upload Photos</button>
     </div>
   </div>`;
 }
@@ -2381,22 +2264,22 @@ function dishEditorModal() {
       
       <div class="flex-1 overflow-y-auto space-y-3 pr-0.5">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Dish Name</label><input id="dName" value="${d.name}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
-          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="dCategory" value="${d.category}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
-          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="dPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
+          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Dish Name</label><input id="dName" value="${d.name || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
+          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="dCategory" value="${d.category || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
+          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="dPrice" type="number" value="${d.price || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none"></div>
           <div class="sm:col-span-2">
             <label class="text-xs font-bold text-brand-600">Photo Upload</label>
             <input id="dImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-1.5 text-xs bg-white">
           </div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="dDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none">${d.desc}</textarea></div>
+          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="dDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50 focus:outline-none">${d.desc || ''}</textarea></div>
           <div class="sm:col-span-2">
             <label class="text-xs font-bold text-brand-600">Dietary Badges</label>
-            <div class="flex flex-wrap gap-3 mt-1.5">${allBadges.map(b => `<label class="text-xs font-semibold flex items-center gap-1.5"><input type="checkbox" class="dBadge accent-brand" value="${b}" ${d.badges.includes(b) ? 'checked' : ''}>${b}</label>`).join('')}</div>
+            <div class="flex flex-wrap gap-3 mt-1.5">${allBadges.map(b => `<label class="text-xs font-semibold flex items-center gap-1.5"><input type="checkbox" class="dBadge accent-brand" value="${b}" ${(d.badges || []).includes(b) ? 'checked' : ''}>${b}</label>`).join('')}</div>
           </div>
-          <div><label class="text-[11px] font-bold text-brand-600">Calories (kcal)</label><input id="dCal" type="number" value="${d.nutrition.cal}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Protein (g)</label><input id="dProt" type="number" value="${d.nutrition.protein}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Carbs (g)</label><input id="dCarb" type="number" value="${d.nutrition.carbs}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
-          <div><label class="text-[11px] font-bold text-brand-600">Fat (g)</label><input id="dFat" type="number" value="${d.nutrition.fat}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
+          <div><label class="text-[11px] font-bold text-brand-600">Calories (kcal)</label><input id="dCal" type="number" value="${d.nutrition?.cal || ''}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
+          <div><label class="text-[11px] font-bold text-brand-600">Protein (g)</label><input id="dProt" type="number" value="${d.nutrition?.protein || ''}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
+          <div><label class="text-[11px] font-bold text-brand-600">Carbs (g)</label><input id="dCarb" type="number" value="${d.nutrition?.carbs || ''}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
+          <div><label class="text-[11px] font-bold text-brand-600">Fat (g)</label><input id="dFat" type="number" value="${d.nutrition?.fat || ''}" class="w-full mt-0.5 border border-brand-200 rounded-lg px-2.5 py-1.5 text-xs bg-slate-50"></div>
         </div>
       </div>
 
@@ -2419,15 +2302,15 @@ function retailEditorModal() {
 
       <div class="flex-1 overflow-y-auto space-y-3 pr-0.5">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Product Name</label><input id="rName" value="${d.name}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="rCategory" value="${d.category}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="rPrice" type="number" value="${d.price}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Size / Pack Specification</label><input id="rSize" value="${d.size}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
+          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Product Name</label><input id="rName" value="${d.name || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
+          <div><label class="text-xs font-bold text-brand-600">Category</label><input id="rCategory" value="${d.category || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
+          <div><label class="text-xs font-bold text-brand-600">Price (₹)</label><input id="rPrice" type="number" value="${d.price || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
+          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Size / Pack Specification</label><input id="rSize" value="${d.size || ''}" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50"></div>
           <div class="sm:col-span-2">
             <label class="text-xs font-bold text-brand-600">Photo Upload</label>
             <input id="rImgFile" type="file" accept="image/*" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-1.5 text-xs bg-white">
           </div>
-          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="rDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50">${d.desc}</textarea></div>
+          <div class="sm:col-span-2"><label class="text-xs font-bold text-brand-600">Description</label><textarea id="rDesc" rows="2" class="w-full mt-1 border border-brand-200 rounded-xl px-3 py-2 text-xs sm:text-sm bg-slate-50">${d.desc || ''}</textarea></div>
         </div>
       </div>
 
@@ -2485,7 +2368,6 @@ function brandPanel() {
       <button id="saveBrandBtn" class="w-full bg-brand text-cream font-bold py-3 rounded-xl text-xs sm:text-sm hover:bg-brand-600 transition shadow active:scale-98">Save Brand Settings</button>
     </div>
 
-    <!-- Trial Data Reset Section -->
     <div class="pt-4 border-t border-slate-100">
       <h4 class="font-display text-sm font-bold text-red-700 mb-1">Trial Data Management</h4>
       <p class="text-[11px] text-slate-500 mb-3">Clear all test sales, purchase invoices, and wastage logs to start fresh.</p>
@@ -2507,7 +2389,6 @@ function usersPanel() {
       <button id="addStaffBtn" class="text-xs font-bold bg-brand text-cream px-3.5 py-2 rounded-xl flex items-center gap-1"><i data-lucide="user-plus" class="w-3.5 h-3.5"></i>Add Staff</button>
     </div>
 
-    <!-- Staff Accounts List -->
     <div class="space-y-2">
       <div class="text-xs font-bold text-brand-900 uppercase">Staff Accounts (${DB.staff.length})</div>
       ${DB.staff.map(s => `
@@ -2519,11 +2400,9 @@ function usersPanel() {
     </div>
     ${session.showAddStaff ? addStaffForm() : ''}
 
-    <!-- Suppliers Master Table -->
     <div class="space-y-3 pt-4 border-t border-brand-100">
       <div class="flex items-center justify-between">
         <div class="text-xs font-bold text-brand-900 uppercase">Registered Suppliers (${DB.suppliers.length})</div>
-        <button type="button" onclick="const name=prompt('Supplier Company Name:'); const addr=prompt('Address:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN:'); const fssai=prompt('FSSAI No:'); if(name){ DB.suppliers.push({id:uid('sup'), name, address:addr||'', phone:ph||'', gstin:gst||'', fssai:fssai||''}); render(); toast('Supplier added!', 'check-circle'); }" class="text-xs font-bold bg-posGreen text-white px-3 py-1.5 rounded-lg">+ Add Supplier</button>
       </div>
       <div class="overflow-x-auto border border-brand-100 rounded-xl">
         <table class="w-full text-left text-xs">
@@ -2549,11 +2428,9 @@ function usersPanel() {
       </div>
     </div>
 
-    <!-- Customers Master Table -->
     <div class="space-y-3 pt-4 border-t border-brand-100">
       <div class="flex items-center justify-between">
         <div class="text-xs font-bold text-brand-900 uppercase">Registered Customers (${DB.customers.length})</div>
-        <button type="button" onclick="const name=prompt('Customer Name:'); const ph=prompt('Phone No:'); const gst=prompt('GSTIN (Optional):'); if(name){ DB.customers.push({id:uid('cust'), name, phone:ph||'', gstin:gst||'', address:''}); render(); toast('Customer added!', 'check-circle'); }" class="text-xs font-bold bg-gold text-white px-3 py-1.5 rounded-lg">+ Add Customer</button>
       </div>
       <div class="overflow-x-auto border border-brand-100 rounded-xl">
         <table class="w-full text-left text-xs">
@@ -2581,7 +2458,28 @@ function usersPanel() {
   </div>`;
 }
 
+function addStaffForm() {
+  return `
+  <div class="bg-brand-50 p-3 rounded-xl border border-brand-200 space-y-2 text-xs">
+    <div class="font-bold text-brand-950">Add New Staff Account</div>
+    <input id="newStaffUser" placeholder="Username" class="w-full border rounded p-2 bg-white">
+    <input id="newStaffPass" type="password" placeholder="Password" class="w-full border rounded p-2 bg-white">
+    <select id="newStaffRole" class="w-full border rounded p-2 bg-white"><option>Kitchen Staff</option><option>Admin</option></select>
+    <button id="submitNewStaffBtn" class="w-full bg-brand text-cream font-bold py-2 rounded">Save Staff Account</button>
+  </div>`;
+}
+
 function wireKitchen() {
+  /* 1. ORDER ADVANCEMENT */
+  document.querySelectorAll('.advance-order').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id, next = btn.dataset.next;
+      const updates = { [`orders/${id}/status`]: next };
+      if (next === 'served') updates[`orders/${id}/completedTs`] = Date.now();
+      await db.ref().update(updates);
+    };
+  });
+
   const openBillBtn = document.getElementById('openBillingModalBtn');
   if (openBillBtn) {
     openBillBtn.onclick = () => { 
@@ -2594,13 +2492,14 @@ function wireKitchen() {
   }
 
   const closeBillBtn = document.getElementById('closeBillingModalBtn');
-  if (closeBillBtn) {
-    closeBillBtn.onclick = () => {
+  const clearBillBtn = document.getElementById('clearBillingModalBtn');
+  [closeBillBtn, clearBillBtn].forEach(b => {
+    if (b) b.onclick = () => {
       session.showBillingModal = false;
       localStorage.removeItem('ps_show_billing');
       render();
     };
-  }
+  });
 
   const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
   if (openPurchaseBtn) {
@@ -2612,13 +2511,14 @@ function wireKitchen() {
   }
 
   const closePurchaseBtn = document.getElementById('closePurchaseModalBtn');
-  if (closePurchaseBtn) {
-    closePurchaseBtn.onclick = () => {
+  const clearPurchaseBtn = document.getElementById('clearPurchaseModalBtn');
+  [closePurchaseBtn, clearPurchaseBtn].forEach(b => {
+    if (b) b.onclick = () => {
       session.showPurchaseModal = false;
       localStorage.removeItem('ps_show_purchase');
       render();
     };
-  }
+  });
 
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
@@ -2627,11 +2527,6 @@ function wireKitchen() {
       session.staff = null; 
       render(); 
     };
-  }
-
-  const soundToggle = document.getElementById('soundToggle');
-  if (soundToggle) {
-    soundToggle.onclick = () => { unlockAudio(); session.soundOn = !session.soundOn; render(); };
   }
 
   document.querySelectorAll('.k-tab').forEach(b => {
@@ -2653,24 +2548,233 @@ function wireKitchen() {
   const stockTakeSearchInput = document.getElementById('stockTakeSearchInput');
   if (stockTakeSearchInput) stockTakeSearchInput.oninput = (e) => { session.stockTakeSearch = e.target.value; renderKeepFocus('stockTakeSearchInput'); };
 
-  /* MODAL TRIGGERS */
   const openStockTakeBtn = document.getElementById('openStockTakeModalBtn');
-  if (openStockTakeBtn) {
-    openStockTakeBtn.onclick = () => { 
-      session.showStockTakeModal = true; 
-      render(); 
-    };
-  }
+  if (openStockTakeBtn) openStockTakeBtn.onclick = () => { session.showStockTakeModal = true; render(); };
+
+  const closeStockTakeModalBtn = document.getElementById('closeStockTakeModalBtn');
+  if (closeStockTakeModalBtn) closeStockTakeModalBtn.onclick = () => { session.showStockTakeModal = false; render(); };
 
   const openWastageBtn = document.getElementById('openWastageModalBtn');
-  if (openWastageBtn) {
-    openWastageBtn.onclick = () => { 
-      session.showWastageModal = true; 
-      render(); 
+  if (openWastageBtn) openWastageBtn.onclick = () => { session.showWastageModal = true; render(); };
+
+  const closeWastageModalBtn = document.getElementById('closeWastageModalBtn');
+  if (closeWastageModalBtn) closeWastageModalBtn.onclick = () => { session.showWastageModal = false; render(); };
+
+  /* 3. INVENTORY TAB WIRING (ADD/EDIT/DELETE/TOGGLE) */
+  const addDishBtn = document.getElementById('addDishBtn');
+  if (addDishBtn) addDishBtn.onclick = () => { session.editingDish = 'new'; render(); };
+
+  const addRetailBtn = document.getElementById('addRetailBtn');
+  if (addRetailBtn) addRetailBtn.onclick = () => { session.editingRetail = 'new'; render(); };
+
+  const cancelDishBtn = document.getElementById('cancelDishBtn');
+  if (cancelDishBtn) cancelDishBtn.onclick = () => { session.editingDish = null; render(); };
+
+  const cancelRetailBtn = document.getElementById('cancelRetailBtn');
+  if (cancelRetailBtn) cancelRetailBtn.onclick = () => { session.editingRetail = null; render(); };
+
+  document.querySelectorAll('.edit-item').forEach(btn => {
+    btn.onclick = () => {
+      const kind = btn.dataset.kind;
+      const id = btn.dataset.id;
+      if (kind === 'menu') session.editingDish = id;
+      else session.editingRetail = id;
+      render();
+    };
+  });
+
+  document.querySelectorAll('.delete-item').forEach(btn => {
+    btn.onclick = async () => {
+      const kind = btn.dataset.kind;
+      const id = btn.dataset.id;
+      if (confirm("Are you sure you want to delete this item?")) {
+        await db.ref(kind + '/' + id).remove();
+        toast("Item removed successfully.");
+      }
+    };
+  });
+
+  document.querySelectorAll('.stock-toggle').forEach(btn => {
+    btn.onclick = async () => {
+      const kind = btn.dataset.kind;
+      const id = btn.dataset.id;
+      const list = kind === 'menu' ? DB.menu : DB.retail;
+      const item = list.find(i => i.id === id);
+      if (item) {
+        const newStock = !item.stock;
+        await db.ref(kind + '/' + id + '/stock').set(newStock);
+        toast("Stock status updated!");
+      }
+    };
+  });
+
+  /* DISH & RETAIL EDIT MODAL SAVE WIRING */
+  const saveDishBtn = document.getElementById('saveDishBtn');
+  if (saveDishBtn) {
+    saveDishBtn.onclick = async () => {
+      const id = saveDishBtn.dataset.id || uid('dish');
+      const name = document.getElementById('dName').value.trim();
+      const category = document.getElementById('dCategory').value.trim();
+      const price = Number(document.getElementById('dPrice').value) || 0;
+      const desc = document.getElementById('dDesc').value.trim();
+      const cal = Number(document.getElementById('dCal').value) || 0;
+      const protein = Number(document.getElementById('dProt').value) || 0;
+      const carbs = Number(document.getElementById('dCarb').value) || 0;
+      const fat = Number(document.getElementById('dFat').value) || 0;
+      const badges = Array.from(document.querySelectorAll('.dBadge:checked')).map(cb => cb.value);
+
+      let img = '';
+      const fileInput = document.getElementById('dImgFile');
+      if (fileInput && fileInput.files[0]) {
+        img = await compressAndGetBase64(fileInput.files[0]);
+      } else {
+        const existing = DB.menu.find(m => m.id === id);
+        img = existing ? existing.img : '';
+      }
+
+      if (!name) { toast('Enter dish name.', 'alert-triangle'); return; }
+
+      const dishObj = { id, name, category, price, desc, img, badges, nutrition: { cal, protein, carbs, fat }, stock: true };
+      await db.ref('menu/' + id).set(dishObj);
+      session.editingDish = null;
+      render();
+      toast('Menu dish saved successfully!', 'check-circle');
     };
   }
 
-  /* PURCHASE WIRING */
+  const saveRetailBtn = document.getElementById('saveRetailBtn');
+  if (saveRetailBtn) {
+    saveRetailBtn.onclick = async () => {
+      const id = saveRetailBtn.dataset.id || uid('ret');
+      const name = document.getElementById('rName').value.trim();
+      const category = document.getElementById('rCategory').value.trim();
+      const price = Number(document.getElementById('rPrice').value) || 0;
+      const size = document.getElementById('rSize').value.trim();
+      const desc = document.getElementById('rDesc').value.trim();
+
+      let img = '';
+      const fileInput = document.getElementById('rImgFile');
+      if (fileInput && fileInput.files[0]) {
+        img = await compressAndGetBase64(fileInput.files[0]);
+      } else {
+        const existing = DB.retail.find(r => r.id === id);
+        img = existing ? existing.img : '';
+      }
+
+      if (!name) { toast('Enter product name.', 'alert-triangle'); return; }
+
+      const retailObj = { id, name, category, price, size, desc, img, stock: true };
+      await db.ref('retail/' + id).set(retailObj);
+      session.editingRetail = null;
+      render();
+      toast('Retail product saved successfully!', 'check-circle');
+    };
+  }
+
+  /* 4. BRAND & STAFF WIRING */
+  const saveBrandBtn = document.getElementById('saveBrandBtn');
+  if (saveBrandBtn) {
+    saveBrandBtn.onclick = async () => {
+      const restaurantName = document.getElementById('brandName').value.trim();
+      const tagline = document.getElementById('brandTagline').value.trim();
+      let logoUrl = DB.settings.logoUrl;
+
+      const fileInput = document.getElementById('brandLogoFile');
+      if (fileInput && fileInput.files[0]) {
+        logoUrl = await compressAndGetBase64(fileInput.files[0]);
+      }
+
+      DB.settings = { restaurantName, tagline, logoUrl };
+      await db.ref('settings').set(DB.settings);
+      toast('Brand settings updated!', 'check-circle');
+    };
+  }
+
+  const resetLogoBtn = document.getElementById('resetLogoBtn');
+  if (resetLogoBtn) {
+    resetLogoBtn.onclick = async () => {
+      DB.settings.logoUrl = DEFAULT_LOGO;
+      await db.ref('settings/logoUrl').set(DEFAULT_LOGO);
+      render();
+      toast('Logo reset to default.');
+    };
+  }
+
+  const addStaffBtn = document.getElementById('addStaffBtn');
+  if (addStaffBtn) {
+    addStaffBtn.onclick = () => { session.showAddStaff = !session.showAddStaff; render(); };
+  }
+
+  const submitNewStaffBtn = document.getElementById('submitNewStaffBtn');
+  if (submitNewStaffBtn) {
+    submitNewStaffBtn.onclick = async () => {
+      const username = document.getElementById('newStaffUser').value.trim();
+      const password = document.getElementById('newStaffPass').value;
+      const role = document.getElementById('newStaffRole').value;
+      if (!username || !password) { toast('Enter username and password.', 'alert-triangle'); return; }
+      DB.staff.push({ id: uid('staff'), username, password, role });
+      localStorage.setItem('ps_staff_list', JSON.stringify(DB.staff));
+      session.showAddStaff = false;
+      render();
+      toast('Staff account added!', 'check-circle');
+    };
+  }
+
+  document.querySelectorAll('.revoke-staff').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      DB.staff = DB.staff.filter(s => s.id !== id);
+      render();
+      toast('Staff account revoked.');
+    };
+  });
+
+  /* 5. BULK IMPORT WIRING */
+  const processExcelBtn = document.getElementById('processExcelBtn');
+  if (processExcelBtn) {
+    processExcelBtn.onclick = async () => {
+      const fileInput = document.getElementById('excelFileInput');
+      if (!fileInput || !fileInput.files[0]) { toast('Please select an Excel file.', 'alert-triangle'); return; }
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const json = XLSX.utils.sheet_to_json(sheet);
+          
+          for (const row of json) {
+            const name = row['Name'] || row['Item Name'] || row['Title'];
+            const price = Number(row['Price'] || row['Rate'] || 0);
+            const category = row['Category'] || 'General';
+            if (name) {
+              const id = uid('item');
+              await db.ref('menu/' + id).set({ id, name, category, price, img: '', stock: true, desc: '', badges: [], nutrition: { cal: 0, protein: 0, carbs: 0, fat: 0 } });
+            }
+          }
+          toast('Bulk Excel items imported successfully!', 'check-circle');
+        } catch(err) {
+          toast('Error reading Excel file.', 'alert-triangle');
+        }
+      };
+      reader.readAsArrayBuffer(fileInput.files[0]);
+    };
+  }
+
+  /* PURCHASE INWARDING WIRING */
+  const purchaseSupplierSelect = document.getElementById('purchaseSupplierSelect');
+  if (purchaseSupplierSelect) {
+    purchaseSupplierSelect.onchange = (e) => {
+      const s = DB.suppliers.find(sup => sup.name === e.target.value);
+      session.purchaseVendor = e.target.value;
+      session.purchaseSupplierGstin = s?.gstin || 'N/A';
+      session.purchaseSupplierPhone = s?.phone || 'N/A';
+      session.purchaseSupplierAddress = s?.address || 'N/A';
+      renderKeepFocus('purchaseInvoiceNo');
+    };
+  }
+
   const purchaseInvoiceNoInput = document.getElementById('purchaseInvoiceNo');
   if (purchaseInvoiceNoInput) purchaseInvoiceNoInput.oninput = (e) => { session.purchaseInvoiceNo = e.target.value; };
 
@@ -2720,30 +2824,15 @@ function wireKitchen() {
         });
       } else if (dropdown) {
         dropdown.innerHTML = `<div class="p-2 text-xs text-slate-400 text-center">No raw materials found.</div>`;
-        dropdown.classList.add('hidden');
+        dropdown.classList.remove('hidden'); // 12. Fixed visibility bug
       }
     };
   });
 
-  /* EDITABLE PURCHASE TABLE FIELDS WIRING */
   document.querySelectorAll('.purchase-item-batch').forEach(inp => {
     inp.oninput = (e) => {
       const idx = Number(inp.dataset.idx);
       if (session.purchaseItems[idx]) session.purchaseItems[idx].batch = e.target.value;
-    };
-  });
-
-  document.querySelectorAll('.purchase-item-mfg').forEach(inp => {
-    inp.onchange = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.purchaseItems[idx]) session.purchaseItems[idx].mfgDate = e.target.value;
-    };
-  });
-
-  document.querySelectorAll('.purchase-item-exp').forEach(inp => {
-    inp.onchange = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.purchaseItems[idx]) session.purchaseItems[idx].expDate = e.target.value;
     };
   });
 
@@ -2784,48 +2873,11 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.purchase-item-gst').forEach(sel => {
-    sel.onchange = (e) => {
-      const idx = Number(sel.dataset.idx);
-      if (session.purchaseItems[idx]) {
-        session.purchaseItems[idx].gstGroup = e.target.value;
-        const rec = Number(session.purchaseItems[idx].receivedQty || 0);
-        const rate = Number(session.purchaseItems[idx].rate || 0);
-        const gross = rec * rate;
-        const discAmt = Number(session.purchaseItems[idx].discAmt || 0);
-        const taxable = gross - discAmt;
-        const gstRate = parseFloat(e.target.value) / 100;
-        const gstAmt = taxable * gstRate;
-        session.purchaseItems[idx].gstAmt = gstAmt;
-        session.purchaseItems[idx].netValue = taxable + gstAmt;
-        renderKeepFocus('purchaseInvoiceNo');
-      }
-    };
-  });
-
   const addPurchaseLineBtn = document.getElementById('addPurchaseLineBtn');
   if (addPurchaseLineBtn) {
     addPurchaseLineBtn.onclick = () => {
       if (!session.purchaseItems) session.purchaseItems = [];
-      session.purchaseItems.push({ 
-        itemName: '', 
-        code: '', 
-        batch: '', 
-        mfgDate: '', 
-        expDate: '', 
-        unit: 'Nos', 
-        orderedQty: 1, 
-        receivedQty: 1, 
-        shortQty: 0, 
-        damagedQty: 0, 
-        rate: 0, 
-        discPct: 0, 
-        discAmt: 0, 
-        gstGroup: '5%', 
-        gstAmt: 0, 
-        netValue: 0, 
-        lastRate: 0 
-      });
+      session.purchaseItems.push({ itemName: '', code: '', batch: '', mfgDate: '', expDate: '', unit: 'Nos', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, lastRate: 0 });
       renderKeepFocus('purchaseInvoiceNo');
     };
   }
@@ -2838,7 +2890,28 @@ function wireKitchen() {
     };
   });
 
-  /* SALES WIRING WITH AUTOCOMPLETE DROPDOWN */
+  const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
+  if (validatePurchaseBtn) {
+    validatePurchaseBtn.onclick = async () => {
+      for (const item of session.purchaseItems) {
+        if (item.itemName && item.receivedQty > 0) {
+          const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === item.itemName.toLowerCase().trim());
+          if (rm) {
+            const addedGrams = getConvertedGramsMl(item.receivedQty, item.unit);
+            const newStock = Number(rm.stockGrams || 0) + addedGrams;
+            await db.ref('rawMaterials/' + rm.id + '/stockGrams').set(newStock);
+            await db.ref('rawMaterials/' + rm.id + '/unitPrice').set(item.rate);
+          }
+        }
+      }
+      toast('Purchase entry saved & stock updated!', 'check-circle');
+      session.showPurchaseModal = false;
+      localStorage.removeItem('ps_show_purchase');
+      render();
+    };
+  }
+
+  /* 7. POS SALES CART EDITABILITY WIRING */
   const salesCustomerNameInput = document.getElementById('salesCustomerNameInput');
   if (salesCustomerNameInput) {
     salesCustomerNameInput.onchange = (e) => { 
@@ -2853,6 +2926,26 @@ function wireKitchen() {
 
   const salesCustomerPhoneInput = document.getElementById('salesCustomerPhoneInput');
   if (salesCustomerPhoneInput) salesCustomerPhoneInput.oninput = (e) => { session.salesCustomerPhone = e.target.value; };
+
+  const salesRemarksInput = document.getElementById('salesRemarksInput');
+  if (salesRemarksInput) salesRemarksInput.oninput = (e) => { session.salesRemarks = e.target.value; };
+
+  const salesTableSelect = document.getElementById('salesTableSelect');
+  if (salesTableSelect) salesTableSelect.onchange = (e) => { session.salesTableNo = e.target.value; };
+
+  const dineInBtn = document.getElementById('salesOrderTypeDineIn');
+  if (dineInBtn) dineInBtn.onclick = () => { session.salesOrderType = 'Dine-In'; renderKeepFocus('globalSalesSearchInput'); };
+
+  const takeawayBtn = document.getElementById('salesOrderTypeTakeaway');
+  if (takeawayBtn) takeawayBtn.onclick = () => { session.salesOrderType = 'Takeaway'; renderKeepFocus('globalSalesSearchInput'); };
+
+  document.querySelectorAll('.quick-cash-tender').forEach(btn => {
+    btn.onclick = () => {
+      const amt = Number(btn.dataset.amt);
+      session.salesPayments = [{ mode: 'Cash', amount: amt }];
+      renderKeepFocus('globalSalesSearchInput');
+    };
+  });
 
   const globalSalesSearchInput = document.getElementById('globalSalesSearchInput');
   const salesSearchDropdown = document.getElementById('salesSearchDropdown');
@@ -2895,21 +2988,42 @@ function wireKitchen() {
         salesSearchDropdown.classList.remove('hidden');
       }
     };
+  }
 
-    globalSalesSearchInput.onkeydown = (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const matches = DB.menu.filter(m => m.name.toLowerCase().includes(globalSalesSearchInput.value.toLowerCase().trim()));
-        if (matches.length > 0) {
-          const found = matches[0];
-          session.salesItems.push({ id: uid('s'), barcode: '8906123456782', itemName: found.name, code: 'CAKE-002', qty: 1, unit: 'Nos', rate: found.price || 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: (found.price || 0) * 0.05, netValue: found.price || 0 });
-          session.salesGlobalSearchQuery = '';
-          salesSearchDropdown.classList.add('hidden');
-          renderKeepFocus('globalSalesSearchInput');
-        }
+  document.querySelectorAll('.sales-item-name').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) session.salesItems[idx].itemName = e.target.value;
+    };
+  });
+
+  document.querySelectorAll('.sales-item-rate').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].rate = Number(e.target.value) || 0;
+        const q = session.salesItems[idx].qty;
+        const r = session.salesItems[idx].rate;
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
       }
     };
-  }
+  });
+
+  document.querySelectorAll('.sales-item-qty').forEach(inp => {
+    inp.oninput = (e) => {
+      const idx = Number(inp.dataset.idx);
+      if (session.salesItems[idx]) {
+        session.salesItems[idx].qty = Number(e.target.value) || 0;
+        const q = Number(session.salesItems[idx].qty || 0);
+        const r = Number(session.salesItems[idx].rate || 0);
+        session.salesItems[idx].netValue = q * r;
+        session.salesItems[idx].gstAmt = (q * r) * 0.05;
+        renderKeepFocus('globalSalesSearchInput');
+      }
+    };
+  });
 
   document.querySelectorAll('.sales-qty-inc').forEach(btn => {
     btn.onclick = () => {
@@ -2939,20 +3053,6 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.sales-item-qty').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.salesItems[idx]) {
-        session.salesItems[idx].qty = Number(e.target.value) || 0;
-        const q = Number(session.salesItems[idx].qty || 0);
-        const r = Number(session.salesItems[idx].rate || 0);
-        session.salesItems[idx].netValue = q * r;
-        session.salesItems[idx].gstAmt = (q * r) * 0.05;
-        renderKeepFocus('globalSalesSearchInput');
-      }
-    };
-  });
-
   document.querySelectorAll('.remove-sales-line').forEach(btn => {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
@@ -2969,61 +3069,6 @@ function wireKitchen() {
     };
   }
 
-  /* QUICK PAYMENT CARDS */
-  document.querySelectorAll('.quick-pay-card-btn').forEach(btn => {
-    btn.onclick = () => {
-      const mode = btn.dataset.mode;
-      const grandTotal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
-      session.salesPayments = [{ mode, amount: grandTotal }];
-      renderKeepFocus('globalSalesSearchInput');
-    };
-  });
-
-  const toggleSplitPayment = document.getElementById('toggleSplitPayment');
-  if (toggleSplitPayment) {
-    toggleSplitPayment.onchange = (e) => {
-      session.splitPaymentEnabled = e.target.checked;
-      renderKeepFocus('globalSalesSearchInput');
-    };
-  }
-
-  document.querySelectorAll('.payment-mode-select').forEach(sel => {
-    sel.onchange = (e) => {
-      const idx = Number(sel.dataset.idx);
-      if (session.salesPayments[idx]) session.salesPayments[idx].mode = e.target.value;
-    };
-  });
-
-  document.querySelectorAll('.payment-mode-amount').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = Number(inp.dataset.idx);
-      if (session.salesPayments[idx]) {
-        session.salesPayments[idx].amount = Number(e.target.value) || 0;
-        renderKeepFocus('globalSalesSearchInput');
-      }
-    };
-  });
-
-  const addPaymentLineBtn = document.getElementById('addPaymentLineBtn');
-  if (addPaymentLineBtn) {
-    addPaymentLineBtn.onclick = () => {
-      if (!session.salesPayments) session.salesPayments = [];
-      const totalVal = (session.salesItems || []).reduce((a, b) => a + Number(b.netValue || 0) + Number(b.gstAmt || 0), 0);
-      const currentPaid = session.salesPayments.reduce((a, b) => a + Number(b.amount || 0), 0);
-      const remaining = Math.max(0, totalVal - currentPaid);
-      session.salesPayments.push({ mode: 'UPI', amount: remaining });
-      renderKeepFocus('globalSalesSearchInput');
-    };
-  }
-
-  document.querySelectorAll('.remove-payment-line').forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.idx);
-      session.salesPayments.splice(idx, 1);
-      renderKeepFocus('globalSalesSearchInput');
-    };
-  });
-
   const addSalesLineBtn = document.getElementById('addSalesLineBtn');
   if (addSalesLineBtn) {
     addSalesLineBtn.onclick = () => {
@@ -3033,6 +3078,7 @@ function wireKitchen() {
     };
   }
 
+  /* 2. COMPLETE SALES BILL & BOM DEDUCTION FIX */
   const completeSalesBillBtn = document.getElementById('completeSalesBillBtn');
   if (completeSalesBillBtn) {
     completeSalesBillBtn.onclick = async () => {
@@ -3052,6 +3098,7 @@ function wireKitchen() {
         type: session.salesOrderType === 'Takeaway' ? 'retail' : 'cafe',
         customerName: session.salesCustomerName || 'Walk-In Customer',
         customerPhone: session.salesCustomerPhone || '',
+        notes: session.salesRemarks || '',
         items: cartFormatted,
         paymentMode: primaryPayment,
         payments: session.salesPayments,
@@ -3061,8 +3108,13 @@ function wireKitchen() {
       };
 
       await db.ref('orders/' + orderId).set(newOrder);
+
+      // Fixed lookup by menu item name to trigger BOM deduction
       for (const item of cartFormatted) {
-        if (item.id) await processBOMDeduction(item.id, item.qty);
+        const dish = DB.menu.find(m => m.name.toLowerCase().trim() === item.name.toLowerCase().trim());
+        if (dish) {
+          await processBOMDeduction(dish.id, item.qty);
+        }
       }
 
       toast(`Sales Invoice #${orderId} completed & stock updated!`, 'check-circle');
@@ -3070,19 +3122,14 @@ function wireKitchen() {
       session.salesPayments = [{ mode: 'Cash', amount: 0 }];
       session.salesCustomerName = 'Walk-In Customer';
       session.salesCustomerPhone = '9876543210';
+      session.salesRemarks = '';
       session.showBillingModal = false;
       localStorage.removeItem('ps_show_billing');
       render();
     };
   }
 
-  const closeStockTakeModalBtn = document.getElementById('closeStockTakeModalBtn');
-  if (closeStockTakeModalBtn) closeStockTakeModalBtn.onclick = () => { session.showStockTakeModal = false; render(); };
-
-  const closeWastageModalBtn = document.getElementById('closeWastageModalBtn');
-  if (closeWastageModalBtn) closeWastageModalBtn.onclick = () => { session.showWastageModal = false; render(); };
-
-  /* PHYSICAL STOCK TAKE WIRING */
+  /* PHYSICAL STOCK TAKE RECONCILIATION */
   document.querySelectorAll('.physical-count-input').forEach(input => {
     input.oninput = (e) => {
       const id = input.dataset.id;
@@ -3119,17 +3166,6 @@ function wireKitchen() {
     };
   }
 
-  /* PURCHASE INWARDING WIRING */
-  const validatePurchaseBtn = document.getElementById('validatePurchaseBtn');
-  if (validatePurchaseBtn) {
-    validatePurchaseBtn.onclick = async () => {
-      toast('Purchase entry saved successfully!', 'check-circle');
-      session.showPurchaseModal = false;
-      localStorage.removeItem('ps_show_purchase');
-      render();
-    };
-  }
-
   /* WASTAGE LOGGING SUBMISSION */
   const submitWastageBtn = document.getElementById('submitWastageBtn');
   if (submitWastageBtn) {
@@ -3162,7 +3198,7 @@ function wireKitchen() {
     };
   }
 
-  /* MASTER MAIN RECIPES MODAL HANDLERS */
+  /* RECIPE & BOM MASTER WIRING */
   const openMainBtn = document.getElementById('openMainRecipesModalBtn');
   if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; render(); };
 
@@ -3374,13 +3410,14 @@ function wireKitchen() {
   });
 
   /* LIVE INGREDIENT QTY, UNIT, AND PRICE WIRING */
-  document.querySelectorAll('.ing-qty, .ing-price').forEach(input => {
+  document.querySelectorAll('.ing-qty, .ing-price, .base-ing-qty').forEach(input => {
     input.oninput = (e) => {
       const idx = Number(input.dataset.idx);
-      const activeObj = DB.recipes[session.activeRecipeDishId];
+      const isBaseModal = input.classList.contains('base-ing-qty');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         const ing = activeObj.ingredients[idx];
-        if (input.classList.contains('ing-qty')) {
+        if (input.classList.contains('ing-qty') || input.classList.contains('base-ing-qty')) {
           ing.qty = Number(input.value) || 0;
           ing.gramsMl = getConvertedGramsMl(ing.qty, ing.unit || 'GRM');
         } else if (input.classList.contains('ing-price')) {
@@ -3390,19 +3427,20 @@ function wireKitchen() {
     };
   });
 
-  document.querySelectorAll('.ing-unit').forEach(sel => {
+  document.querySelectorAll('.ing-unit, .base-ing-unit').forEach(sel => {
     sel.onchange = (e) => {
       const idx = Number(sel.dataset.idx);
-      const activeObj = DB.recipes[session.activeRecipeDishId];
+      const isBaseModal = sel.classList.contains('base-ing-unit');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
       if (activeObj && activeObj.ingredients && activeObj.ingredients[idx]) {
         activeObj.ingredients[idx].unit = e.target.value;
         activeObj.ingredients[idx].gramsMl = getConvertedGramsMl(activeObj.ingredients[idx].qty, e.target.value);
-        renderKeepFocus('masterDishNameInput');
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
       }
     };
   });
 
-  /* MAIN RECIPE: ADD INGREDIENT ROW */
+  /* MAIN & BASE RECIPE: ADD/REMOVE INGREDIENT ROW */
   const addIngredientRowBtn = document.getElementById('addIngredientRowBtn');
   if (addIngredientRowBtn) {
     addIngredientRowBtn.onclick = () => {
@@ -3410,41 +3448,41 @@ function wireKitchen() {
       if (!DB.recipes[session.activeRecipeDishId]) {
         DB.recipes[session.activeRecipeDishId] = { portions: 1, wastagePercent: 10, ingredients: [] };
       }
-      DB.recipes[session.activeRecipeDishId].ingredients.push({
-        name: '',
-        type: 'raw',
-        isBase: false,
-        qty: 1,
-        unit: 'GRM',
-        gramsMl: 1,
-        unitPrice: 0,
-        vendor: 'FACTORY'
-      });
+      DB.recipes[session.activeRecipeDishId].ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
       renderKeepFocus('masterDishNameInput');
     };
   }
 
-  /* MAIN RECIPE: REMOVE INGREDIENT ROW */
-  document.querySelectorAll('.remove-ing-row').forEach(btn => {
+  const addBaseIngRowBtn = document.getElementById('addBaseIngRowBtn');
+  if (addBaseIngRowBtn) {
+    addBaseIngRowBtn.onclick = () => {
+      if (!session.editingBaseRecipeId) return;
+      const baseObj = DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId);
+      if (baseObj) {
+        if (!baseObj.ingredients) baseObj.ingredients = [];
+        baseObj.ingredients.push({ name: '', type: 'raw', isBase: false, qty: 1, unit: 'GRM', gramsMl: 1, unitPrice: 0, vendor: 'FACTORY' });
+        renderKeepFocus('baseName');
+      }
+    };
+  }
+
+  document.querySelectorAll('.remove-ing-row, .remove-base-ing').forEach(btn => {
     btn.onclick = () => {
       const idx = Number(btn.dataset.idx);
-      const recipe = DB.recipes[session.activeRecipeDishId];
-      if (recipe && recipe.ingredients) {
-        recipe.ingredients.splice(idx, 1);
-        renderKeepFocus('masterDishNameInput');
+      const isBaseModal = btn.classList.contains('remove-base-ing');
+      const activeObj = isBaseModal ? DB.baseRecipes.find(b => b.id === session.editingBaseRecipeId) : DB.recipes[session.activeRecipeDishId];
+      if (activeObj && activeObj.ingredients) {
+        activeObj.ingredients.splice(idx, 1);
+        renderKeepFocus(isBaseModal ? 'baseName' : 'masterDishNameInput');
       }
     };
   });
 
-  /* MAIN RECIPE: SAVE RECIPE & FOOD COSTING */
   const saveRecipeBtn = document.getElementById('saveRecipeBtn');
   if (saveRecipeBtn) {
     saveRecipeBtn.onclick = async () => {
       const dishId = session.activeRecipeDishId;
-      if (!dishId) {
-        toast('No dish selected to save.', 'alert-triangle');
-        return;
-      }
+      if (!dishId) { toast('No dish selected to save.', 'alert-triangle'); return; }
 
       const portions = Number(document.getElementById('recipePortions')?.value) || 1;
       const wastagePercent = Number(document.getElementById('recipeWastage')?.value) || 10;
@@ -3456,66 +3494,6 @@ function wireKitchen() {
       await db.ref('recipes/' + dishId).set(currentRecipe);
       toast('Recipe & Food Costing saved successfully!', 'check-circle');
     };
-  }
-}
-
-async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
-  if (rm) {
-    const addedGrams = getConvertedGramsMl(qty, unit);
-    const currentStock = Number(rm.stockGrams ?? 0);
-    const newStock = currentStock + addedGrams;
-
-    await db.ref(`rawMaterials/${rm.id}/stockGrams`).set(newStock);
-    await db.ref(`rawMaterials/${rm.id}/unitPrice`).set(newRate);
-  }
-
-  const purchaseLog = {
-    id: uid('p'),
-    invoiceNo,
-    vendor,
-    vendorPhone,
-    vendorGst,
-    itemName: rmName,
-    qty,
-    unit,
-    totalAmount,
-    rate: newRate,
-    staff: session.staff.username,
-    ts: Date.now()
-  };
-
-  DB.purchases.push(purchaseLog);
-  await db.ref('purchases').set(DB.purchases);
-}
-
-async function clearTrialData() {
-  if (confirm("Are you sure you want to clear all test sales, purchases, wastage logs, and reset all opening stocks and inventory to zero?")) {
-    await db.ref('orders').remove();
-    await db.ref('purchases').remove();
-    await db.ref('wastageLogs').remove();
-    await db.ref('stockTakes').remove();
-    
-    const rmSnapshot = await db.ref('rawMaterials').once('value');
-    const materials = rmSnapshot.val();
-    if (materials) {
-      const updates = {};
-      for (const id in materials) {
-        updates[`rawMaterials/${id}/openingQty`] = 0;
-        updates[`rawMaterials/${id}/openingValue`] = 0;
-        updates[`rawMaterials/${id}/stockGrams`] = 0;
-      }
-      await db.ref().update(updates);
-    }
-    
-    DB.orders = [];
-    DB.purchases = [];
-    DB.wastageLogs = [];
-    DB.stockTakes = [];
-    session.salesItems = [];
-    session.purchaseItems = [];
-    
-    render();
-    toast("All trial data and inventory reset to zero!", "trash-2");
   }
 }
 
@@ -3533,64 +3511,17 @@ function renderKeepFocus(inputId) {
   }
 }
 
-db.ref('menu').on('value', snap => {
-  const data = snap.val();
-  DB.menu = data ? Object.values(data) : [];
-  if (session.editingDish === null) render();
-});
-
-db.ref('retail').on('value', snap => {
-  const data = snap.val();
-  DB.retail = data ? Object.values(data) : [];
-  if (session.editingRetail === null) render();
-});
-
-db.ref('orders').on('value', snap => {
-  const data = snap.val();
-  DB.orders = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('rawMaterials').on('value', snap => {
-  const data = snap.val();
-  DB.rawMaterials = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('baseRecipes').on('value', snap => {
-  const data = snap.val();
-  DB.baseRecipes = data ? Object.values(data) : [];
-  render();
-});
-
-db.ref('recipes').on('value', snap => {
-  const data = snap.val();
-  DB.recipes = data || {};
-  render();
-});
-
-db.ref('wastageLogs').on('value', snap => {
-  const data = snap.val();
-  DB.wastageLogs = data || [];
-  render();
-});
-
-db.ref('purchases').on('value', snap => {
-  const data = snap.val();
-  DB.purchases = data || [];
-  render();
-});
-
-db.ref('paymentModes').on('value', snap => {
-  const data = snap.val();
-  if (data) DB.paymentModes = data;
-  render();
-});
-
-db.ref('settings').on('value', snap => {
-  const data = snap.val();
-  if (data) { DB.settings = data; render(); }
-});
+db.ref('menu').on('value', snap => { DB.menu = snap.val() ? Object.values(snap.val()) : []; if (session.editingDish === null) render(); });
+db.ref('retail').on('value', snap => { DB.retail = snap.val() ? Object.values(snap.val()) : []; if (session.editingRetail === null) render(); });
+db.ref('orders').on('value', snap => { DB.orders = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('rawMaterials').on('value', snap => { DB.rawMaterials = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('baseRecipes').on('value', snap => { DB.baseRecipes = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('recipes').on('value', snap => { DB.recipes = snap.val() || {}; render(); });
+db.ref('wastageLogs').on('value', snap => { DB.wastageLogs = snap.val() || []; render(); });
+db.ref('purchases').on('value', snap => { DB.purchases = snap.val() || []; render(); });
+db.ref('suppliers').on('value', snap => { DB.suppliers = snap.val() ? Object.values(snap.val()) : DB.suppliers; render(); });
+db.ref('customers').on('value', snap => { DB.customers = snap.val() ? Object.values(snap.val()) : DB.customers; render(); });
+db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.val(); render(); } });
 
 (function boot() {
   document.addEventListener('touchstart', unlockAudio, { once: true });
