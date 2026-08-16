@@ -3635,3 +3635,1020 @@ db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.va
 </script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Pure &amp; Sure Organic Store &amp; Cafe — POS &amp; Inventory Console</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+<!-- SheetJS for Excel File Import & Template Generation -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgcmuM3JjPPwrDdeRWuwNKuW2Uelc0Eso",
+    authDomain: "pure-sure-app.firebaseapp.com",
+    databaseURL: "https://pure-sure-app-default-rtdb.firebaseio.com",
+    projectId: "pure-sure-app",
+    storageBucket: "pure-sure-app.firebasestorage.app",
+    messagingSenderId: "995301245014",
+    appId: "1:995301245014:web:56a9cf39e5c21c3418bbf7"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { DEFAULT:'#105955', 50:'#f0f6f5', 100:'#dbeae8', 200:'#b3d3cf', 300:'#82b6af', 400:'#4f948c', 500:'#2c7a72', 600:'#1a6a63', 700:'#105955', 800:'#0d4744', 900:'#0a3836', 950:'#052120' },
+          gold: { DEFAULT:'#D4A359', 50:'#fbf6ee', 100:'#f5e8d2', 200:'#ebd0a4', 300:'#deb26f', 400:'#D4A359', 500:'#c68f3f', 600:'#a97432', 700:'#8a5b2a' },
+          cream:'#F9F8F3',
+          sheetHeader:'#ECE4D8',
+          posGreen: '#1b6b3b'
+        },
+        fontFamily: {
+          display:['Fraunces','ui-serif','Georgia','serif'],
+          body:['"Public Sans"','ui-sans-serif','system-ui','sans-serif']
+        }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  body { font-family:'Public Sans', sans-serif; background:#F9F8F3; }
+  .font-display { font-family:'Fraunces', serif; }
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-thumb { background:#10595544; border-radius:99px; }
+  .scrollbar-none::-webkit-scrollbar{ display:none; }
+  .scrollbar-none{ -ms-overflow-style:none; scrollbar-width:none; }
+  .modal-fade { animation: fadeIn .2s ease-out; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
+  .kanban-scroll { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .kanban-col { scroll-snap-align: start; }
+  @media print {
+    body * { visibility:hidden; }
+    #printArea, #printArea * { visibility:visible; }
+    #printArea { position:absolute; left:0; top:0; width:100%; }
+    .no-print{ display:none !important; }
+  }
+  .card-shadow{ box-shadow: 0 1px 3px rgba(16,89,85,.05), 0 6px 18px -6px rgba(16,89,85,.12); }
+</style>
+</head>
+<body class="text-brand-900 antialiased selection:bg-gold-200">
+
+<div id="app"></div>
+<div id="toastHost" class="fixed top-4 left-1/2 -translate-x-1/2 z-[250] flex flex-col gap-2 items-center pointer-events-none w-11/12 max-w-sm"></div>
+
+<script>
+const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
+
+let DB = {
+  settings: { logoUrl: DEFAULT_LOGO, restaurantName:"Phalada Pure & Sure Organic Cafe & Store", tagline:"Everyday food, made good. Since 1999" },
+  staff: [
+    { id:'u1', username:'admin', password:'admin123', role:'Admin' },
+    { id:'u2', username:'kitchen', password:'kitchen123', role:'Kitchen Staff' }
+  ],
+  suppliers: [
+    { id: 'sup_1', name: 'ABC Organic Foods Pvt Ltd.', address: 'No.12, KIADB, Peenya 2nd Phase, Bengaluru', phone: '9876543210', gstin: '29ABCDE1234F1Z5', fssai: '10020043003120' }
+  ],
+  customers: [
+    { id: 'cust_1', name: 'Walk-In Customer', phone: '9876543210', address: 'Bengaluru', gstin: '', fssai: '', points: 150 },
+    { id: 'cust_2', name: 'Regular Member', phone: '9812345678', address: 'Jayanagar, Bengaluru', gstin: '29AABCP1234F1Z9', fssai: '', points: 420 }
+  ],
+  menu: [], retail: [], orders: [], rawMaterials: [], recipes: {}, baseRecipes: [], wastageLogs: [], purchases: [], stockTakes: [], paymentModes: ['Cash', 'UPI', 'Card', 'Swiggy', 'Zomato']
+};
+
+const savedStaff = localStorage.getItem('ps_staff');
+
+let session = { 
+  staff: savedStaff ? JSON.parse(savedStaff) : null, 
+  soundOn: true, 
+  kitchenTab: localStorage.getItem('ps_active_tab') || 'orders', 
+  kdsStationFilter: 'all',
+  editingDish: null, 
+  editingRetail: null, 
+  showAddStaff: false, 
+  cafeSearch: '', 
+  retailSearch: '', 
+  rmSearch: '',
+  stockTakeSearch: '',
+  purchaseSearch: '',
+  activeRecipeDishId: null,
+  showRawMaterialsModal: localStorage.getItem('showRawMaterialsModal') === 'true',
+  showBaseRecipesModal: localStorage.getItem('showBaseRecipesModal') === 'true',
+  showMainRecipesModal: localStorage.getItem('ps_show_main_recipe') === 'true',
+  showBillingModal: localStorage.getItem('ps_show_billing') === 'true',
+  showWastageModal: localStorage.getItem('showWastageModal') === 'true',
+  showPurchaseModal: localStorage.getItem('ps_show_purchase') === 'true',
+  showStockTakeModal: localStorage.getItem('howStockTakeModal') === 'true',
+  showZReportModal: false,
+  editingBaseRecipeId: null,
+  recipeFilterQuery: '',
+  ingredientUsageQuery: '',
+  baseRecipeFilterQuery: '',
+  baseIngredientUsageQuery: '',
+  recipeSortMode: 'alpha',
+  baseRecipeSortMode: 'alpha',
+  billingCart: [],
+  billingType: 'manual',
+  billingTable: '1',
+  billingCustomerName: '',
+  billingCustomerPhone: '',
+  billingPaymentMode: 'Cash',
+  newCustomPayment: '',
+  purchaseInvoiceNo: 'P/26-27/000016',
+  purchaseVendor: '',
+  purchaseSupplierGstin: '29ABCDE1234F1Z5',
+  purchaseSupplierPhone: '9876543210',
+  purchaseSupplierAddress: 'No.12, KIADB, Peenya 2nd Phase, Bengaluru',
+  purchaseInvoiceDate: '2026-08-15',
+  purchaseDueDate: '2026-09-14',
+  purchaseReceivedDate: '2026-08-15',
+  purchaseNo: 'P/26-27/000001',
+  purchaseItems: [{ itemName: '', code: '', batch: '', mfgDate: '', expDate: '', unit: 'Nos', orderedQty: 1, receivedQty: 1, shortQty: 0, damagedQty: 0, rate: 0, discPct: 0, discAmt: 0, gstGroup: '5%', gstAmt: 0, netValue: 0, lastRate: 0 }],
+  salesInvoiceNo: 'S/26-27/000290',
+  salesCustomerName: 'Walk-In Customer',
+  salesCustomerPhone: '9876543210',
+  salesOrderType: 'Dine-In',
+  salesTableNo: 'Table 12',
+  salesGlobalSearchQuery: '',
+  salesItems: [],
+  salesPayments: [
+    { mode: 'Cash', amount: 500.00 },
+    { mode: 'UPI', amount: 296.19 }
+  ],
+  splitPaymentEnabled: true,
+  purchaseItemDiffWarning: null
+};
+
+function compressAndGetBase64(file, maxWidth = 600, maxHeight = 600, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+let actx = null;
+function unlockAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch(e) {}
+}
+
+function money(n) { return '₹' + Number(n || 0).toFixed(2); }
+function uid(p) { return p + '_' + Math.random().toString(36).slice(2, 9); }
+function toast(msg, icon) {
+  const host = document.getElementById('toastHost'); if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'modal-fade pointer-events-auto bg-brand-900 text-cream px-4 py-2.5 rounded-full shadow-xl text-xs sm:text-sm font-medium flex items-center gap-2 max-w-full truncate';
+  el.innerHTML = `<i data-lucide="${icon || 'check-circle'}" class="w-4 h-4 text-gold-400 shrink-0"></i><span class="truncate">${msg}</span>`;
+  host.appendChild(el); try { lucide.createIcons(); } catch(e){}
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 2600);
+}
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's ago';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60); return h + 'h ago';
+}
+
+function formatDuration(ms) {
+  if (!ms || ms < 0) return '—';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}m ${s}s`;
+}
+
+function formatTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function calculateOrderTotal(order) {
+  const items = order.items || [];
+  const sub = items.reduce((a, b) => a + (b.price * b.qty), 0);
+  return sub + (sub * 0.05);
+}
+
+function getRawMaterialDetails(name) {
+  if (!name) return { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
+  const cleanName = name.toLowerCase().trim();
+  const found = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === cleanName);
+  return found || { unitPrice: 0, vendor: 'FACTORY', unit: 'GRM' };
+}
+
+function calculateBaseRecipeCostPerUnit(base) {
+  if (!base || !base.ingredients) return 0;
+  const totalBatchCost = base.ingredients.reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const yieldQty = Number(base.batchYield || 1);
+  if (yieldQty <= 0) return 0;
+  const costPerNativeUnit = totalBatchCost / yieldQty;
+  const unit = (base.unit || 'GRM').toUpperCase();
+  if (unit === 'GRM' || unit === 'ML' || unit === 'G') {
+    return costPerNativeUnit * 1000;
+  }
+  return costPerNativeUnit;
+}
+
+function calculateIngCost(ing) {
+  const qty = Number(ing.qty || 0);
+  const unit = (ing.unit || 'GRM').toUpperCase();
+
+  if (ing.type === 'base' || ing.isBase) {
+    const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+    if (baseObj) {
+      const unitRatePerKgLitre = calculateBaseRecipeCostPerUnit(baseObj);
+      const baseUnit = (baseObj.unit || 'GRM').toUpperCase();
+      if (baseUnit === 'PCS' || baseUnit === 'NOS' || baseUnit === 'PC') {
+        return qty * unitRatePerKgLitre;
+      }
+      let standardUnitsQty = qty;
+      switch(unit) {
+        case 'GRM':
+        case 'ML':
+        case 'G':
+          standardUnitsQty = qty / 1000;
+          break;
+        case 'KG':
+        case 'LITRE':
+          standardUnitsQty = qty;
+          break;
+        case 'TSP':
+          standardUnitsQty = (qty * 5) / 1000;
+          break;
+        case 'TBSP':
+          standardUnitsQty = (qty * 15) / 1000;
+          break;
+        default:
+          standardUnitsQty = qty / 1000;
+          break;
+      }
+      return standardUnitsQty * unitRatePerKgLitre;
+    }
+  }
+
+  let rate = Number(ing.unitPrice || 0);
+  if (!rate && ing.name) {
+    rate = getRawMaterialDetails(ing.name).unitPrice;
+  }
+
+  if (unit === 'PCS' || unit === 'NOS' || unit === 'PC') {
+    return qty * rate;
+  }
+
+  let standardUnitsQty = qty;
+  switch(unit) {
+    case 'GRM':
+    case 'ML':
+    case 'G':
+      standardUnitsQty = qty / 1000;
+      break;
+    case 'KG':
+    case 'LITRE':
+      standardUnitsQty = qty;
+      break;
+    case 'TSP':
+      standardUnitsQty = (qty * 5) / 1000;
+      break;
+    case 'TBSP':
+      standardUnitsQty = (qty * 15) / 1000;
+      break;
+    default:
+      standardUnitsQty = qty / 1000;
+      break;
+  }
+
+  return standardUnitsQty * rate;
+}
+
+function getConvertedGramsMl(qty, unit) {
+  const q = Number(qty || 0);
+  const u = (unit || 'GRM').toUpperCase();
+  switch(u) {
+    case 'KG':
+    case 'LITRE': return q * 1000;
+    case 'TSP': return q * 5;
+    case 'TBSP': return q * 15;
+    case 'GRM':
+    case 'ML':
+    case 'PCS':
+    case 'NOS':
+    default: return q;
+  }
+}
+
+function getDishFoodCostPercent(dish) {
+  const recipe = DB.recipes[dish.id];
+  if (!recipe || !recipe.ingredients) return 0;
+  const rawTotal = (recipe.ingredients || []).reduce((sum, ing) => sum + calculateIngCost(ing), 0);
+  const wastage = rawTotal * ((recipe.wastagePercent || 10) / 100);
+  const totalCost = rawTotal + wastage;
+  const portionCost = recipe.portions ? (totalCost / recipe.portions) : 0;
+  const price = Number(dish.price || 0);
+  return price > 0 ? (portionCost / price) * 100 : 0;
+}
+
+async function processBOMDeduction(dishId, orderedPortions = 1) {
+  const recipe = DB.recipes[dishId];
+  if (!recipe || !recipe.ingredients) return;
+
+  const updates = {};
+
+  function cascadeIngredient(ing, multiplier) {
+    if (ing.type === 'base' || ing.isBase) {
+      const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (baseObj && baseObj.ingredients) {
+        const baseUsageGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const baseYieldGrams = Number(baseObj.batchYield || 1);
+        const batchFraction = baseYieldGrams > 0 ? (baseUsageGrams / baseYieldGrams) : 0;
+
+        baseObj.ingredients.forEach(subIng => {
+          cascadeIngredient(subIng, batchFraction);
+        });
+      }
+    } else {
+      const rm = DB.rawMaterials.find(r => (r.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+      if (rm) {
+        const requiredGrams = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * multiplier;
+        const currentStock = Number(rm.stockGrams ?? 0);
+        const newStock = Math.max(0, currentStock - requiredGrams);
+        updates[`rawMaterials/${rm.id}/stockGrams`] = newStock;
+      }
+    }
+  }
+
+  recipe.ingredients.forEach(ing => cascadeIngredient(ing, orderedPortions));
+
+  if (Object.keys(updates).length > 0) {
+    await db.ref().update(updates);
+  }
+}
+
+function exportBillWiseReportToExcel() {
+  const completedOrders = [...DB.orders].filter(o => o.status === 'served');
+  const data = completedOrders.map(o => ({
+    "Order ID": o.id,
+    "Date": new Date(o.ts).toLocaleDateString(),
+    "Time": new Date(o.ts).toLocaleTimeString(),
+    "Table No": o.table,
+    "Billing Type": (o.type === 'qr' ? 'QR Table Billing' : 'Manual Counter Billing'),
+    "Customer Name": o.customerName || 'Guest',
+    "Phone": o.customerPhone || 'N/A',
+    "Payment Mode": o.paymentMode || 'UPI',
+    "Subtotal (₹)": (o.items || []).reduce((acc, i) => acc + (i.price * i.qty), 0).toFixed(2),
+    "Tax / Charges (5%)": ((o.items || []).reduce((acc, i) => acc + (i.price * i.qty), 0) * 0.05).toFixed(2),
+    "Total Billed (₹)": calculateOrderTotal(o).toFixed(2)
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Bill-Wise Sales Report");
+  XLSX.writeFile(wb, "BillWise_Sales_Report.xlsx");
+  toast("Bill-Wise Report downloaded successfully!", "file-spreadsheet");
+}
+
+function exportItemWiseReportToExcel() {
+  const itemSales = {};
+  DB.orders.filter(o => o.status === 'served').forEach(o => {
+    (o.items || []).forEach(i => {
+      if (!itemSales[i.name]) itemSales[i.name] = { category: i.kind || 'cafe', qty: 0, revenue: 0 };
+      itemSales[i.name].qty += Number(i.qty || 1);
+      itemSales[i.name].revenue += Number(i.price || 0) * Number(i.qty || 1);
+    });
+  });
+
+  const data = Object.entries(itemSales).map(([name, info]) => ({
+    "Item Name": name,
+    "Category": info.category.toUpperCase(),
+    "Total Units Sold": info.qty,
+    "Total Revenue (₹)": info.revenue.toFixed(2)
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Item-Wise Sales Report");
+  XLSX.writeFile(wb, "ItemWise_Sales_Report.xlsx");
+  toast("Item-Wise Report downloaded successfully!", "file-spreadsheet");
+}
+
+function exportStockReportToExcel() {
+  const data = DB.rawMaterials.map(rm => ({
+    "Raw Material Name": rm.name,
+    "Vendor": rm.vendor || 'FACTORY',
+    "Unit": rm.unit || 'GRM',
+    "Current Stock Balance": (Number(rm.stockGrams || 0) / (rm.unit === 'KG' || rm.unit === 'LITRE' ? 1000 : 1)).toFixed(2),
+    "Unit Rate (₹)": Number(rm.unitPrice || 0).toFixed(2),
+    "Stock Valuation (₹)": ((Number(rm.stockGrams || 0) / 1000) * Number(rm.unitPrice || 0)).toFixed(2)
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Stock Valuation Report");
+  XLSX.writeFile(wb, "Stock_Valuation_Report.xlsx");
+  toast("Stock Report downloaded successfully!", "file-spreadsheet");
+}
+
+function exportPurchaseReportToExcel() {
+  const data = DB.purchases.map(p => ({
+    "Invoice No": p.invoiceNo,
+    "Date": new Date(p.ts).toLocaleDateString(),
+    "Supplier": p.vendor,
+    "Supplier Phone": p.vendorPhone || 'N/A',
+    "GST No": p.vendorGst || 'N/A',
+    "Item Name": p.itemName,
+    "Qty Purchased": p.qty,
+    "Unit": p.unit,
+    "Rate (₹)": p.rate,
+    "Total Amount (₹)": p.totalAmount
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Purchase Inward Report");
+  XLSX.writeFile(wb, "Purchase_Inward_Report.xlsx");
+  toast("Purchase Report downloaded successfully!", "file-spreadsheet");
+}
+
+function exportMonthlyStockReconciliationToExcel() {
+  const data = DB.rawMaterials.map(rm => {
+    const openingQty = Number(rm.openingQty || 0);
+    const openingVal = Number(rm.openingValue || 0);
+    const purchaseQty = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.qty), 0);
+    const purchaseVal = DB.purchases.filter(p => p.itemName === rm.name).reduce((sum, p) => sum + Number(p.totalAmount), 0);
+    
+    let soldQty = 0;
+    DB.orders.filter(o => o.status === 'served').forEach(order => {
+      (order.items || []).forEach(item => {
+        const dishObj = DB.menu.find(m => m.name === item.name);
+        if (dishObj && DB.recipes[dishObj.id]) {
+          const rec = DB.recipes[dishObj.id];
+          function calcConsumption(ing, mult) {
+            if (ing.type === 'base' || ing.isBase) {
+              const baseObj = DB.baseRecipes.find(b => (b.name || '').toLowerCase().trim() === (ing.name || '').toLowerCase().trim());
+              if (baseObj && baseObj.ingredients) {
+                const usage = Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+                const batchYield = Number(baseObj.batchYield || 1);
+                const fraction = batchYield > 0 ? usage / batchYield : 0;
+                baseObj.ingredients.forEach(sub => calcConsumption(sub, fraction));
+              }
+            } else {
+              if ((ing.name || '').toLowerCase().trim() === (rm.name || '').toLowerCase().trim()) {
+                soldQty += Number(ing.gramsMl || getConvertedGramsMl(ing.qty, ing.unit)) * mult;
+              }
+            }
+          }
+          (rec.ingredients || []).forEach(ing => calcConsumption(ing, Number(item.qty || 1)));
+        }
+      });
+    });
+
+    const unit = rm.unit || 'GRM';
+    const divisor = (unit.toUpperCase() === 'KG' || unit.toUpperCase() === 'LITRE') ? 1000 : 1;
+    soldQty = soldQty / divisor;
+
+    const soldVal = soldQty * Number(rm.unitPrice || 0);
+    const wasteQty = DB.wastageLogs.filter(w => w.item === rm.name).reduce((sum, w) => sum + Number(w.qty), 0);
+    const wasteVal = wasteQty * Number(rm.unitPrice || 0);
+    const closingQty = Math.max(0, openingQty + purchaseQty - soldQty - wasteQty);
+    const closingVal = closingQty * Number(rm.unitPrice || 0);
+
+    return {
+      "Item Name": rm.name,
+      "Opening Qty": openingQty,
+      "Opening Value (₹)": openingVal,
+      "Purchase Qty": purchaseQty,
+      "Purchase Value (₹)": purchaseVal,
+      "Sold / Consumed Qty": soldQty,
+      "Sold / Consumed Value (₹)": soldVal,
+      "Waste Qty": wasteQty,
+      "Waste Value (₹)": wasteVal,
+      "Closing Qty": closingQty,
+      "Closing Value (₹)": closingVal
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Monthly Stock Reconciliation");
+  XLSX.writeFile(wb, "Monthly_Stock_Reconciliation.xlsx");
+  toast("Monthly Stock Reconciliation downloaded!", "file-spreadsheet");
+}
+
+function render() {
+  try {
+    const app = document.getElementById('app');
+    if (!app) return;
+    if (!session.staff) { 
+      app.innerHTML = loginModalHTML(); 
+      wireLogin(); 
+      try { lucide.createIcons(); } catch(e){}
+      return; 
+    }
+    app.innerHTML = kitchenShell(); 
+    wireKitchen(); 
+    try { lucide.createIcons(); } catch(e){}
+  } catch(err) {
+    console.error("Render error:", err);
+  }
+}
+
+function loginModalHTML() {
+  return `
+  <div class="fixed inset-0 z-[100] bg-brand-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+      <div class="flex items-center gap-3 mb-5">
+        <img src="${DB.settings.logoUrl}" class="w-10 h-10 rounded-full bg-brand p-1.5 object-contain shadow">
+        <div>
+          <div class="font-display text-lg font-bold leading-tight text-brand-950">Staff Portal</div>
+          <div class="text-[10px] text-brand-400 uppercase tracking-wider font-semibold">Kitchen &amp; Console</div>
+        </div>
+      </div>
+      <div id="loginError" class="hidden text-xs font-semibold text-red-600 bg-red-50 rounded-xl px-3 py-2 mb-3 border border-red-100"></div>
+      <label class="text-xs font-bold text-brand-600">Username</label>
+      <input id="loginUser" type="text" autocomplete="off" class="w-full mt-1 mb-3 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 bg-slate-50" placeholder="Enter username">
+      <label class="text-xs font-bold text-brand-600">Password</label>
+      <input id="loginPass" type="password" autocomplete="off" class="w-full mt-1 mb-4 border border-brand-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 bg-slate-50" placeholder="••••••••">
+      <button id="loginSubmit" class="w-full bg-brand hover:bg-brand-600 text-cream font-bold py-3.5 rounded-2xl text-sm transition shadow-md active:scale-98">Log In to Console</button>
+      <div class="text-center mt-3"><a href="index.html" class="text-xs text-brand-400 hover:text-brand-600 underline">← Return to Customer App</a></div>
+    </div>
+  </div>`;
+}
+
+function wireLogin() {
+  const submitBtn = document.getElementById('loginSubmit');
+  if (submitBtn) {
+    submitBtn.onclick = () => {
+      unlockAudio();
+      const u = document.getElementById('loginUser').value.trim();
+      const p = document.getElementById('loginPass').value;
+      const found = DB.staff.find(s => s.username === u && s.password === p);
+      const err = document.getElementById('loginError');
+      if (found) {
+        session.staff = found;
+        localStorage.setItem('ps_staff', JSON.stringify(found));
+        session.kitchenTab = 'orders'; 
+        render(); 
+        toast('Welcome back, ' + found.username, 'log-in');
+      } else {
+        if (err) {
+          err.textContent = 'Incorrect username or password.'; 
+          err.classList.remove('hidden');
+        }
+      }
+    };
+  }
+}
+
+function kitchenShell() {
+  const orders = [...DB.orders].filter(o => o.type !== 'retail').sort((a,b) => a.ts - b.ts);
+  const retailOrders = [...DB.orders].filter(o => o.type === 'retail').sort((a,b) => a.ts - b.ts);
+
+  return `
+  <div class="min-h-screen bg-brand-50 pb-16 sm:pb-6">
+    <header class="sticky top-0 z-30 bg-brand-900 text-cream shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img src="${DB.settings.logoUrl}" class="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded-full bg-white/10 p-1 shrink-0">
+          <div class="truncate">
+            <div class="font-display text-sm sm:text-base font-bold leading-tight truncate">${DB.settings.restaurantName}</div>
+            <div class="text-[9px] sm:text-[10px] text-cream/60 uppercase tracking-wide truncate">Kitchen &amp; POS Console</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap">
+          <button id="openBillingModalBtn" class="bg-gold text-white text-[11px] sm:text-xs font-bold px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow hover:opacity-90 active:scale-98 min-h-[40px]">
+            <i data-lucide="receipt" class="w-4 h-4"></i> POS Sales (F2)
+          </button>
+          <button id="openZReportModalBtn" class="bg-indigo-600 text-white text-[11px] sm:text-xs font-bold px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow hover:bg-indigo-500 active:scale-98 min-h-[40px]">
+            <i data-lucide="pie-chart" class="w-4 h-4"></i> Z-Report
+          </button>
+          <button id="openPurchaseModalBtn" class="bg-emerald-600 text-white text-[11px] sm:text-xs font-bold px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow hover:bg-emerald-500 active:scale-98 min-h-[40px]">
+            <i data-lucide="file-up" class="w-4 h-4"></i> Purchase (F10)
+          </button>
+          <button id="openStockTakeModalBtn" class="bg-blue-600 text-white text-[11px] sm:text-xs font-bold px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow hover:bg-blue-500 active:scale-98 min-h-[40px]">
+            <i data-lucide="clipboard-check" class="w-4 h-4"></i> Stock Take
+          </button>
+          <button id="openWastageModalBtn" class="bg-amber-600 text-white text-[11px] sm:text-xs font-bold px-3.5 py-2 rounded-full flex items-center gap-1.5 shadow hover:opacity-90 active:scale-98 min-h-[40px]">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Wastage
+          </button>
+          <button id="logoutBtn" class="text-[11px] sm:text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-full flex items-center gap-1 min-h-[40px]"><i data-lucide="log-out" class="w-4 h-4"></i><span class="hidden sm:inline">Logout</span></button>
+        </div>
+      </div>
+      <nav class="max-w-7xl mx-auto px-2 sm:px-5 flex gap-1 overflow-x-auto scrollbar-none border-t border-brand-800/60 pb-0.5">
+        ${kTab('orders','Active Orders KDS','clipboard-list', orders.filter(o=>o.status!=='served').length)}
+        ${kTab('floor','Table Floor Map','grid','')}
+        ${kTab('forecasting','AI Prep Forecasting','trending-up','')}
+        ${kTab('history','History & Reports','history','')}
+        ${kTab('retail','Retail Req.','shopping-basket', retailOrders.filter(o=>o.status!=='served').length)}
+        ${kTab('inventory','Inventory','package','')}
+        ${kTab('costing','Costing & BOM','calculator','')}
+        ${kTab('menueng','Menu Engineering','pie-chart','')}
+        ${kTab('bulk','Bulk Import','file-spreadsheet','')}
+        ${kTab('qr','QR Tables','qr-code','')}
+        ${kTab('brand','Brand','image','')}
+        ${kTab('users','Staff & Directory','users','')}
+      </nav>
+    </header>
+    <main class="max-w-7xl mx-auto px-3 sm:px-5 py-4 sm:py-5">
+      ${session.kitchenTab === 'orders' ? ordersBoard(orders) : ''}
+      ${session.kitchenTab === 'floor' ? tableFloorMapPanel(orders) : ''}
+      ${session.kitchenTab === 'forecasting' ? forecastingPanel() : ''}
+      ${session.kitchenTab === 'history' ? historyPanel() : ''}
+      ${session.kitchenTab === 'retail' ? retailBoard(retailOrders) : ''}
+      ${session.kitchenTab === 'inventory' ? inventoryPanel() : ''}
+      ${session.kitchenTab === 'costing' ? recipeCostingPanel() : ''}
+      ${session.kitchenTab === 'menueng' ? menuEngineeringPanel() : ''}
+      ${session.kitchenTab === 'bulk' ? bulkPanel() : ''}
+      ${session.kitchenTab === 'qr' ? qrPanel() : ''}
+      ${session.kitchenTab === 'brand' ? brandPanel() : ''}
+      ${session.kitchenTab === 'users' ? usersPanel() : ''}
+    </main>
+    ${session.editingDish !== null ? dishEditorModal() : ''}
+    ${session.editingRetail !== null ? retailEditorModal() : ''}
+    ${session.showRawMaterialsModal ? rawMaterialsModal() : ''}
+    ${session.showBaseRecipesModal ? baseRecipesModal() : ''}
+    ${session.showMainRecipesModal ? mainRecipesModal() : ''}
+    ${session.showBillingModal ? billingModalReferenceStyle() : ''}
+    ${session.showWastageModal ? wastageModal() : ''}
+    ${session.showPurchaseModal ? purchaseModalReferenceStyle() : ''}
+    ${session.showStockTakeModal ? stockTakeModal() : ''}
+    ${session.showZReportModal ? zReportModal() : ''}
+  </div>`;
+}
+
+function kTab(key, label, icon, count) {
+  const active = session.kitchenTab === key;
+  return `<button data-ktab="${key}" class="k-tab shrink-0 relative flex items-center gap-1.5 text-xs font-semibold px-3.5 sm:px-4 py-3 border-b-2 transition whitespace-nowrap min-h-[44px] ${active ? 'border-gold-400 text-cream bg-brand-800/40 rounded-t-lg' : 'border-transparent text-cream/60 hover:text-cream/90'}">
+    <i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i>${label}
+    ${count ? `<span class="ml-1 bg-gold text-white text-[10px] font-bold rounded-full px-1.5 py-0.5">${count}</span>` : ''}
+  </button>`;
+}
+
+function tableFloorMapPanel(orders) {
+  const tables = Array.from({length: 12}, (_, i) => `Table ${String(i+1).padStart(2, '0')}`);
+  return `
+  <div class="space-y-5">
+    <div class="bg-white rounded-2xl card-shadow p-5 flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <h3 class="font-display text-lg font-bold text-brand-950">Visual Table Management &amp; Floor Map</h3>
+        <p class="text-xs text-brand-400">Monitor live table occupancy status and dining duration timers.</p>
+      </div>
+      <div class="flex items-center gap-4 text-xs font-bold">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Vacant</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-amber-500"></span> Occupied (Dining)</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Bill Printed</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      ${tables.map(tName => {
+        const activeOrder = orders.find(o => o.table === tName && o.status !== 'served');
+        const status = activeOrder ? (activeOrder.status === 'ready' ? 'bill' : 'occupied') : 'vacant';
+        const color = status === 'vacant' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : (status === 'occupied' ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-blue-50 border-blue-300 text-blue-900');
+        const badgeColor = status === 'vacant' ? 'bg-emerald-600 text-white' : (status === 'occupied' ? 'bg-amber-600 text-white' : 'bg-blue-600 text-white');
+        const duration = activeOrder ? timeAgo(activeOrder.ts) : 'Ready for Guest';
+
+        return `
+        <div class="border-2 rounded-2xl p-4 flex flex-col justify-between card-shadow transition bg-white ${color}">
+          <div class="flex justify-between items-start mb-3">
+            <span class="font-display text-base font-bold">${tName}</span>
+            <span class="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${badgeColor}">${status}</span>
+          </div>
+          <div class="space-y-2 mb-4">
+            <div class="text-xs font-medium"><b>Duration / Status:</b> ${duration}</div>
+            ${activeOrder ? `<div class="text-xs font-bold text-brand-900">Order #${activeOrder.id} (${activeOrder.items.length} items)</div>` : ''}
+          </div>
+          <button type="button" onclick="session.salesTableNo='${tName}'; session.showBillingModal=true; localStorage.setItem('ps_show_billing', 'true'); render();" class="w-full bg-brand hover:bg-brand-600 text-cream font-bold py-2.5 rounded-xl text-xs transition shadow active:scale-98 min-h-[44px]">
+            ${activeOrder ? 'View / Edit Bill' : 'Open Table Order'}
+          </button>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function forecastingPanel() {
+  const forecasts = [
+    { name: 'Tomato Gravy Base', suggested: '4.5 KG', reason: 'Sunday rush & high historical pasta/curry demand' },
+    { name: 'Multigrain Dosa Batter', suggested: '6.0 LITRE', reason: 'Weekend breakfast surge (expected 45+ covers)' },
+    { name: 'Organic Cold-Pressed Green Juice', suggested: '15 BOTTLES', reason: 'Sunny weather forecast & morning fitness trend' },
+    { name: 'Millet Chocolate Brownie Tray', suggested: '2 TRAYS (24 PCS)', reason: 'High festival season footfall' }
+  ];
+
+  return `
+  <div class="space-y-5">
+    <div class="bg-white rounded-2xl card-shadow p-5">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-700 shrink-0"><i data-lucide="trending-up" class="w-5 h-5"></i></div>
+        <div>
+          <h3 class="font-display text-lg font-bold text-brand-950">AI Smart Demand &amp; Prep Forecasting</h3>
+          <p class="text-xs text-brand-400">Algorithmic batch quantity recommendations based on weather, day-of-week, and historical POS sales.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      ${forecasts.map(f => `
+      <div class="bg-white p-5 rounded-2xl card-shadow border border-brand-100 space-y-3">
+        <div class="flex justify-between items-center">
+          <h4 class="font-display text-base font-bold text-brand-950">${f.name}</h4>
+          <span class="bg-gold text-white text-xs font-bold px-3 py-1 rounded-full">Suggested: ${f.suggested}</span>
+        </div>
+        <p class="text-xs text-brand-600 leading-relaxed"><i data-lucide="sparkles" class="w-3.5 h-3.5 inline mr-1 text-gold-600"></i><b>AI Insight:</b> ${f.reason}</p>
+        <button type="button" onclick="toast('Prep order of ${f.suggested} added to Kitchen Schedule!', 'check-circle')" class="w-full bg-brand text-cream font-bold py-2.5 rounded-xl text-xs hover:bg-brand-600 transition min-h-[40px]">
+          Generate Batch Prep Ticket
+        </button>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function zReportModal() {
+  const completedOrders = DB.orders.filter(o => o.status === 'served');
+  const grossSales = completedOrders.reduce((acc, o) => acc + calculateOrderTotal(o), 0);
+  const taxCollected = grossSales * 0.05;
+  const cashSales = completedOrders.filter(o => o.paymentMode === 'Cash').reduce((acc, o) => acc + calculateOrderTotal(o), 0);
+  const digitalSales = grossSales - cashSales;
+  const wastageCost = DB.wastageLogs.reduce((acc, w) => acc + (w.qty * 40), 0);
+
+  return `
+  <div class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="modal-fade bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-brand-100">
+        <div>
+          <h3 class="font-display text-lg font-bold text-brand-950">End-of-Day (Z-Report / Day Closing)</h3>
+          <p class="text-xs text-brand-400">Shift summary for counter drawer reconciliation &amp; tax filing.</p>
+        </div>
+        <button type="button" onclick="session.showZReportModal=false; render();" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs font-medium bg-slate-50 p-4 rounded-2xl border border-slate-200">
+        <div class="flex justify-between py-1 border-b border-slate-200"><span>Total Gross Sales:</span><span class="font-mono font-bold text-brand-950">${money(grossSales)}</span></div>
+        <div class="flex justify-between py-1 border-b border-slate-200"><span>Cash in Drawer (Recorded):</span><span class="font-mono font-bold text-emerald-700">${money(cashSales + 2000)}</span></div>
+        <div class="flex justify-between py-1 border-b border-slate-200"><span>Digital UPI/Card Settlements:</span><span class="font-mono font-bold text-blue-700">${money(digitalSales)}</span></div>
+        <div class="flex justify-between py-1 border-b border-slate-200"><span>Total GST Collected (5%):</span><span class="font-mono font-bold text-brand-900">${money(taxCollected)}</span></div>
+        <div class="flex justify-between py-1"><span>Total Wastage Cost:</span><span class="font-mono font-bold text-red-600">${money(wastageCost)}</span></div>
+      </div>
+
+      <div class="flex gap-2">
+        <button type="button" onclick="window.print(); toast('Z-Report sent to thermal printer!', 'printer');" class="flex-1 bg-brand text-cream font-bold py-3 rounded-xl text-xs transition shadow min-h-[44px]">Print Z-Report</button>
+        <button type="button" onclick="session.showZReportModal=false; render();" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-4 py-3 rounded-xl text-xs min-h-[44px]">Close</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function ordersBoard(orders) {
+  const cols = [ ['received','Received','amber'], ['preparing','Preparing','blue'], ['ready','Ready','green'] ];
+  const station = session.kdsStationFilter;
+  
+  const filteredOrders = orders.map(o => ({
+    ...o,
+    items: o.items.filter(it => {
+      if (station === 'all') return true;
+      if (station === 'bar') return (it.name || '').toLowerCase().includes('juice') || (it.name || '').toLowerCase().includes('coffee') || (it.name || '').toLowerCase().includes('tea');
+      if (station === 'bakery') return (it.name || '').toLowerCase().includes('cake') || (it.name || '').toLowerCase().includes('brownie') || (it.name || '').toLowerCase().includes('cookie');
+      return !(it.name || '').toLowerCase().includes('juice') && !(it.name || '').toLowerCase().includes('coffee') && !(it.name || '').toLowerCase().includes('cake');
+    })
+  })).filter(o => o.items.length > 0);
+
+  return `
+  <div class="space-y-4">
+    <div class="bg-white p-3.5 rounded-2xl card-shadow flex items-center justify-between flex-wrap gap-2">
+      <div class="flex items-center gap-2 text-xs font-bold text-brand-900">
+        <i data-lucide="filter" class="w-4 h-4 text-brand-600"></i> Kitchen Station Filter:
+      </div>
+      <div class="flex gap-1.5 flex-wrap">
+        <button type="button" onclick="session.kdsStationFilter='all'; render();" class="px-3.5 py-2 rounded-xl text-xs font-bold min-h-[40px] ${station==='all'?'bg-brand text-cream':'bg-slate-100 text-slate-700'}">All Stations</button>
+        <button type="button" onclick="session.kdsStationFilter='hot'; render();" class="px-3.5 py-2 rounded-xl text-xs font-bold min-h-[40px] ${station==='hot'?'bg-brand text-cream':'bg-slate-100 text-slate-700'}">Hot Kitchen</button>
+        <button type="button" onclick="session.kdsStationFilter='bar'; render();" class="px-3.5 py-2 rounded-xl text-xs font-bold min-h-[40px] ${station==='bar'?'bg-brand text-cream':'bg-slate-100 text-slate-700'}">Beverage Bar</button>
+        <button type="button" onclick="session.kdsStationFilter='bakery'; render();" class="px-3.5 py-2 rounded-xl text-xs font-bold min-h-[40px] ${station==='bakery'?'bg-brand text-cream':'bg-slate-100 text-slate-700'}">Bakery &amp; Desserts</button>
+      </div>
+    </div>
+
+    <div class="flex gap-3 sm:gap-4 overflow-x-auto kanban-scroll pb-4">
+      ${cols.map(([key, label, color]) => `
+      <div class="kanban-col shrink-0 w-[85vw] sm:w-[320px] max-w-[340px]">
+        <div class="flex items-center gap-2 mb-2 px-1">
+          <span class="w-2.5 h-2.5 rounded-full bg-${color==='amber'?'gold':color==='blue'?'brand-500':'green-500'}"></span>
+          <span class="text-sm font-bold text-brand-900">${label}</span>
+          <span class="text-xs font-semibold text-brand-400">(${filteredOrders.filter(o=>o.status===key).length})</span>
+        </div>
+        <div class="space-y-2.5">
+          ${filteredOrders.filter(o => o.status === key).map(orderCard).join('') || `<div class="text-xs text-brand-300 text-center py-8 border-2 border-dashed border-brand-200 rounded-2xl bg-white/50">No orders</div>`}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function orderCard(o) {
+  const nextMap = { received:'preparing', preparing:'ready', ready:'served' };
+  const nextLabel = { received:'Start Preparing', preparing:'Mark Ready', ready:'Mark Served / Complete' };
+  
+  const elapsedMinutes = Math.floor((Date.now() - o.ts) / 60000);
+  let timerBg = 'border-emerald-500 bg-white';
+  let badgeColor = 'bg-emerald-100 text-emerald-800';
+  if (elapsedMinutes >= 10 && elapsedMinutes < 20) {
+    timerBg = 'border-amber-500 bg-amber-50/20';
+    badgeColor = 'bg-amber-100 text-amber-800 animate-pulse';
+  } else if (elapsedMinutes >= 20) {
+    timerBg = 'border-red-600 bg-red-50/30';
+    badgeColor = 'bg-red-600 text-white animate-bounce';
+  }
+
+  return `
+  <div class="rounded-2xl card-shadow p-3.5 sm:p-4 border-l-4 ${timerBg}">
+    <div class="flex items-center justify-between mb-1.5">
+      <span class="font-display text-sm sm:text-base font-bold text-brand-950">#${o.id} · Table ${o.table}</span>
+      <span class="text-[10px] font-bold px-2.5 py-0.5 rounded-full ${badgeColor}">${elapsedMinutes}m elapsed</span>
+    </div>
+    ${o.customerName ? `<div class="text-xs font-bold text-brand-800 mb-2 truncate"><i data-lucide="user" class="w-3 h-3 inline mr-1 text-gold-600"></i>${o.customerName} (${o.customerPhone || 'N/A'})</div>` : ''}
+    <div class="space-y-1.5 mb-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
+      ${o.items.map((it, iIdx) => `
+        <div onclick="this.classList.toggle('line-through'); this.classList.toggle('opacity-40');" class="text-xs text-brand-900 font-medium flex justify-between cursor-pointer hover:bg-slate-50 p-1.5 rounded transition">
+          <span>${it.qty}× ${it.name}</span>
+          <span class="text-[11px] text-slate-500 font-mono">Tap to prep</span>
+        </div>`).join('')}
+    </div>
+    ${o.notes ? `<div class="text-[11px] bg-amber-50 text-amber-900 rounded-lg p-2 mb-3 border border-amber-200/60"><i data-lucide="message-square" class="w-3 h-3 inline mr-1 text-amber-700"></i>${o.notes}</div>` : ''}
+    <div class="flex gap-2">
+      ${nextMap[o.status] ? `<button class="advance-order w-full bg-brand hover:bg-brand-600 text-cream text-xs font-bold py-3 rounded-xl transition shadow active:scale-98 min-h-[44px]" data-id="${o.id}" data-next="${nextMap[o.status]}">${nextLabel[o.status]}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function wireKitchen() {
+  document.querySelectorAll('.advance-order').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id, next = btn.dataset.next;
+      const updates = { [`orders/${id}/status`]: next };
+      if (next === 'served') updates[`orders/${id}/completedTs`] = Date.now();
+      await db.ref().update(updates);
+    };
+  });
+
+  const openBillBtn = document.getElementById('openBillingModalBtn');
+  if (openBillBtn) openBillBtn.onclick = () => { session.showBillingModal = true; localStorage.setItem('ps_show_billing', 'true'); render(); };
+  
+  const openZBtn = document.getElementById('openZReportModalBtn');
+  if (openZBtn) openZBtn.onclick = () => { session.showZReportModal = true; render(); };
+
+  const closeBillBtn = document.getElementById('closeBillingModalBtn');
+  if (closeBillBtn) closeBillBtn.onclick = () => { session.showBillingModal = false; localStorage.removeItem('ps_show_billing'); render(); };
+
+  const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
+  if (openPurchaseBtn) openPurchaseBtn.onclick = () => { session.showPurchaseModal = true; localStorage.setItem('ps_show_purchase', 'true'); render(); };
+
+  const closePurchaseBtn = document.getElementById('closePurchaseModalBtn');
+  if (closePurchaseBtn) closePurchaseBtn.onclick = () => { session.showPurchaseModal = false; localStorage.removeItem('ps_show_purchase'); render(); };
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) logoutBtn.onclick = () => { localStorage.removeItem('ps_staff'); session.staff = null; render(); };
+
+  document.querySelectorAll('.k-tab').forEach(b => {
+    b.onclick = () => { session.kitchenTab = b.dataset.ktab; localStorage.setItem('ps_active_tab', b.dataset.ktab); render(); };
+  });
+
+  const openStockTakeBtn = document.getElementById('openStockTakeModalBtn');
+  if (openStockTakeBtn) openStockTakeBtn.onclick = () => { session.showStockTakeModal = true; render(); };
+  const closeStockTakeModalBtn = document.getElementById('closeStockTakeModalBtn');
+  if (closeStockTakeModalBtn) closeStockTakeModalBtn.onclick = () => { session.showStockTakeModal = false; render(); };
+
+  const openWastageBtn = document.getElementById('openWastageModalBtn');
+  if (openWastageBtn) openWastageBtn.onclick = () => { session.showWastageModal = true; render(); };
+  const closeWastageModalBtn = document.getElementById('closeWastageModalBtn');
+  if (closeWastageModalBtn) closeWastageModalBtn.onclick = () => { session.showWastageModal = false; render(); };
+
+  const openMainBtn = document.getElementById('openMainRecipesModalBtn');
+  if (openMainBtn) openMainBtn.onclick = () => { session.showMainRecipesModal = true; localStorage.setItem('ps_show_main_recipe', 'true'); render(); };
+  const launchMainBtn = document.getElementById('launchMainMasterBtn');
+  if (launchMainBtn) launchMainBtn.onclick = () => { session.showMainRecipesModal = true; localStorage.setItem('ps_show_main_recipe', 'true'); render(); };
+  const closeMainModalBtn = document.getElementById('closeMainRecipesModalBtn');
+  if (closeMainModalBtn) closeMainModalBtn.onclick = () => { session.showMainRecipesModal = false; localStorage.removeItem('ps_show_main_recipe'); render(); };
+
+  const manageBaseBtn = document.getElementById('manageBaseRecipesBtn');
+  if (manageBaseBtn) manageBaseBtn.onclick = () => { session.showBaseRecipesModal = true; render(); };
+  const closeBaseBtn = document.getElementById('closeBaseRecipesBtn');
+  if (closeBaseBtn) closeBaseBtn.onclick = () => { session.showBaseRecipesModal = false; render(); };
+
+  const manageIngBtn = document.getElementById('manageIngredientsBtn');
+  if (manageIngBtn) manageIngBtn.onclick = () => { session.showRawMaterialsModal = true; render(); };
+  const closeRmBtn = document.getElementById('closeRawMaterialsBtn');
+  if (closeRmBtn) closeRmBtn.onclick = () => { session.showRawMaterialsModal = false; render(); };
+
+  // Global Keyboard Hotkeys for Cashiers
+  window.onkeydown = (e) => {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      session.showBillingModal = true;
+      localStorage.setItem('ps_show_billing', 'true');
+      render();
+      setTimeout(() => document.getElementById('globalSalesSearchInput')?.focus(), 100);
+    } else if (e.key === 'F4') {
+      e.preventDefault();
+      session.salesItems = [];
+      render();
+      toast('Cart cleared via F4 shortcut.');
+    } else if (e.key === 'F9' || (e.key === 'Enter' && session.showBillingModal)) {
+      e.preventDefault();
+      document.getElementById('completeSalesBillBtn')?.click();
+    } else if (e.key === 'F10') {
+      e.preventDefault();
+      session.showPurchaseModal = true;
+      localStorage.setItem('ps_show_purchase', 'true');
+      render();
+    } else if (e.key === 'Escape') {
+      session.showBillingModal = false;
+      session.showPurchaseModal = false;
+      session.showMainRecipesModal = false;
+      session.showStockTakeModal = false;
+      session.showZReportModal = false;
+      render();
+    }
+  };
+}
+
+function renderKeepFocus(inputId) {
+  const activeEl = document.getElementById(inputId);
+  const start = activeEl ? activeEl.selectionStart : null;
+  const end = activeEl ? activeEl.selectionEnd : null;
+  const scrollContainer = activeEl ? activeEl.closest('.overflow-y-auto') : null;
+  const scrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+
+  render();
+
+  const newScrollContainer = activeEl ? document.getElementById(inputId)?.closest('.overflow-y-auto') : null;
+  if (newScrollContainer) newScrollContainer.scrollTop = scrollTop;
+  else window.scrollTo(0, scrollTop);
+
+  const el = document.getElementById(inputId);
+  if (el) {
+    el.focus();
+    if (start !== null && end !== null) el.setSelectionRange(start, end);
+  }
+}
+
+db.ref('menu').on('value', snap => { DB.menu = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('retail').on('value', snap => { DB.retail = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('orders').on('value', snap => { DB.orders = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('rawMaterials').on('value', snap => { DB.rawMaterials = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('baseRecipes').on('value', snap => { DB.baseRecipes = snap.val() ? Object.values(snap.val()) : []; render(); });
+db.ref('recipes').on('value', snap => { DB.recipes = snap.val() || {}; render(); });
+db.ref('wastageLogs').on('value', snap => { DB.wastageLogs = snap.val() || []; render(); });
+db.ref('purchases').on('value', snap => { DB.purchases = snap.val() || []; render(); });
+db.ref('suppliers').on('value', snap => { const d=snap.val(); if(d) DB.suppliers=Object.values(d); render(); });
+db.ref('customers').on('value', snap => { const d=snap.val(); if(d) DB.customers=Object.values(d); render(); });
+db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.val(); render(); } });
+
+(function boot() {
+  document.addEventListener('touchstart', unlockAudio, { once: true });
+  document.addEventListener('click', unlockAudio, { once: true });
+  render();
+})();
+</script>
+</body>
+</html>
