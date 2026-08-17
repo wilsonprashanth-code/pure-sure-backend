@@ -3583,7 +3583,6 @@ const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
       toast('Recipe & Food Costing saved successfully!', 'check-circle');
     };
   }
-}
 
 async function executePurchaseSaveWithDetails(rm, invoiceNo, vendor, vendorPhone, vendorGst, rmName, qty, unit, totalAmount, newRate) {
   if (rm) {
@@ -3704,21 +3703,9 @@ db.ref('settings').on('value', snap => { if (snap.val()) { DB.settings = snap.va
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyDgcmuM3JjPPwrDdeRWuwNKuW2Uelc0Eso",
-    authDomain: "pure-sure-app.firebaseapp.com",
-    databaseURL: "https://pure-sure-app-default-rtdb.firebaseio.com",
-    projectId: "pure-sure-app",
-    storageBucket: "pure-sure-app.firebasestorage.app",
-    messagingSenderId: "995301245014",
-    appId: "1:995301245014:web:56a9cf39e5c21c3418bbf7"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-</script>
 
 <script>
   tailwind.config = {
