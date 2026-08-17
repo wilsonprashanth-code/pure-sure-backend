@@ -1726,7 +1726,19 @@ function mainRecipesModal() {
         </div>
         <button id="closeMainRecipesModalBtn" class="w-9 h-9 rounded-full bg-brand-50 flex items-center justify-center text-brand-700 hover:bg-brand-100 transition"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
+<button type="button" onclick="
+        const newId = uid('dish');
+        DB.menu.push({ id: newId, name: 'New Menu Dish', category: 'Cafe', price: 150, stock: true });
+        DB.recipes[newId] = { portions: 1, wastagePercent: 10, ingredients: [] };
+        session.activeRecipeDishId = newId;
+        render();
+        toast('New dish created!');
+      " class="w-full bg-posGreen text-white font-bold py-2 px-3 rounded-xl text-xs mb-3 flex items-center justify-center gap-1.5 shadow">
+        <i data-lucide="plus" class="w-3.5 h-3.5"></i> + Add New Main Dish
+      </button>
 
+      <div class="bg-brand-50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-brand-100 mb-3 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
+        ...
       <div class="bg-brand-50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-brand-100 mb-3 flex items-center justify-between flex-wrap gap-2 text-xs shrink-0">
         <div class="font-bold text-brand-900 flex items-center gap-1.5">
           <i data-lucide="file-spreadsheet" class="w-4 h-4 text-brand-600"></i> Excel Upload
@@ -2535,7 +2547,52 @@ function wireKitchen() {
       render();
     };
   });
+const createNewBaseBtn = document.getElementById('createNewBaseRecipeBtn');
+  if (createNewBaseBtn) {
+    createNewBaseBtn.onclick = async () => {
+      const newBaseId = uid('br');
+      const newBase = { id: newBaseId, name: 'New Base Prep', batchYield: 1, unit: 'GRM', ingredients: [] };
+      
+      // Save to Firebase database and local state
+      await db.ref('baseRecipes/' + newBaseId).set(newBase);
+      DB.baseRecipes.push(newBase);
+      session.editingBaseRecipeId = newBaseId;
+      render();
+      toast('New base recipe created!');
+    };
+  }
 
+  // Global Keyboard Hotkeys for Cashiers
+  window.onkeydown = (e) => {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      session.showBillingModal = true;
+      localStorage.setItem('ps_show_billing', 'true');
+      render();
+      setTimeout(() => document.getElementById('globalSalesSearchInput')?.focus(), 100);
+    } else if (e.key === 'F4') {
+      e.preventDefault();
+      session.salesItems = [];
+      render();
+      toast('Cart cleared via F4 shortcut.');
+    } else if (e.key === 'F9' || (e.key === 'Enter' && session.showBillingModal)) {
+      e.preventDefault();
+      document.getElementById('completeSalesBillBtn')?.click();
+    } else if (e.key === 'F10') {
+      e.preventDefault();
+      session.showPurchaseModal = true;
+      localStorage.setItem('ps_show_purchase', 'true');
+      render();
+    } else if (e.key === 'Escape') {
+      session.showBillingModal = false;
+      session.showPurchaseModal = false;
+      session.showMainRecipesModal = false;
+      session.showStockTakeModal = false;
+      session.showZReportModal = false;
+      render();
+    }
+  };
+}
   const openPurchaseBtn = document.getElementById('openPurchaseModalBtn');
   if (openPurchaseBtn) {
     openPurchaseBtn.onclick = () => { 
