@@ -15,7 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <script>
-  const firebaseConfig = {
+  window.firebaseConfig = window.firebaseConfig || {
     apiKey: "AIzaSyDgcmuM3JjPPwrDdeRWuwNKuW2Uelc0Eso",
     authDomain: "pure-sure-app.firebaseapp.com",
     databaseURL: "https://pure-sure-app-default-rtdb.firebaseio.com",
@@ -24,7 +24,7 @@
     messagingSenderId: "995301245014",
     appId: "1:995301245014:web:56a9cf39e5c21c3418bbf7"
   };
-  firebase.initializeApp(firebaseConfig);
+  firebase.initializeApp(window.firebaseConfig);
   const db = firebase.database();
 </script>
 
