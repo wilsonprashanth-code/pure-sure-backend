@@ -76,13 +76,13 @@
 <div id="app"></div>
 <div id="toastHost" class="fixed top-4 left-1/2 -translate-x-1/2 z-[250] flex flex-col gap-2 items-center pointer-events-none w-11/12 max-w-sm"></div>
 <script>
-  document.addEventListener('click', (e) => {
+document.addEventListener('click', (e) => {
   const tabButton = e.target.closest('.k-tab');
   if (tabButton) {
     const key = tabButton.getAttribute('data-ktab');
     if (key) {
       session.kitchenTab = key;
-      renderApp();
+      render(); // <-- Changed from renderApp() to render()
     }
   }
 });
