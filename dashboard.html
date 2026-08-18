@@ -77,13 +77,28 @@
 <div id="toastHost" class="fixed top-4 left-1/2 -translate-x-1/2 z-[250] flex flex-col gap-2 items-center pointer-events-none w-11/12 max-w-sm"></div>
 <script>
 document.addEventListener('click', (e) => {
-  const tabButton = e.target.closest('.k-tab');
-  if (tabButton) {
-    const key = tabButton.getAttribute('data-ktab');
+  // 1. Handle navigation tabs
+  const tab = e.target.closest('[data-ktab]');
+  if (tab) {
+    const key = tab.getAttribute('data-ktab');
     if (key) {
       session.kitchenTab = key;
-      render(); // <-- Changed from renderApp() to render()
+      render();
     }
+    return;
+  }
+
+  // 2. Handle top action buttons (POS, Purchase, Stock Take, Wastage, etc.)
+  const actionBtn = e.target.closest('button');
+  if (actionBtn) {
+    const text = actionBtn.innerText.trim();
+    if (text.includes('POS Sales')) { session.showBillingModal = true; render(); }
+    else if (text.includes('Purchase Entry')) { session.showPurchaseModal = true; render(); }
+    else if (text.includes('Stock Take')) { session.showStockTakeModal = true; render(); }
+    else if (text.includes('Wastage')) { session.showWastageModal = true; render(); }
+    else if (text.includes('Main Recipe Master')) { session.showMainRecipesModal = true; render(); }
+    else if (text.includes('Materials')) { session.showRawMaterialsModal = true; render(); }
+    else if (text.includes('Base Preps')) { session.showBaseRecipesModal = true; render(); }
   }
 });
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
