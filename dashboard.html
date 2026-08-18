@@ -7,7 +7,10 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- 1. Load Firebase Core App FIRST -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+
+<!-- 2. Load Firebase Database Compat SECOND -->
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
 <script>
@@ -20,11 +23,12 @@
     messagingSenderId: "995301245014",
     appId: "1:995301245014:web:56a9cf39e5c21c3418bbf7"
   };
-  firebase.initializeApp(firebaseConfig);
+
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
   const db = firebase.database();
 </script>
-
-<script>
   tailwind.config = {
     theme: {
       extend: {
