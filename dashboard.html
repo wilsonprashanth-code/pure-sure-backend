@@ -88,7 +88,25 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // 2. Handle top action buttons (POS, Purchase, Stock Take, Wastage, etc.)
+  // 2. Handle clicking on a dish in either Main Recipes or Base Preps list
+  const card = e.target.closest('.bg-white, .border, div[class*="cursor-pointer"]');
+  if (card && (card.closest('#mainRecipesModal') || card.closest('#baseRecipesModal'))) {
+    const titleEl = card.querySelector('h4, div.font-bold, span');
+    if (titleEl) {
+      const itemName = titleEl.innerText.trim();
+      
+      // Check if it's a main recipe or base prep and load it into the editor state
+      if (card.closest('#mainRecipesModal') && DB.recipes && DB.recipes[itemName]) {
+        session.editingDish = itemName;
+        render();
+      } else if (card.closest('#baseRecipesModal') && DB.baseRecipes && DB.baseRecipes[itemName]) {
+        session.editingBaseRecipe = itemName;
+        render();
+      }
+    }
+  }
+
+  // 3. Handle top action buttons & modals
   const actionBtn = e.target.closest('button');
   if (actionBtn) {
     const text = actionBtn.innerText.trim();
@@ -99,6 +117,19 @@ document.addEventListener('click', (e) => {
     else if (text.includes('Main Recipe Master')) { session.showMainRecipesModal = true; render(); }
     else if (text.includes('Materials')) { session.showRawMaterialsModal = true; render(); }
     else if (text.includes('Base Preps')) { session.showBaseRecipesModal = true; render(); }
+  }
+});
+
+// 4. Handle live search typing for both Main Dishes and Base Preps
+document.addEventListener('input', (e) => {
+  if (e.target.matches('input[placeholder*="Filter"], input[placeholder*="Search"], input[placeholder*="alfre"]')) {
+    const query = e.target.value.toLowerCase();
+    if (e.target.closest('#baseRecipesModal')) {
+      session.baseSearchQuery = query;
+    } else {
+      session.dishSearchQuery = query;
+    }
+    render();
   }
 });
 const DEFAULT_LOGO = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%23105955'/><path d='M50 20 C30 40 30 70 50 80 C70 70 70 40 50 20 Z' fill='%23D4A359'/></svg>";
